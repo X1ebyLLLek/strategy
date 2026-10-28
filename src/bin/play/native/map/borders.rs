@@ -205,7 +205,8 @@ impl MapView {
         }
         let t = self.t();
         // (28th session: thinner — the front was a band of four colours eleven points wide)
-        let half = (0.9 + 0.35 * self.k.min(4.0)).min(2.3);
+        // (30th session: slimmer still — a thick red line round every lone province was a tangle of loops over the front)
+        let half = (0.8 + 0.22 * self.k.min(4.0)).min(1.7);
         for (line, ours_left, k, strong) in &lit_border {
             // (a border an army guards in peace: lit only for the chosen armies, as HOI4 shows the
             // front of the army in hand)
@@ -246,7 +247,7 @@ impl MapView {
                     .collect()
             };
             let (ours, theirs) = if *ours_left { (side(0.7 * half), side(-0.8 * half)) } else { (side(-0.7 * half), side(0.8 * half)) };
-            painter.add(egui::Shape::line(line.clone(), Stroke::new(2.9 * half + 1.2, Color32::from_black_alpha(150))));
+            painter.add(egui::Shape::line(line.clone(), Stroke::new(2.9 * half + 1.0, Color32::from_black_alpha(105))));
             painter.add(egui::Shape::line(theirs, Stroke::new(1.5 * half, Color32::from_rgb(214, 52, 40))));
             match hue {
                 // (a group's stretch, not chosen: our side as any of ours — the armies' colours only
