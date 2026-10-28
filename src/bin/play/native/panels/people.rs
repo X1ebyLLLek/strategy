@@ -29,29 +29,40 @@ fn life_card(g: &Game, p: &Person) -> Card {
 fn person_row(ui: &mut egui::Ui, s: &Skin, g: &Game, id: u32, note: &str) {
     let p = g.folk.get(id).clone();
     let now = g.month() as i32;
-    let resp = kit::framed(ui, Some(if p.alive() { s.accent } else { s.soft }), false, |ui| {
+    // (30th session: the stripe at the left in the calling's colour — soldiers red, scholars blue, economists amber,
+    // statesmen violet — so that a list of thirty people falls into kinds at a glance; the calling as a small tag,
+    // the age and fame on a line of their own, the last deed set apart in italics-grey)
+    let tone = match p.calling {
+        Calling::General => kit::BAD,
+        Calling::Scientist => Color32::from_rgb(70, 110, 160),
+        Calling::Economist => kit::MIXED,
+        Calling::Statesman => Color32::from_rgb(120, 90, 150),
+    };
+    let resp = kit::framed(ui, Some(if p.alive() { tone } else { s.soft }), false, |ui| {
         ui.horizontal(|ui| {
             let post_kind = if p.calling == Calling::General { "general" } else { "civil" };
-            if let Some(img) = portrait(&g.face_of(&p.name, post_kind), 36.0) {
+            if let Some(img) = portrait(&g.face_of(&p.name, post_kind), 44.0) {
                 ui.add(img);
             } else {
                 let icons = chrome::icons(ui.ctx());
-                let (r, _) = ui.allocate_exact_size(vec2(36.0, 45.0), egui::Sense::hover());
-                super::super::look::icon(&icons, p.calling.icon(), 30.0, s.soft).paint_at(ui, r.shrink(3.0));
+                let (r, _) = ui.allocate_exact_size(vec2(44.0, 55.0), egui::Sense::hover());
+                super::super::look::icon(&icons, p.calling.icon(), 34.0, s.soft).paint_at(ui, r.shrink(3.0));
             }
+            ui.add_space(4.0);
             ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 1.0;
-                kit::bold(ui, p.name.clone(), 15.0, s.ink);
+                ui.spacing_mut().item_spacing.y = 2.0;
+                kit::bold(ui, p.name.clone(), 15.5, s.ink);
                 let what = match p.post() {
                     Some(x) => format!("{} · {}", p.calling.word(), x.word()),
                     None => p.calling.word().to_string(),
                 };
+                kit::words(ui, what, 13.0, kit::ink(s, tone));
                 let age = if p.alive() { format!("{} лет", p.age(now) as u32) } else { format!("умер в {} лет", p.age(now) as u32) };
-                kit::words(ui, format!("{what} · {age} · {}", p.fame_word()), 12.5, s.soft);
+                kit::words(ui, format!("{age} · {}", p.fame_word()), 12.5, s.soft);
                 if !note.is_empty() {
                     kit::words(ui, note, 12.5, s.ink);
                 } else if let Some(d) = p.deeds.last() {
-                    kit::words(ui, d.text.clone(), 12.5, s.ink);
+                    kit::words(ui, d.text.clone(), 12.5, s.ink.gamma_multiply(0.85));
                 }
             });
         });

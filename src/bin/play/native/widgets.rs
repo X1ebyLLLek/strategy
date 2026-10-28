@@ -265,9 +265,10 @@ pub fn switch(ui: &mut Ui, options: &[&str], chosen: usize) -> Option<usize> {
     } else {
         (14.0, n.div_ceil(2))
     };
-    let w = (room / per_row as f32).floor();
     let mut out = None;
     for row in options.chunks(per_row).enumerate() {
+        // (30th session: each row fills the width by itself — three plates over two of another width were a lopsided block)
+        let w = (room / row.1.len() as f32).floor();
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             for (j, name) in row.1.iter().enumerate() {

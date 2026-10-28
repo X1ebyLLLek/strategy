@@ -232,7 +232,7 @@ pub fn bars(ui: &mut Ui, items: &[(String, f32, Color32)], fmt: &dyn Fn(f32) -> 
     let (ch, s) = chrome::dress(ui);
     let top = items.iter().map(|x| x.1.abs()).fold(0.0f32, f32::max).max(1e-9);
     let w = ui.available_width();
-    let label_w = (w * 0.42).min(190.0);
+    let label_w = (w * 0.50).min(230.0);
     let num_w = 62.0;
     let mut out = Vec::new();
     for (name, val, col) in items {
