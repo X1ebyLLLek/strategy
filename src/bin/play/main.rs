@@ -289,6 +289,7 @@ fn main() {
             choose: arg("--choose").and_then(|v| v.parse().ok()),
             draft: args.iter().any(|a| a == "--draft"),
             fronts: args.iter().any(|a| a == "--fronts"),
+            guide: args.iter().any(|a| a == "--guide"),
             size: arg("--size").and_then(|v| {
                 let (x, y) = v.split_once('x')?;
                 Some((x.trim().parse().ok()?, y.trim().parse().ok()?))

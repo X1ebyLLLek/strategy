@@ -141,15 +141,33 @@ pub fn plot(ui: &mut Ui, title: &str, series: &[(String, Color32, Vec<f32>)], mo
         // (in the line's colour, but dark enough to read on the paper: a gold line's figure too)
         ui.painter().text(pos2(inner.right() + 6.0, y), egui::Align2::LEFT_CENTER, text, FontId::new(12.0, egui::FontFamily::Name("bold".into())), hud::lerp(col, s.ink, 0.65));
     }
-    // the legend
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = 10.0;
-        for (name, col, vals) in series {
-            let (sw, _) = ui.allocate_exact_size(vec2(14.0, 10.0), Sense::hover());
-            ui.painter().rect_filled(sw, 2.0, *col);
-            ui.label(egui::RichText::new(format!("{name}: {}", fmt(vals.last().copied().unwrap_or(0.0)))).size(12.5).color(s.ink));
+    // the legend: each series a swatch and its last value, laid out by hand in rows (29th session:
+    // a wrapped label's box began where its row did, under the swatch of the series before it)
+    {
+        let width = ui.available_width();
+        let items: Vec<(Color32, std::sync::Arc<egui::Galley>)> = series
+            .iter()
+            .map(|(name, col, vals)| (*col, ui.painter().layout_no_wrap(format!("{name}: {}", fmt(vals.last().copied().unwrap_or(0.0))), FontId::proportional(12.5), s.ink)))
+            .collect();
+        let (mut x, mut row) = (0.0f32, 0usize);
+        let mut spots = Vec::new();
+        for (_, gal) in &items {
+            let w = 14.0 + 6.0 + gal.size().x;
+            if x > 0.0 && x + w > width {
+                x = 0.0;
+                row += 1;
+            }
+            spots.push((x, row));
+            x += w + 12.0;
         }
-    });
+        let rows = spots.last().map_or(0, |p| p.1 + 1);
+        let (area, _) = ui.allocate_exact_size(vec2(width, rows as f32 * 18.0), Sense::hover());
+        for ((col, gal), (x, row)) in items.into_iter().zip(spots) {
+            let y = area.min.y + row as f32 * 18.0;
+            ui.painter().rect_filled(Rect::from_min_size(pos2(area.min.x + x, y + 4.0), vec2(14.0, 10.0)), 2.0, col);
+            ui.painter().galley(pos2(area.min.x + x + 20.0, y + 9.0 - gal.size().y / 2.0), gal, s.ink);
+        }
+    }
     match at {
         Some(i) => resp.tip(|| {
             let mut c = Card::new(title.to_string()).sub(crate::words::date_words(months[i]));

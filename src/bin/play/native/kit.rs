@@ -215,11 +215,13 @@ pub fn stats(ui: &mut Ui, items: &[Stat], cols: usize) -> Vec<Response> {
                 let nw = gn.size().x;
                 ui.painter().galley(pos2(x, r.min.y + 18.5), gn, val_col);
                 let room = tw - nw - 6.0;
+                // (29th session: the word whole or not at all — «пол...» cut in the middle read as a fault;
+                // the card of the tile says it in full)
                 if room > 24.0 && !it.value.is_empty() {
-                    let mut job = egui::text::LayoutJob::simple_singleline(it.value.clone(), FontId::new(12.5, FontFamily::Proportional), s.desk_ink.gamma_multiply(0.8));
-                    job.wrap = egui::text::TextWrapping::truncate_at_width(room);
-                    let gw = ui.painter().layout_job(job);
-                    ui.painter().galley(pos2(x + nw + 6.0, r.min.y + 21.5), gw, s.desk_ink);
+                    let gw = ui.painter().layout_no_wrap(it.value.clone(), FontId::new(12.5, FontFamily::Proportional), s.desk_ink.gamma_multiply(0.8));
+                    if gw.size().x <= room {
+                        ui.painter().galley(pos2(x + nw + 6.0, r.min.y + 21.5), gw, s.desk_ink);
+                    }
                 }
             }
             None => {

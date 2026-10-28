@@ -16,6 +16,7 @@ mod cursor;
 mod designer;
 mod flags;
 mod frame;
+mod guide;
 mod hud;
 mod kit;
 mod look;
@@ -128,6 +129,8 @@ pub struct Shot {
     /// The fronts shown off: the first two groups on the whole front with the enemy, the third
     /// facing another neighbour; the tool of the front in hand.
     pub fronts: bool,
+    /// The guide open (its page by `--guide N`).
+    pub guide: bool,
 }
 
 /// The window spoiled on purpose (`SPOIL=1`), for the negative control of its self-checks: the
@@ -190,6 +193,9 @@ struct App {
     /// How many lines of the news the player has seen (the newspaper's medallion is marked while
     /// hot news waits unread).
     news_seen: usize,
+    /// The guide («Как играть») open, and its page.
+    guide_open: bool,
+    guide_page: usize,
 }
 
 /// A mark on a sphere's medallion: its folder and how grave (from the reports, 28th session).
@@ -210,11 +216,13 @@ pub struct Settings {
     pub scale: f32,
     pub full: bool,
     pub tip: f64,
+    /// The guide has been shown once (it opens by itself only the first time).
+    pub guide_seen: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { scale: 1.0, full: false, tip: chrome::TIP_WAIT }
+        Settings { scale: 1.0, full: false, tip: chrome::TIP_WAIT, guide_seen: true }
     }
 }
 
@@ -225,11 +233,14 @@ impl Settings {
 
     pub fn load() -> Settings {
         let mut s = Settings::default();
+        // (no file yet: the first time the game is played)
+        s.guide_seen = false;
         if let Ok(text) = std::fs::read_to_string(Self::file()) {
             for l in text.lines() {
                 match l.split_once('=') {
                     Some(("scale", v)) => s.scale = v.trim().parse().unwrap_or(1.0f32).clamp(0.7, 1.6),
                     Some(("full", v)) => s.full = v.trim() == "1",
+                    Some(("guide", v)) => s.guide_seen = v.trim() == "1",
                     Some(("tip", v)) => s.tip = v.trim().parse().unwrap_or(chrome::TIP_WAIT).clamp(0.0, 2.0),
                     _ => {}
                 }
@@ -240,7 +251,7 @@ impl Settings {
 
     fn save(&self) {
         let _ = std::fs::create_dir_all(crate::tools::saves::DIR);
-        let _ = std::fs::write(Self::file(), format!("scale={}\nfull={}\ntip={}\n", self.scale, self.full as u8, self.tip));
+        let _ = std::fs::write(Self::file(), format!("scale={}\nfull={}\ntip={}\nguide={}\n", self.scale, self.full as u8, self.tip, self.guide_seen as u8));
     }
 
     /// The settings put into the window.
@@ -290,6 +301,8 @@ impl App {
             settings: Settings::default(),
             hist: Vec::new(),
             news_seen: 0,
+            guide_open: false,
+            guide_page: 0,
         }
     }
 
@@ -330,7 +343,8 @@ pub fn run(shared: Arc<Mutex<Game>>, shot: Option<Shot>, start: bool) -> eframe:
         viewport: egui::ViewportBuilder::default().with_inner_size([size.0, size.1]).with_min_inner_size([1100.0, 640.0]).with_title(format!("{name} — стратегия")),
         // (the land in three dimensions: a depth buffer, smooth edges of the mountains)
         depth_buffer: 24,
-        multisampling: 4,
+        // (`NOAA=1`: no smoothing, for a software screen that has no such buffer — pictures on a server)
+        multisampling: if std::env::var("NOAA").is_ok_and(|v| v == "1") { 0 } else { 4 },
         // (pictures measure the frames as fast as they go, not at the screen's pace)
         vsync: shot.is_none(),
         ..Default::default()
@@ -361,6 +375,11 @@ pub fn run(shared: Arc<Mutex<Game>>, shot: Option<Shot>, start: bool) -> eframe:
                 set_page(&cc.egui_ctx, t, k);
             }
             app.menu = with_menu;
+            // (`--guide` — for a picture)
+            if app.shot.as_ref().is_some_and(|x| x.guide) {
+                app.guide_open = true;
+                app.guide_page = std::env::args().skip_while(|a| a != "--guide").nth(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+            }
             app.keys_open = with_menu && std::env::args().any(|a| a == "--keys");
             app.loading = with_menu && !app.keys_open;
             app.edit = edit;

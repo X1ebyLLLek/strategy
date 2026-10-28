@@ -148,7 +148,11 @@ fn neighbours(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         }
         let x = fr.max.x + 10.0;
         ui.painter().text(pos2(x, row.min.y + 6.0), egui::Align2::LEFT_TOP, name.to_uppercase(), egui::FontId::new(15.0, egui::FontFamily::Name("head".into())), s.ink);
-        ui.painter().text(pos2(x, row.min.y + 25.0), egui::Align2::LEFT_TOP, stand, egui::FontId::proportional(13.5), if is_rival { s.accent } else { s.soft });
+        // (29th session: the words stop where the gauge begins — «держит наши былые земли» ran under it)
+        let mut job = egui::text::LayoutJob::simple_singleline(stand.to_string(), egui::FontId::proportional(13.5), if is_rival { s.accent } else { s.soft });
+        job.wrap = egui::text::TextWrapping::truncate_at_width((row.max.x - 156.0 - x).max(40.0));
+        let sg = ui.painter().layout_job(job);
+        ui.painter().galley(pos2(x, row.min.y + 25.0), sg, s.soft);
         // (their economy against ours: five pips, ours in the middle)
         let mut v = chrome::Out::new();
         let lvl = (2.5 * ratio).clamp(0.2, 5.0);

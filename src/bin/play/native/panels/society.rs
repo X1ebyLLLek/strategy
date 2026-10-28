@@ -131,8 +131,11 @@ pub fn society(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
                 let icons = chrome::icons(ui.ctx());
                 let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::hover());
                 super::super::look::icon(&icons, BLOC[b].icon, 20.0, bloc_col(b)).paint_at(ui, r);
-                let (nr, _) = ui.allocate_exact_size(vec2(118.0, 20.0), egui::Sense::hover());
-                let nameplate = ui.painter().text(nr.left_center(), egui::Align2::LEFT_CENTER, BLOC[b].name, egui::FontId::new(13.5, egui::FontFamily::Name("bold".into())), s.ink);
+                let (nr, _) = ui.allocate_exact_size(vec2(130.0, 20.0), egui::Sense::hover());
+                // (29th session: a long name in smaller letters, and the crown after it, never over it)
+                let room = nr.width() - if in_gov { 18.0 } else { 2.0 };
+                let fsz = [13.5f32, 12.5].into_iter().find(|&z| ui.painter().layout_no_wrap(BLOC[b].name.to_string(), egui::FontId::new(z, egui::FontFamily::Name("bold".into())), s.ink).size().x <= room).unwrap_or(12.5);
+                let nameplate = ui.painter().text(nr.left_center(), egui::Align2::LEFT_CENTER, BLOC[b].name, egui::FontId::new(fsz, egui::FontFamily::Name("bold".into())), s.ink);
                 // (those in the government: a crown after the name)
                 if in_gov {
                     let cr = egui::Rect::from_center_size(egui::pos2((nameplate.max.x + 10.0).min(nr.max.x - 7.0), nr.center().y), vec2(14.0, 14.0));

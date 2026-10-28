@@ -6,6 +6,9 @@ use super::*;
 /// The height of the country's bar.
 pub(super) const H: f32 = 64.0;
 
+/// The room the clock, the guide's and the menu's medallions take at the bar's right end.
+const CLOCK: f32 = 346.0;
+
 impl App {
     /// The country's bar: the flag in a frame hanging over the bar's edge and the name; the
     /// spheres as medallions; how the country lives (each an icon in its socket, a word and a
@@ -91,8 +94,8 @@ impl App {
                 let gal = ui.painter().layout_no_wrap(name.clone(), font.clone(), s.desk_ink);
                 // (as many spheres as the folders shown: science and the navy only when the era has them)
                 let count = 9.0 + g.h.labs[me].is_some() as u8 as f32 + (!g.pack.ships.is_empty()) as u8 as f32;
-                let spheres = count * 51.0 + 36.0;
-                let room = ui.available_width() - (gal.size().x + 6.0) - spheres - 300.0;
+                let spheres = count * 51.0 + 36.0 + 4.0 * 11.0;
+                let room = ui.available_width() - (gal.size().x + 6.0) - spheres - CLOCK;
                 if !narrow && room >= Self::lives_need(ui, g, s, narrow, bare, false) {
                     let (r, _) = ui.allocate_exact_size(egui::vec2(gal.size().x + 6.0, H - 12.0), egui::Sense::hover());
                     let at = egui::pos2(r.min.x, r.center().y - gal.size().y / 2.0);
@@ -110,7 +113,7 @@ impl App {
                 // as small as the words alone need)
                 // (a margin for the spacing between the parts of the bar: with eleven spheres the
                 // numbers missed their room by a few points)
-                let radius = |lean: bool| ((ui.available_width() - 18.0 - 30.0 - Self::lives_need(ui, g, s, narrow, bare, lean) - 300.0) / count - 3.0 - 4.0) / 2.0;
+                let radius = |lean: bool| ((ui.available_width() - 18.0 - 30.0 - 4.0 * 11.0 - Self::lives_need(ui, g, s, narrow, bare, lean) - CLOCK) / count - 3.0 - 4.0) / 2.0;
                 // (with eleven spheres the medallions give a little more of their size to the numbers)
                 let r = if radius(false) >= 13.5 { radius(false) } else { radius(true) }.clamp(13.0, 22.0);
                 self.spheres(ui, ctx, g, &ch, s, &alarms, unread, r);
@@ -156,7 +159,28 @@ impl App {
         .filter(|t| t.0 != Tab::Navy || !g.pack.ships.is_empty())
         .collect();
         ui.spacing_mut().item_spacing.x = 3.0;
+        // (29th session: the spheres in groups — the country; the economy; the war; the state's
+        // people and neighbours; the reports — a thin line between them, so that eleven discs read
+        // as five things)
+        let group = |t: Tab| match t {
+            Tab::Nation => 0,
+            Tab::Econ | Tab::Arms | Tab::Science => 1,
+            Tab::Army | Tab::Navy => 2,
+            Tab::Politics | Tab::Society | Tab::People => 3,
+            _ => 4,
+        };
+        let mut last_group = None;
         for (tab, icon, name, what, hue) in tabs {
+            if last_group.is_some_and(|k| k != group(tab)) {
+                let bar = ui.max_rect();
+                ui.add_space(4.0);
+                let x = ui.cursor().min.x;
+                let mut v = chrome::Out::new();
+                v.push(egui::Shape::line_segment([egui::pos2(x, bar.min.y + 16.0), egui::pos2(x, bar.max.y - 16.0)], egui::Stroke::new(1.0, ch.trim.gamma_multiply(0.55))));
+                ui.painter().extend(v);
+                ui.add_space(4.0);
+            }
+            last_group = Some(group(tab));
             let on = self.tab == Some(tab);
             let b = hud::medallion(ui, &ch, &s, icon, r, hue, on, ("sphere", icon));
             chrome::spot(ctx, "sphere", b.rect);
@@ -205,7 +229,7 @@ impl App {
         let tension = g.state.tension;
         let tw = g.tension_word();
         let full = Self::lives_words(g, narrow);
-        let lean = ui.available_width() - 300.0 < Self::lives_need(ui, g, s, narrow, bare, false);
+        let lean = ui.available_width() - CLOCK < Self::lives_need(ui, g, s, narrow, bare, false);
         let text_of = |head: &str| full.iter().find(|x| x.0 == head).map_or(String::new(), |x| x.1.clone());
         let mut open: Option<(Tab, usize)> = None;
         let warn = Color32::from_rgb(240, 196, 92);
@@ -365,6 +389,9 @@ impl App {
             if hud::medallion(ui, &ch, &s, "scroll", 19.0, Color32::from_rgb(222, 214, 190), self.menu, "menu").tip(|| Card::new("Меню").icon("scroll").text("Сохранить, загрузить, новый мир, выйти.").note("Esc — то же самое")).clicked() {
                 self.menu = !self.menu;
                 g.paused = true;
+            }
+            if hud::medallion(ui, &ch, &s, "compass", 19.0, Color32::from_rgb(160, 210, 170), self.guide_open, "guide").tip(|| Card::new("Как играть").icon("compass").text("С чего начать, как двигать карту, что значат знаки, все клавиши.").note("клавиша F1")).clicked() {
+                self.guide_open = !self.guide_open;
             }
             let date = g.date();
             let font = egui::FontId::new(17.0, egui::FontFamily::Name("bold".into()));

@@ -623,7 +623,9 @@ void main() {
                 // At strategic zoom this is the only province contour.  Make it a firm ink line:
                 // a faint, terrain-coloured line vanishes completely in a forest or in mountain
                 // shadow before the smooth close-up contour takes over.
-                col = mix(col, col * 0.34, prov * uBorders);
+                // (29th session: a hierarchy of lines — the countries' borders firm, the provinces'
+                // lighter: 9000 provinces in one ink made a net over the whole map)
+                col = mix(col, col * mix(0.68, 0.30, edge), prov * uBorders);
                 edge += front * 0.0;
             }
         }

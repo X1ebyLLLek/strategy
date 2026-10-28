@@ -168,6 +168,13 @@ impl App {
         if let Some(m) = self.map.as_mut() {
             m.picking = false;
         }
+        // (the first game played: the guide opens by itself, once, with the clock waiting)
+        if self.shot.is_none() && !self.settings.guide_seen && g.auto.is_none() {
+            self.guide_open = true;
+            self.settings.guide_seen = true;
+            self.settings.save();
+            g.paused = true;
+        }
         self.settings_window(ctx);
         appear(ctx, egui::Id::new("menu-appear"), egui::Id::new("menu"), self.menu);
         let ev_id = g.ev.waiting.first().map(|e| egui::Id::new(("event", e.id)));
@@ -175,6 +182,7 @@ impl App {
         appear(ctx, egui::Id::new("designer-appear"), egui::Id::new("designer"), self.edit.is_some() && self.tab == Some(Tab::Army));
         self.top(ctx, &mut g);
         self.banner(ctx, &mut g);
+        self.guide(ctx, &mut g);
         self.event(ctx, &mut g);
         self.new_world(ctx, &mut g);
         if g.h.war.command[g.me].is_some() {
@@ -208,6 +216,9 @@ impl App {
         // groups by their numbers, the orders, the speed by + and −)
         self.war_keys(ctx);
         let (space, esc) = ctx.input(|i| (i.key_pressed(egui::Key::Space), i.key_pressed(egui::Key::Escape)));
+        if ctx.input(|i| i.key_pressed(egui::Key::F1)) {
+            self.guide_open = !self.guide_open;
+        }
         if !ctx.wants_keyboard_input() {
             let mut g = self.shared.lock().unwrap();
             if space {
@@ -220,7 +231,9 @@ impl App {
                 let open = self.tab.is_some() || self.map.as_ref().is_some_and(|m| m.build != map::Build::None);
                 let picked = self.map.as_ref().is_some_and(|m| !m.picked.is_empty());
                 let drawing = self.map.as_ref().is_some_and(|m| m.tool != map::Tool::None);
-                if self.menu {
+                if self.guide_open {
+                    self.guide_open = false;
+                } else if self.menu {
                     self.menu = false;
                 } else if drawing {
                     if let Some(m) = self.map.as_mut() {
@@ -379,11 +392,18 @@ impl App {
         let icons = &self.icons;
         egui::Area::new(egui::Id::new("modes")).anchor(egui::Align2::RIGHT_BOTTOM, [-12.0, -12.0]).show(ctx, |ui| {
             let back = chrome::hold(ui);
-            let fr = egui::Frame::none().inner_margin(egui::Margin::symmetric(8.0, 7.0)).show(ui, |ui| {
+            let fr = egui::Frame::none().inner_margin(egui::Margin::symmetric(8.0, 6.0)).show(ui, |ui| {
+                // (29th session: twelve modes in two rows of six, the name of the shown one over
+                // them — a row of twelve unnamed discs took half of the army bar's width)
+                let (name_now, tip_now) = map::Mode::ALL.iter().find(|x| x.0 == m.mode).map_or(("", ""), |x| (x.1, x.2));
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("КАРТА · {}", name_now.to_uppercase())).family(egui::FontFamily::Name("head".into())).size(13.0).color(s.desk_ink));
+                });
+                let _ = tip_now;
                 if let Some((lo, hi)) = m.mode.ends() {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(lo).size(13.0).color(s.desk_ink));
-                        let (r, _) = ui.allocate_exact_size(egui::vec2(150.0, 12.0), egui::Sense::hover());
+                        ui.label(RichText::new(lo).size(12.0).color(s.desk_ink));
+                        let (r, _) = ui.allocate_exact_size(egui::vec2(110.0, 10.0), egui::Sense::hover());
                         let p = ui.painter();
                         p.rect_filled(r.expand(1.5), 2.0, Color32::from_black_alpha(200));
                         for i in 0..30 {
@@ -391,27 +411,26 @@ impl App {
                             let x = r.min.x + r.width() * i as f32 / 30.0;
                             p.rect_filled(egui::Rect::from_min_size(egui::pos2(x, r.min.y), egui::vec2(r.width() / 30.0 + 0.5, r.height())), 0.0, Color32::from_rgb(c[0] as u8, c[1] as u8, c[2] as u8));
                         }
-                        let mut v = chrome::Out::new();
-                        ch.gloss(&mut v, r, Color32::from_white_alpha(50), Color32::from_black_alpha(40));
-                        v.push(egui::Shape::rect_stroke(r.expand(1.5), 2.0, egui::Stroke::new(1.0, ch.trim)));
-                        p.extend(v);
-                        ui.label(RichText::new(hi).size(13.0).color(s.desk_ink));
+                        p.rect_stroke(r.expand(1.5), 2.0, egui::Stroke::new(1.0, ch.trim));
+                        ui.label(RichText::new(hi).size(12.0).color(s.desk_ink));
                     });
-                    ui.add_space(2.0);
                 }
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 4.0;
-                    for (mode, name, tip) in map::Mode::ALL {
-                        let on = m.mode == mode;
-                        let icon = mode.icon();
-                        let _ = icons;
-                        let b = hud::medallion(ui, &ch, &s, icon, 19.0, s.desk_ink, on, ("mode", icon));
-                        chrome::spot_last(ctx, "mode", b.rect);
-                        if b.tip(|| Card::new(format!("Карта: {}", name.to_lowercase())).icon(icon).text(tip).note(if on { "показана сейчас" } else { "щёлкните, чтобы показать" })).clicked() {
-                            m.mode = mode;
+                ui.add_space(2.0);
+                let _ = icons;
+                ui.spacing_mut().item_spacing = egui::vec2(4.0, 3.0);
+                for row in map::Mode::ALL.chunks(6) {
+                    ui.horizontal(|ui| {
+                        for &(mode, name, tip) in row {
+                            let on = m.mode == mode;
+                            let icon = mode.icon();
+                            let b = hud::medallion(ui, &ch, &s, icon, 16.0, s.desk_ink, on, ("mode", icon));
+                            chrome::spot_last(ctx, "mode", b.rect);
+                            if b.tip(|| Card::new(format!("Карта: {}", name.to_lowercase())).icon(icon).text(tip).note(if on { "показана сейчас" } else { "щёлкните, чтобы показать" })).clicked() {
+                                m.mode = mode;
+                            }
                         }
-                    }
-                });
+                    });
+                }
             });
             let mut v = chrome::Out::new();
             let r = fr.response.rect;
