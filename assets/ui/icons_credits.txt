@@ -1,0 +1,8 @@
+- DarkZaitzev: revolt
+- Delapouite: submarine, ancient-ruins, bandit, binoculars, bread, cardboard-box, castle, cavalry, coal-pile, coins-pile, factory, fast-backward-button, fast-forward-button, flag-objective, graduate-cap, grain-bundle, heavy-bullets, histogram, jerrycan, medicines, meeple-group, mortar, newspaper, old-wagon, organigram, path-distance, pie-chart, powder-bag, revolver, ringing-alarm, rolled-cloth, shop, stamper, star-medal, stone-wall, stop-sign, truck, village, vote, walkie-talkie, water-flask, wood-pile, wooden-crate
+- Faithtoken: ore
+- Guard13007: pause-button, play-button
+- Lorc: anchor, galleon, anvil, back-forth, barbed-wire, battle-tank, boot-prints, broken-shield, bullets, cannon, cog, compass, crossed-pistols, crossed-swords, crown, crystal-ball, erlenmeyer, falling-leaf, fist, gears, gem-pendant, hand, hazard-sign, holy-symbol, horse-head, hourglass, hunting-horn, metal-bar, mining, mountains, on-target, pointing, quill, quill-ink, radar-dish, rally-the-troops, return-arrow, rocket, scales, scroll-unfurled, snowflake-2, spade, spanner, sprout, striking-arrows, sun, sword-clash, wheat
+- Quoting: artillery-shell
+- Sbed: shield
+- Skoll: airplane, apc, brodie-helmet, jeep, musket

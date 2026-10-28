@@ -1,0 +1,65 @@
+# Игрушка 2: два товара, две группы. Поля принадлежат горожанам (помещикам).
+name = "Игрушка 2"
+about = "Еда и одежда; крестьяне и горожане."
+
+[government]
+tax = 0.1
+military = 0.0
+
+[[good]]
+id = "food"
+name = "еда"
+price = 1.0
+
+[[good]]
+id = "cloth"
+name = "одежда"
+price = 2.0
+
+[[group]]
+id = "peasants"
+name = "крестьяне"
+share = 0.8
+becomes = ["town"]
+needs = [
+  { good = "food", amount = 1.0, weight = 4, vital = true },
+  { good = "cloth", amount = 0.1, weight = 1 },
+]
+
+[[group]]
+id = "town"
+name = "горожане"
+share = 0.2
+needs = [
+  { good = "food", amount = 1.0, weight = 4, vital = true },
+  { good = "cloth", amount = 0.5, weight = 1 },
+]
+
+[[sector]]
+id = "farms"
+name = "поля"
+workers = { peasants = 1.0 }
+outputs = { food = 1.6 }
+owner = "town"
+wage_share = 0.8
+start = 0.75
+land = true
+build = { cloth = 1, food = 2 }
+
+[[sector]]
+id = "textile"
+name = "ткачи"
+workers = { town = 1.0 }
+outputs = { cloth = 1.0 }
+owner = "town"
+start = 0.18
+build = { cloth = 2 }
+
+# Торговля между странами: торгуют горожане.
+[trade]
+owner = "town"
+margin = 0.05
+sea = 0.0002
+land = 0.001
+sea_speed = 200
+land_speed = 50

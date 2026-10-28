@@ -1,0 +1,868 @@
+# Набор эпохи: индустриальная (≈1900–1950). Движок ничего не знает об эпохах —
+# всё ниже можно менять, добавлять свои товары, группы, отрасли и ресурсы.
+#
+# Единицы: население — миллионы людей; нужды — на миллион человек в месяц;
+# входы/выходы отраслей — на миллион работников в месяц; start — доля всего
+# населения, занятая в отрасли в начале игры.
+
+name = "Индустриальная эпоха"
+about = "Уголь, сталь, железные дороги, массовые армии."
+
+[government]
+tax = 0.15        # доля доходов, уходящая в казну
+military = 0.4    # доля трат казны на военные товары
+
+[world]
+people = [1000.0, 1750.0]   # сколько миллионов людей в мире (каждый мир — свой счёт между ними): Земля 1830-х … 1910-х
+
+# ---------------- товары ----------------
+[[good]]
+id = "food"
+icon = "wheat"
+name = "продовольствие"
+price = 1.0
+bulk = 2
+
+[[good]]
+id = "cloth"
+icon = "cloth"
+name = "одежда"
+price = 2.0
+bulk = 0.5
+
+[[good]]
+id = "fuel"
+icon = "jerrycan"
+name = "топливо"
+price = 2.0
+bulk = 1.5
+
+[[good]]
+id = "coal"
+icon = "coal"
+name = "уголь"
+price = 1.0
+bulk = 3
+
+[[good]]
+id = "ore"
+icon = "ore"
+name = "руда"
+price = 1.0
+bulk = 3
+
+[[good]]
+id = "steel"
+icon = "metal"
+name = "сталь"
+price = 3.0
+bulk = 1.5
+
+[[good]]
+id = "tools"
+icon = "gears"
+name = "машины"
+price = 5.0
+bulk = 0.5
+
+[[good]]
+id = "goods"
+icon = "box"
+name = "товары"
+price = 4.0
+bulk = 0.5
+
+[[good]]
+id = "services"
+icon = "shop"
+name = "услуги"
+price = 2.0
+bulk = 1
+tradable = false
+
+[[good]]
+id = "arms"
+icon = "pistols"
+name = "вооружение"
+price = 8.0
+bulk = 1
+military = true
+
+[[good]]
+id = "ammo"
+icon = "bullets"
+name = "боеприпасы"
+price = 3.0
+bulk = 1
+military = true
+
+# ---------------- ресурсы на карте ----------------
+# chance — шанс месторождения в провинции по типу местности
+# (plains, forest, hills, mountains, desert, marsh, jungle, tundra, arctic)
+[[resource]]
+id = "coal"
+name = "уголь"
+chance = { hills = 0.15, mountains = 0.10, plains = 0.05, forest = 0.06, tundra = 0.08 }
+
+[[resource]]
+id = "iron"
+name = "железо"
+chance = { hills = 0.25, mountains = 0.30, plains = 0.03, forest = 0.03 }
+
+[[resource]]
+id = "oil"
+name = "нефть"
+chance = { desert = 0.12, marsh = 0.12, plains = 0.04, tundra = 0.05, jungle = 0.04 }
+
+# ---------------- группы населения ----------------
+# needs — по порядку важности; vital = без этого люди умирают;
+# weight — насколько больно, если не хватает; patience — сколько терпят.
+[[group]]
+id = "peasants"
+name = "крестьяне"
+share = 0.58
+patience = 4
+becomes = ["workers"]   # в город, на заводы
+needs = [
+  { good = "food", amount = 1.0, weight = 4, vital = true },
+  { good = "cloth", amount = 0.1, weight = 1 },
+  { good = "fuel", amount = 0.02, weight = 0.5 },
+  { good = "services", amount = 0.05, weight = 0.5 },
+]
+
+[[group]]
+id = "workers"
+name = "рабочие"
+share = 0.25
+patience = 3
+becomes = ["clerks"]    # выучиться в служащие
+needs = [
+  { good = "food", amount = 1.0, weight = 4, vital = true },
+  { good = "cloth", amount = 0.4, weight = 1.5 },
+  { good = "fuel", amount = 0.2, weight = 1 },
+  { good = "services", amount = 0.3, weight = 1 },
+]
+
+[[group]]
+id = "clerks"
+name = "служащие"
+share = 0.10
+patience = 4
+needs = [
+  { good = "food", amount = 1.0, weight = 3, vital = true },
+  { good = "cloth", amount = 0.4, weight = 1 },
+  { good = "fuel", amount = 0.2, weight = 1 },
+  { good = "services", amount = 0.3, weight = 1 },
+  { good = "goods", amount = 0.2, weight = 1 },
+]
+
+[[group]]
+id = "owners"
+name = "собственники"
+share = 0.07
+patience = 5
+needs = [
+  { good = "food", amount = 1.2, weight = 2, vital = true },
+  { good = "cloth", amount = 1.0, weight = 1 },
+  { good = "fuel", amount = 0.5, weight = 1 },
+  { good = "services", amount = 1.0, weight = 1 },
+  { good = "goods", amount = 1.0, weight = 1 },
+]
+
+# ---------------- отрасли ----------------
+[[sector]]
+id = "farms"
+name = "хозяйства"
+workers = { peasants = 1.0 }
+boost = { tools = { amount = 0.02, gain = 0.3 } }   # машины поднимают урожай на 30%
+outputs = { food = 1.6 }
+owner = "owners"
+wage_share = 0.9
+start = 0.53
+land = true
+build = { tools = 2, steel = 1 }
+
+[[sector]]
+id = "textile"
+name = "текстиль"
+workers = { workers = 1.0 }
+outputs = { cloth = 4.0 }
+owner = "owners"
+start = 0.07
+build = { tools = 3, steel = 2 }
+
+[[sector]]
+id = "coal_mines"
+name = "угольные шахты"
+workers = { workers = 1.0 }
+outputs = { coal = 6.0 }
+owner = "owners"
+start = 0.03
+deposit = "coal"
+per_deposit = 0.4
+build = { tools = 3, steel = 2 }
+
+[[sector]]
+id = "iron_mines"
+name = "рудники"
+workers = { workers = 1.0 }
+outputs = { ore = 6.0 }
+owner = "owners"
+start = 0.02
+deposit = "iron"
+per_deposit = 0.4
+build = { tools = 3, steel = 2 }
+
+[[sector]]
+id = "oil_wells"
+name = "нефтепромыслы"
+workers = { workers = 1.0 }
+outputs = { fuel = 8.0 }
+owner = "owners"
+start = 0.015
+deposit = "oil"
+per_deposit = 0.3
+build = { tools = 4, steel = 3 }
+
+[[sector]]
+id = "coal_fuel"
+name = "углеперегонка"
+workers = { workers = 1.0 }
+inputs = { coal = 3.0 }
+outputs = { fuel = 3.0 }
+owner = "owners"
+start = 0.01
+build = { tools = 3, steel = 2 }
+
+[[sector]]
+id = "steel_mills"
+name = "металлургия"
+workers = { workers = 0.9, clerks = 0.1 }
+inputs = { ore = 3.0, coal = 2.0 }
+outputs = { steel = 3.0 }
+owner = "owners"
+start = 0.035
+build = { tools = 4, steel = 3 }
+
+[[sector]]
+id = "machine_works"
+name = "машиностроение"
+workers = { workers = 0.8, clerks = 0.2 }
+inputs = { steel = 1.5, coal = 0.5 }
+outputs = { tools = 0.5, goods = 3.0 }
+owner = "owners"
+start = 0.035
+build = { tools = 4, steel = 3 }
+
+[[sector]]
+id = "arsenals"
+name = "арсеналы"
+workers = { workers = 0.9, clerks = 0.1 }
+inputs = { steel = 2.0, fuel = 0.5 }
+outputs = { arms = 1.0, ammo = 3.0 }
+owner = "owners"
+start = 0.01
+build = { tools = 4, steel = 3 }
+
+[[sector]]
+id = "offices"
+name = "конторы и сервис"
+workers = { clerks = 1.0 }
+outputs = { services = 2.3 }
+owner = "owners"
+wage_share = 0.8
+start = 0.09
+build = { tools = 1, goods = 1 }
+
+# ---------------- торговля между странами ----------------
+# Пароходы и железные дороги: возить дёшево и быстро. 1 пиксель карты ≈ 20 км.
+[trade]
+owner = "owners"
+margin = 0.03
+sea = 0.00005
+land = 0.0003
+port = 0.02
+sea_speed = 600
+land_speed = 900
+
+# ---------------- война ----------------
+# Бой считает движок; здесь — какие бывают войска. class — чем часть является для чужого
+# огня (классы задаёт сам набор), fire — урон в день по каждому классу, toughness — сколько
+# урона выдерживает одна часть, cover — насколько часть пользуется укрытием местности
+# (1 — полностью), terrain — её огонь на этой местности против равнины, line — где стоит:
+# front (держит фронт), support (бьёт из-за линии), air (в воздухе). equip — товары, чтобы
+# её создать, supply — товары на месяц боёв, width — сколько места во фронте занимает
+# (1 — обычная часть). Одна часть — примерно батальон.
+[science]
+learned = ["clerks", "owners"]   # кто может работать в лабораториях: служащие и собственники
+share = 0.05      # обычная доля трат казны на науку (когда наука включена)
+
+[ui]
+# облик экрана игры: staff (штабная бумага), parchment (пергамент), rust (ржавый металл)
+theme = "staff"   # штабная бумага и папки
+
+[war]
+width = 12        # сколько частей передней линии воюют рядом на равнине
+days = 30         # самый долгий бой: месяц
+man_cost = 5      # цена тысячи человек против товаров по начальным ценам
+scale = 0.02      # доля товара рынка за единицей снаряжения и снабжения части (рынок считает товары
+                  # по месячной нужде миллиона людей; батальон не съедает хлеб миллиона)
+crew = 10         # сколько тысяч человек за единицей men части (часть фронта — соединение)
+
+[[unit]]
+id = "infantry"
+model = "винтовка"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 0         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 1        # что пробивает
+attack = 0.95      # огонь в наступлении против обычного (прорыв)
+defend = 1.1      # огонь в обороне
+complexity = 1.0  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+norms = true      # норма оснащения: бедно / штатно / богато (пулемёты, миномёты, грузовики на батальон)
+name = "пехота"
+icon = "helmet"      # значок на экране (ui/icons.svg)
+symbol = "infantry"   # знак на карте
+class = "люди"
+men = 1.0
+equip = { arms = 0.5 }
+supply = { ammo = 0.2 }
+fire = { "люди" = 1.0, "броня" = 0.1, "воздух" = 0.05 }
+toughness = 1.0
+
+[[unit]]
+id = "tanks"
+model = "танк"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 3         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 3        # что пробивает
+attack = 1.2      # огонь в наступлении против обычного (прорыв)
+defend = 0.9      # огонь в обороне
+complexity = 2.2  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+name = "танки"
+icon = "tank"      # значок на экране (ui/icons.svg)
+symbol = "armour"   # знак на карте
+class = "броня"
+men = 0.3
+equip = { arms = 1.5, steel = 4, tools = 0.5 }
+supply = { fuel = 1.0, ammo = 0.3 }
+fire = { "люди" = 3.5, "броня" = 2.0 }
+toughness = 4.0
+cover = 0.3
+speed = 3
+terrain = { forest = 0.6, hills = 0.7, mountains = 0.35, marsh = 0.35, jungle = 0.4 }
+
+[[unit]]
+id = "antitank"
+model = "противотанковая пушка"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 0         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 4        # что пробивает
+attack = 0.8      # огонь в наступлении против обычного (прорыв)
+defend = 1.2      # огонь в обороне
+complexity = 1.3  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+norms = true      # норма оснащения: бедно / штатно / богато (пулемёты, миномёты, грузовики на батальон)
+name = "противотанковые пушки"
+icon = "shell"      # значок на экране (ui/icons.svg)
+symbol = "antitank"   # знак на карте
+class = "люди"
+men = 0.5
+equip = { arms = 1.0, steel = 1 }
+supply = { ammo = 0.2 }
+fire = { "люди" = 0.3, "броня" = 4.0 }
+toughness = 0.8
+speed = 0.8
+width = 0.5       # батарея занимает полместа во фронте
+
+[[unit]]
+id = "artillery"
+model = "гаубица"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 0         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 2        # что пробивает
+attack = 1.15      # огонь в наступлении против обычного (прорыв)
+defend = 1.1      # огонь в обороне
+complexity = 1.5  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+name = "артиллерия"
+icon = "cannon"      # значок на экране (ui/icons.svg)
+symbol = "artillery"   # знак на карте
+class = "люди"
+line = "support"
+men = 0.6
+equip = { arms = 1.5, steel = 2 }
+supply = { ammo = 1.0 }
+fire = { "люди" = 3.0, "броня" = 0.8 }
+cover = 0.6
+speed = 0.7
+
+[[unit]]
+id = "aviation"
+model = "самолёт"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 1         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 2        # что пробивает
+attack = 1.1      # огонь в наступлении против обычного (прорыв)
+defend = 1.0      # огонь в обороне
+complexity = 2.5  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+name = "авиация"
+icon = "plane"      # значок на экране (ui/icons.svg)
+symbol = "air"   # знак на карте
+class = "воздух"
+line = "air"
+men = 0.2
+equip = { arms = 1.0, tools = 2, steel = 2 }
+supply = { fuel = 2.0, ammo = 0.3 }
+fire = { "люди" = 2.5, "броня" = 2.0, "воздух" = 2.0 }
+toughness = 2.0
+cover = 0
+speed = 10
+terrain = { forest = 0.6, jungle = 0.4, mountains = 0.6, marsh = 0.8 }
+
+[[unit]]
+id = "antiair"
+model = "зенитка"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 0         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 2        # что пробивает
+attack = 0.9      # огонь в наступлении против обычного (прорыв)
+defend = 1.2      # огонь в обороне
+complexity = 1.4  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+name = "ПВО"
+icon = "radar"      # значок на экране (ui/icons.svg)
+symbol = "antiair"   # знак на карте
+class = "люди"
+line = "support"
+men = 0.4
+equip = { arms = 0.8, steel = 1 }
+supply = { ammo = 0.5 }
+fire = { "люди" = 0.3, "броня" = 0.3, "воздух" = 3.0 }
+toughness = 0.8
+cover = 0.7
+speed = 0.8
+
+# Роты поддержки (война дивизиями): одна на дивизию, служит всей дивизии — крупной столько же,
+# сколько мелкой, за ту же цену. men — в единицах части (батальон — десятая), товары — на роту.
+# dig — окапывается во столько раз быстрее; rough — доля дней марша по лесу, холмам, болоту, горам;
+# see — на сколько провинций глубже видит врага; org — во столько раз быстрее приходит в себя;
+# saved — доля погибших, что возвращаются в строй; eat — доля снабжения, что ест дивизия;
+# fire — во столько раз сильнее огонь; salvage — доля снаряжения, что не бросают при отходе.
+[[support]]
+id = "engineers"
+name = "сапёры"
+about = "роют окопы вдвое быстрее, наводят переправы и гати — по лесу, холмам и болоту дивизия идёт быстрее"
+icon = "spade"
+men = 0.03
+equip = { tools = 0.06, steel = 0.04 }
+dig = 2.0
+rough = 0.8
+
+[[support]]
+id = "recon"
+name = "разведбат"
+about = "видит врага на провинцию глубже; бой начинается там, где выгоднее, — огонь дивизии чуть сильнее"
+icon = "binoculars"
+men = 0.03
+equip = { arms = 0.03, tools = 0.03 }
+supply = { fuel = 0.02 }
+see = 1
+fire = 1.05
+
+[[support]]
+id = "signals"
+name = "батальон связи"
+about = "приказы доходят быстрее: после боя и марша дивизия приходит в себя быстрее"
+icon = "radio"
+men = 0.02
+equip = { tools = 0.06 }
+org = 1.4
+
+[[support]]
+id = "hospital"
+name = "медсанбат"
+about = "раненые возвращаются в строй: убитых и выбывших насовсем на четверть меньше"
+icon = "meds"
+men = 0.03
+equip = { tools = 0.02, goods = 0.04 }
+saved = 0.25
+
+[[support]]
+id = "transport"
+name = "автобат"
+about = "свой подвоз: из того, что даёт провинция, дивизия берёт меньше — тесноту переносит легче"
+icon = "truck"
+men = 0.03
+equip = { tools = 0.06, steel = 0.02 }
+supply = { fuel = 0.05 }
+eat = 0.75
+
+[[support]]
+id = "repair"
+name = "ремрота"
+about = "чинит и вытаскивает подбитое: при отходе бросает вдвое меньше снаряжения, трофеев берёт больше"
+icon = "spanner"
+men = 0.02
+equip = { tools = 0.05 }
+salvage = 0.5
+
+# ── Техника эпохи: что страна знает или не знает (ярус 0 знают все в начале предыстории мира;
+# остальное страны узнают сами — учёными, торговлей, войной; без техники живут без неё).
+# sectors/units — прибавка к производительности отрасли и к огню и стойкости рода войск (доля);
+# unlocks — роды войск, которых без неё нет; cost — лет науки обычной страны (по ярусу, если нет).
+[progress]
+stages = ["аграрная", "ранняя промышленная", "промышленная", "индустриальная", "передовая держава"]
+
+[[tech]]
+id = "steam"
+name = "Паровая машина"
+about = "Пар вращает станки и качает воду из шахт."
+icon = "gears"
+tier = 0
+sectors = { textile = 0.05, coal_mines = 0.05 }
+
+[[tech]]
+id = "rotation"
+name = "Плодосменный севооборот"
+about = "Клевер и корнеплоды вместо пара: земля не отдыхает впустую."
+icon = "wheat"
+tier = 0
+sectors = { farms = 0.05 }
+
+[[tech]]
+id = "railways"
+name = "Железные дороги"
+about = "Хлеб, уголь и солдаты едут по стальным путям, а не по грязи."
+icon = "route"
+tier = 1
+needs = ["steam"]
+sectors = { coal_mines = 0.05, iron_mines = 0.05, farms = 0.03 }
+supply = 0.08
+
+[[tech]]
+id = "bessemer"
+name = "Бессемеровская сталь"
+about = "Сталь из чугуна за минуты, а не за дни: дешёвые рельсы, пушки и машины."
+icon = "anvil"
+tier = 1
+needs = ["steam"]
+sectors = { steel_mills = 0.12, machine_works = 0.04 }
+
+[[tech]]
+id = "telegraph"
+name = "Телеграф"
+about = "Весть идёт со скоростью тока: штабы, биржи и министерства знают, что творится."
+icon = "radio"
+tier = 1
+sphere = "state"
+sectors = { offices = 0.06 }
+stability = 0.02
+
+[[tech]]
+id = "fertilizer"
+name = "Минеральные удобрения"
+about = "Селитра и суперфосфат: урожай с той же земли выше."
+icon = "wheat"
+tier = 1
+needs = ["rotation"]
+sectors = { farms = 0.09 }
+
+[[tech]]
+id = "magazine_rifle"
+name = "Магазинная винтовка"
+about = "Пять патронов в обойме и бездымный порох: пехота стреляет чаще и дальше."
+icon = "helmet"
+tier = 1
+sphere = "military"
+units = { infantry = 0.1 }
+
+[[tech]]
+id = "rifled_guns"
+name = "Нарезная стальная артиллерия"
+about = "Казнозарядные нарезные пушки бьют дальше и точнее гладкоствольных."
+icon = "cannon"
+tier = 1
+sphere = "military"
+needs = ["bessemer"]
+units = { artillery = 0.1 }
+
+[[tech]]
+id = "universities"
+name = "Исследовательские университеты"
+about = "Лаборатории при университетах: наука становится ремеслом многих, а не досугом одиночек."
+icon = "graduate"
+tier = 1
+sphere = "science"
+science = 0.12
+
+[[tech]]
+id = "electricity"
+name = "Электричество"
+about = "Станции, моторы, свет на заводах: работа не зависит от вала паровой машины."
+icon = "cog"
+tier = 2
+needs = ["steam", "telegraph"]
+sectors = { machine_works = 0.08, textile = 0.06, offices = 0.05, steel_mills = 0.04 }
+
+[[tech]]
+id = "combustion"
+name = "Двигатель внутреннего сгорания"
+about = "Мотор на бензине и дизеле: грузовики, тракторы, а там и танки с самолётами."
+icon = "gears"
+tier = 2
+needs = ["bessemer"]
+sectors = { machine_works = 0.06, oil_wells = 0.05 }
+supply = 0.05
+
+[[tech]]
+id = "refining"
+name = "Нефтепереработка"
+about = "Крекинг даёт из нефти бензин и масла: топлива больше и оно дешевле."
+icon = "jerrycan"
+tier = 2
+needs = ["combustion"]
+sectors = { oil_wells = 0.1, coal_fuel = 0.08 }
+
+[[tech]]
+id = "assembly"
+name = "Конвейер"
+about = "Деталь идёт к рабочему, а не рабочий к детали: машины и оружие — потоком."
+icon = "gears"
+tier = 2
+needs = ["electricity"]
+sectors = { machine_works = 0.1, arsenals = 0.08, textile = 0.05 }
+learn = 0.15
+
+[[tech]]
+id = "machine_gun"
+name = "Станковый пулемёт"
+about = "Один расчёт держит участок, который держала рота."
+icon = "helmet"
+tier = 2
+sphere = "military"
+needs = ["magazine_rifle"]
+units = { infantry = 0.12 }
+
+[[tech]]
+id = "howitzer"
+name = "Скорострельная гаубица"
+about = "Откатные устройства и навесной огонь: артиллерия бьёт по окопам из-за холмов."
+icon = "cannon"
+tier = 2
+sphere = "military"
+needs = ["rifled_guns"]
+units = { artillery = 0.12 }
+
+[[tech]]
+id = "general_staff"
+name = "Генеральный штаб"
+about = "Мобилизация по расписанию поездов, планы войны на годы вперёд."
+icon = "compass"
+tier = 2
+sphere = "state"
+needs = ["railways", "telegraph"]
+draft = 0.08
+stability = 0.01
+
+[[tech]]
+id = "chemistry"
+name = "Органическая химия"
+about = "Красители, взрывчатка, лекарства из угля и нефти."
+icon = "science"
+tier = 2
+sphere = "science"
+needs = ["universities"]
+science = 0.1
+sectors = { coal_fuel = 0.06, textile = 0.04 }
+
+[[tech]]
+id = "aviation"
+name = "Авиация"
+about = "Аппарат тяжелее воздуха летает: разведка сверху, а потом и бомбы."
+icon = "plane"
+tier = 3
+sphere = "military"
+needs = ["combustion"]
+unlocks = ["aviation"]
+
+[[tech]]
+id = "armour"
+name = "Бронетехника"
+about = "Гусеничная бронированная машина с пушкой проходит сквозь пулемёты и проволоку."
+icon = "tank"
+tier = 3
+sphere = "military"
+needs = ["combustion", "machine_gun"]
+unlocks = ["tanks"]
+
+[[tech]]
+id = "antitank"
+name = "Противотанковая артиллерия"
+about = "Лёгкая скорострельная пушка с бронебойным снарядом: пехота не беззащитна перед танком."
+icon = "cannon"
+tier = 3
+sphere = "military"
+needs = ["howitzer"]
+unlocks = ["antitank"]
+
+[[tech]]
+id = "antiair"
+name = "Зенитная артиллерия"
+about = "Пушки с прицелами для стрельбы вверх и приборы управления огнём."
+icon = "radar"
+tier = 3
+sphere = "military"
+needs = ["howitzer", "aviation"]
+unlocks = ["antiair"]
+
+[[tech]]
+id = "radio"
+name = "Радио"
+about = "Голос без проводов: штаб говорит с дивизиями, а газета — с каждым домом."
+icon = "radio"
+tier = 3
+sphere = "state"
+needs = ["electricity"]
+sectors = { offices = 0.06 }
+stability = 0.02
+supply = 0.04
+
+[[tech]]
+id = "tractors"
+name = "Механизация полей"
+about = "Тракторы и комбайны: та же земля, втрое меньше рук."
+icon = "wheat"
+tier = 3
+needs = ["combustion", "fertilizer"]
+sectors = { farms = 0.14 }
+
+[[tech]]
+id = "alloys"
+name = "Легированные стали"
+about = "Хром, никель, молибден: броня крепче, станки точнее."
+icon = "anvil"
+tier = 3
+needs = ["bessemer", "chemistry"]
+sectors = { steel_mills = 0.08, machine_works = 0.04 }
+units = { tanks = 0.08, artillery = 0.04 }
+
+[[tech]]
+id = "monoplane"
+name = "Цельнометаллический моноплан"
+about = "Дюраль, убирающиеся шасси, мощные моторы: самолёт вдвое быстрее биплана."
+icon = "plane"
+tier = 4
+sphere = "military"
+needs = ["aviation", "alloys"]
+units = { aviation = 0.2 }
+
+[[tech]]
+id = "radar"
+name = "Радиолокация"
+about = "Самолёты видно за сотню вёрст, ночью и в тумане."
+icon = "radar"
+tier = 4
+sphere = "military"
+needs = ["radio"]
+units = { antiair = 0.2, aviation = 0.08 }
+
+[[tech]]
+id = "shaped_charge"
+name = "Кумулятивный снаряд"
+about = "Струя металла прожигает броню, которую не брал никакой снаряд."
+icon = "cannon"
+tier = 4
+sphere = "military"
+needs = ["antitank", "chemistry"]
+units = { antitank = 0.2, infantry = 0.04 }
+
+[[tech]]
+id = "diesel_tank"
+name = "Танковый дизель и широкие гусеницы"
+about = "Танк не горит от искры, проходит грязь и снег."
+icon = "tank"
+tier = 4
+sphere = "military"
+needs = ["armour", "refining"]
+units = { tanks = 0.2 }
+
+[[tech]]
+id = "planning"
+name = "Научная организация труда"
+about = "Хронометраж, нормы, планы выпуска: заводы и конторы работают по расчёту."
+icon = "scroll"
+tier = 4
+sphere = "state"
+needs = ["assembly", "radio"]
+sectors = { offices = 0.08, machine_works = 0.06, arsenals = 0.08 }
+learn = 0.2
+
+# ---------------- флот ----------------
+# Корабли строят верфи из товаров рынка (equip — как снаряжение части, в долях war.scale), за months
+# месяцев на стапеле; crew — тысяч моряков. gun — пушки против кораблей, armor — броня (пушки легче её
+# бьют вполсилы и слабее), hull — сколько вреда держит корпус, torpedo — торпеды (бьют сквозь любую
+# броню), asw — глубинные бомбы (только они находят подлодки), stealth — как трудно найти (0…1),
+# speed — скорость, raid — сколько топит торговых судов в месяц рейдов, escort — как охраняет свои.
+# supply — товары на месяц в море (в порту — треть). role: line, cruiser, screen, sub, raider.
+[[ship]]
+id = "battleship"
+name = "линкор"
+about = "Тяжёлые пушки и толстая броня: решает бой за море, но строится три года и стоит как десяток дивизий."
+icon = "anchor"
+role = "line"
+equip = { steel = 40, tools = 6, arms = 6 }
+supply = { fuel = 0.6, ammo = 0.18 }
+months = 30
+crew = 1.5
+gun = 10
+armor = 10
+hull = 40
+speed = 1.0
+raid = 0.5
+escort = 1.0
+
+[[ship]]
+id = "cruiser"
+name = "крейсер"
+about = "Быстрый и зубастый: охотится за торговыми судами и охраняет свои конвои; линкору не соперник."
+icon = "ship"
+role = "cruiser"
+equip = { steel = 14, tools = 3, arms = 3 }
+supply = { fuel = 0.36, ammo = 0.09 }
+months = 18
+crew = 0.7
+gun = 5
+armor = 4
+hull = 16
+torpedo = 1
+asw = 0.5
+speed = 1.5
+raid = 2.0
+escort = 2.0
+
+[[ship]]
+id = "destroyer"
+name = "эсминец"
+about = "Торпеды и глубинные бомбы: прикрывает большие корабли и конвои, единственный, кто находит подлодки."
+icon = "ship"
+role = "screen"
+equip = { steel = 4, tools = 1.5, arms = 1.5 }
+supply = { fuel = 0.18, ammo = 0.045 }
+months = 8
+crew = 0.25
+gun = 1.5
+armor = 0.5
+hull = 4
+torpedo = 4
+asw = 3
+speed = 2.0
+raid = 1.0
+escort = 3.0
+
+[[ship]]
+id = "submarine"
+name = "подводная лодка"
+about = "Невидима, пока её не найдут глубинными бомбами: топит торговые суда и подстерегает линкоры."
+icon = "sub"
+role = "sub"
+equip = { steel = 3, tools = 2, arms = 1 }
+supply = { fuel = 0.09, ammo = 0.045 }
+months = 8
+crew = 0.06
+gun = 0.3
+hull = 2
+torpedo = 5
+stealth = 0.8
+speed = 1.0
+raid = 4.0

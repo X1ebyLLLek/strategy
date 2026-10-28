@@ -1,0 +1,12 @@
+The window's materials (assets/ui/<era>/{bar,paper,frame}.jpg): ambientCG (https://ambientcg.com), CC0 1.0
+Universal (public domain) colour maps, recoloured to each era's palette (their grain kept), made to tile.
+  staff     — bar: Metal021, paper: Paper003, frame: Cardboard002
+  parchment — bar: Wood066,  paper: Paper003, frame: Wood066
+  rust      — bar: Metal041B, paper: Fabric030, frame: Metal041B
+Fonts (assets/fonts, SIL Open Font License 1.1): PT Serif, PT Mono (ParaType); Oswald (Vernon Adams,
+Kalapi Gajjar, Cyreal); Old Standard TT (Alexey Kryukov); Cormorant SC (Christian Thalmann); Russo One
+(Jovanny Lemonad) — the TTF files of the Google Fonts repository.
+Cursors (assets/ui/cursors/<era>/*.svg, made by tools/make_cursors.py): the arrow, the I-beam and the badges are the
+game's own drawing; the pointing hand, the open hand, the quill, the crossed swords, the hourglass (Lorc), the shield
+(Sbed), the crate (Delapouite) are game-icons.net outlines, CC BY 3.0 (https://game-icons.net), filled with the era's
+metal.

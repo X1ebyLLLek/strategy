@@ -1,0 +1,13 @@
+Materials of the buildings and the trees' bark (assets/objects/*.jpg): ambientCG (https://ambientcg.com),
+CC0 1.0 Universal (public domain), taken at 1K and scaled down to 512x512; colour (_col) and OpenGL normal
+(_nrm) maps.
+  tiles       - RoofingTiles008    https://ambientcg.com/view?id=RoofingTiles008  (curved clay tiles)
+  slate       - RoofingTiles002    https://ambientcg.com/view?id=RoofingTiles002
+  thatch      - ThatchedRoof001A   https://ambientcg.com/view?id=ThatchedRoof001A
+  iron        - CorrugatedSteel005 https://ambientcg.com/view?id=CorrugatedSteel005
+  brick       - Bricks059          https://ambientcg.com/view?id=Bricks059
+  plaster     - Plaster001         https://ambientcg.com/view?id=Plaster001
+  boards      - WoodSiding008      https://ambientcg.com/view?id=WoodSiding008
+  stone       - Bricks076A         https://ambientcg.com/view?id=Bricks076A
+  flat_tiles  - RoofingTiles014A   https://ambientcg.com/view?id=RoofingTiles014A
+  bark        - Bark012            https://ambientcg.com/view?id=Bark012

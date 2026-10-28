@@ -1,0 +1,19 @@
+[package]
+name = "strategy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rayon = "1.12"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+# the game in a window of its own (`--features native`): drawn by the video card
+eframe = { version = "0.29", default-features = false, features = ["glow", "default_fonts"], optional = true }
+egui_extras = { version = "0.29", default-features = false, features = ["svg", "image"], optional = true }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"], optional = true }
+
+[features]
+native = ["dep:eframe", "dep:egui_extras", "dep:image"]
+
+[profile.dev]
+opt-level = 2

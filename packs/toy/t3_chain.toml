@@ -1,0 +1,113 @@
+# Игрушка 3: цепочка сырья, месторождение, военный товар, хозяева без работы.
+name = "Игрушка 3"
+about = "Руда → инструменты → урожай и оружие."
+
+[government]
+tax = 0.15
+military = 0.3
+
+[[good]]
+id = "food"
+name = "еда"
+price = 1.0
+
+[[good]]
+id = "ore"
+name = "руда"
+price = 1.0
+
+[[good]]
+id = "tools"
+name = "инструменты"
+price = 4.0
+
+[[good]]
+id = "arms"
+name = "оружие"
+price = 6.0
+military = true
+
+[[resource]]
+id = "iron"
+name = "железо"
+chance = { hills = 0.25, mountains = 0.30, plains = 0.03, forest = 0.03 }
+
+[[group]]
+id = "peasants"
+name = "крестьяне"
+share = 0.75
+becomes = ["workers"]
+needs = [
+  { good = "food", amount = 1.0, weight = 4, vital = true },
+  { good = "tools", amount = 0.02, weight = 1 },
+]
+
+[[group]]
+id = "workers"
+name = "рабочие"
+share = 0.2
+needs = [
+  { good = "food", amount = 1.0, weight = 4, vital = true },
+  { good = "tools", amount = 0.1, weight = 1 },
+]
+
+[[group]]
+id = "owners"
+name = "хозяева"
+share = 0.05
+needs = [
+  { good = "food", amount = 1.2, weight = 3, vital = true },
+  { good = "tools", amount = 0.5, weight = 1 },
+]
+
+[[sector]]
+id = "farms"
+name = "поля"
+workers = { peasants = 1.0 }
+boost = { tools = { amount = 0.02, gain = 0.3 } }
+outputs = { food = 1.1 }
+owner = "owners"
+wage_share = 0.85
+start = 0.7
+land = true
+build = { tools = 2 }
+
+[[sector]]
+id = "mines"
+name = "рудники"
+workers = { workers = 1.0 }
+outputs = { ore = 5.0 }
+owner = "owners"
+start = 0.06
+deposit = "iron"
+per_deposit = 0.5
+build = { tools = 3 }
+
+[[sector]]
+id = "smithy"
+name = "кузни"
+workers = { workers = 1.0 }
+inputs = { ore = 3.0 }
+outputs = { tools = 1.0 }
+owner = "owners"
+start = 0.09
+build = { tools = 3 }
+
+[[sector]]
+id = "armory"
+name = "оружейные"
+workers = { workers = 1.0 }
+inputs = { tools = 0.5, ore = 1.0 }
+outputs = { arms = 1.0 }
+owner = "owners"
+start = 0.02
+build = { tools = 3 }
+
+# Торговля между странами: торгуют хозяева.
+[trade]
+owner = "owners"
+margin = 0.05
+sea = 0.0002
+land = 0.001
+sea_speed = 200
+land_speed = 50

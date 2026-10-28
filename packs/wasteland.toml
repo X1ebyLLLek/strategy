@@ -1,0 +1,647 @@
+# Набор эпохи: после конца света. Вода дороже золота, утиль из руин — основа всего.
+# Единицы те же, что в industrial.toml.
+
+name = "Пустоши"
+about = "Через поколение после катастрофы: колодцы, руины, патроны и вожаки."
+
+[government]
+tax = 0.1
+military = 0.6
+
+[world]
+people = [600.0, 1000.0]    # миллионов людей в мире после катастрофы: как Земля 1700-х … 1800-х
+
+[[good]]
+id = "water"
+icon = "water"
+name = "чистая вода"
+price = 1.0
+bulk = 3
+
+[[good]]
+id = "food"
+icon = "wheat"
+name = "еда"
+price = 1.5
+bulk = 2
+
+[[good]]
+id = "scrap"
+icon = "cog"
+name = "утиль"
+price = 4.0
+bulk = 2
+
+[[good]]
+id = "fuel"
+icon = "jerrycan"
+name = "горючее"
+price = 3.0
+bulk = 1.5
+
+[[good]]
+id = "meds"
+icon = "meds"
+name = "лекарства"
+price = 6.0
+bulk = 0.2
+
+[[good]]
+id = "ammo"
+icon = "bullets"
+name = "патроны"
+price = 4.0
+bulk = 0.5
+military = true
+
+[[good]]
+id = "guns"
+icon = "revolver"
+name = "стволы"
+price = 8.0
+bulk = 0.5
+military = true
+
+[[resource]]
+id = "springs"
+name = "чистые источники"
+chance = { hills = 0.20, mountains = 0.25, forest = 0.15, plains = 0.05 }
+
+[[resource]]
+id = "ruins"
+name = "руины"
+chance = { plains = 0.20, forest = 0.10, hills = 0.10, desert = 0.10, marsh = 0.05, jungle = 0.05 }
+
+[[resource]]
+id = "wells"
+name = "нефтяные скважины"
+chance = { desert = 0.10, marsh = 0.10, plains = 0.03 }
+
+[[group]]
+id = "survivors"
+name = "выживальщики"
+share = 0.76
+patience = 5
+becomes = ["scavengers"]
+needs = [
+  { good = "water", amount = 1.0, weight = 5, vital = true },
+  { good = "food", amount = 1.0, weight = 4, vital = true },
+  { good = "meds", amount = 0.03, weight = 1 },
+]
+
+[[group]]
+id = "scavengers"
+name = "мусорщики"
+share = 0.10
+patience = 3
+becomes = ["mechanics"]
+needs = [
+  { good = "water", amount = 1.0, weight = 5, vital = true },
+  { good = "food", amount = 1.0, weight = 4, vital = true },
+  { good = "ammo", amount = 0.05, weight = 1 },
+  { good = "meds", amount = 0.05, weight = 1 },
+]
+
+[[group]]
+id = "mechanics"
+name = "механики"
+share = 0.10
+patience = 4
+needs = [
+  { good = "water", amount = 1.0, weight = 5, vital = true },
+  { good = "food", amount = 1.0, weight = 4, vital = true },
+  { good = "fuel", amount = 0.2, weight = 1 },
+  { good = "meds", amount = 0.1, weight = 1 },
+]
+
+[[group]]
+id = "warlords"
+name = "вожаки"
+share = 0.04
+patience = 3
+needs = [
+  { good = "water", amount = 1.5, weight = 4, vital = true },
+  { good = "food", amount = 1.5, weight = 3, vital = true },
+  { good = "fuel", amount = 1.0, weight = 1 },
+  { good = "ammo", amount = 0.5, weight = 2 },
+  { good = "meds", amount = 0.3, weight = 1 },
+]
+
+[[sector]]
+id = "springs"
+name = "колодцы и фильтры"
+workers = { survivors = 0.7, mechanics = 0.3 }
+outputs = { water = 8.0 }
+owner = "warlords"
+start = 0.06
+deposit = "springs"
+per_deposit = 0.3
+build = { scrap = 6 }
+
+[[sector]]
+id = "rain"
+name = "сбор дождевой воды"
+workers = { survivors = 1.0 }
+outputs = { water = 3.0 }
+owner = "survivors"
+wage_share = 0.9
+start = 0.25
+land = true
+build = { scrap = 3 }
+
+[[sector]]
+id = "gardens"
+name = "огороды"
+workers = { survivors = 1.0 }
+inputs = { water = 0.5 }
+outputs = { food = 2.5 }
+owner = "warlords"
+wage_share = 0.85
+start = 0.40
+land = true
+build = { scrap = 3 }
+
+[[sector]]
+id = "salvage"
+name = "разбор руин"
+workers = { scavengers = 1.0 }
+outputs = { scrap = 1.8 }
+owner = "warlords"
+start = 0.085
+deposit = "ruins"
+per_deposit = 0.5
+build = { scrap = 2 }
+
+[[sector]]
+id = "workshops"
+name = "мастерские"
+workers = { mechanics = 0.7, scavengers = 0.3 }
+inputs = { scrap = 3.0 }
+outputs = { ammo = 4.0, guns = 0.3 }
+owner = "warlords"
+start = 0.04
+build = { scrap = 6 }
+
+[[sector]]
+id = "stills"
+name = "перегонка"
+workers = { mechanics = 1.0 }
+outputs = { fuel = 4.0 }
+owner = "warlords"
+start = 0.02
+deposit = "wells"
+per_deposit = 0.3
+build = { scrap = 8 }
+
+[[sector]]
+id = "labs"
+name = "подпольные лаборатории"
+workers = { mechanics = 1.0 }
+inputs = { scrap = 0.5, water = 0.5 }
+outputs = { meds = 1.3 }
+owner = "warlords"
+start = 0.035
+build = { scrap = 6 }
+
+# ---------------- торговля между странами ----------------
+# Караваны по пустошам и редкие лодки: дорого, медленно, разбойники.
+[trade]
+owner = "warlords"
+margin = 0.1
+sea = 0.0005
+land = 0.002
+port = 0.05
+sea_speed = 100
+land_speed = 30
+
+# ---------------- война ----------------
+# Как в индустриальном наборе: class — чем часть является для чужого огня, fire — урон в
+# день по каждому классу, line — front / support / air, width — место во фронте.
+# Одна часть — банда в сотню-другую стволов или пара машин. Пьют воду, жгут горючее.
+[science]
+learned = ["mechanics"]   # кто может работать в лабораториях: механики
+share = 0.05      # обычная доля трат казны на науку (когда наука включена)
+
+[ui]
+# облик экрана игры: staff (штабная бумага), parchment (пергамент), rust (ржавый металл)
+theme = "rust"   # ржавый металл и трафарет
+
+[war]
+width = 10
+days = 30         # самый долгий бой: месяц
+man_cost = 1
+scale = 0.04      # доля товара рынка за единицей снаряжения и снабжения части (рынок считает товары
+                  # по месячной нужде миллиона людей; батальон не съедает хлеб миллиона)
+crew = 10         # сколько тысяч человек за единицей men части (часть фронта — соединение)
+
+[[unit]]
+id = "raiders"
+model = "самопал"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 0         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 1        # что пробивает
+attack = 1.05      # огонь в наступлении против обычного (прорыв)
+defend = 1.0      # огонь в обороне
+complexity = 0.8  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+norms = true      # норма оснащения: бедно / штатно / богато (пулемёты, миномёты, грузовики на батальон)
+name = "налётчики"
+icon = "bandit"      # значок на экране (ui/icons.svg)
+symbol = "infantry"   # знак на карте
+class = "пешие"
+men = 1.0
+equip = { guns = 0.3 }
+supply = { ammo = 0.1, water = 0.5 }
+fire = { "пешие" = 1.0, "машины" = 0.15 }
+toughness = 0.8
+speed = 1.2
+
+[[unit]]
+id = "technicals"
+model = "тачанка"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 1         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 1        # что пробивает
+attack = 1.15      # огонь в наступлении против обычного (прорыв)
+defend = 0.85      # огонь в обороне
+complexity = 1.3  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+name = "тачанки"
+icon = "jeep"      # значок на экране (ui/icons.svg)
+symbol = "recon"   # знак на карте
+class = "машины"
+men = 0.3
+equip = { scrap = 1.5, guns = 0.5 }
+supply = { fuel = 0.8, ammo = 0.3 }
+fire = { "пешие" = 2.5, "машины" = 0.8 }
+toughness = 2.0
+cover = 0.2
+speed = 4
+terrain = { desert = 1.2, forest = 0.5, hills = 0.7, mountains = 0.3, marsh = 0.3, jungle = 0.3 }
+
+[[unit]]
+id = "rigs"
+model = "бронефура"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 2         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 2        # что пробивает
+attack = 1.2      # огонь в наступлении против обычного (прорыв)
+defend = 1.0      # огонь в обороне
+complexity = 1.8  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+name = "бронефуры"
+icon = "apc"      # значок на экране (ui/icons.svg)
+symbol = "wheeled-armour"   # знак на карте
+class = "машины"
+men = 0.5
+equip = { scrap = 6, guns = 1 }
+supply = { fuel = 2.0, ammo = 0.4 }
+fire = { "пешие" = 4.0, "машины" = 2.5 }
+toughness = 6.0
+cover = 0.1
+speed = 1.5
+width = 1.5
+terrain = { forest = 0.4, hills = 0.6, mountains = 0.2, marsh = 0.2, jungle = 0.2 }
+
+[[unit]]
+id = "rockets"
+model = "гранатомёт"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 0         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 3        # что пробивает
+attack = 0.95      # огонь в наступлении против обычного (прорыв)
+defend = 1.2      # огонь в обороне
+complexity = 1.2  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+norms = true      # норма оснащения: бедно / штатно / богато (пулемёты, миномёты, грузовики на батальон)
+name = "гранатомётчики"
+icon = "rocket"      # значок на экране (ui/icons.svg)
+symbol = "rockets"   # знак на карте
+class = "пешие"
+men = 0.4
+equip = { guns = 0.5, scrap = 0.3 }
+supply = { ammo = 0.2, water = 0.2 }
+fire = { "пешие" = 0.3, "машины" = 3.0 }
+toughness = 0.7
+width = 0.5
+
+[[unit]]
+id = "mortars"
+model = "миномёт"      # образец снаряжения (заводы учатся его делать; наука даёт новые)
+armor = 0         # броня: огонь, что её не пробивает, большей частью отскакивает
+pierce = 1        # что пробивает
+attack = 1.1      # огонь в наступлении против обычного (прорыв)
+defend = 1.1      # огонь в обороне
+complexity = 1.1  # сложность производства (заводы осваивают дольше, новый образец роняет выпуск сильнее)
+name = "миномёты"
+icon = "mortar"      # значок на экране (ui/icons.svg)
+symbol = "mortar"   # знак на карте
+class = "пешие"
+line = "support"
+men = 0.4
+equip = { guns = 0.3, scrap = 0.5 }
+supply = { ammo = 0.6 }
+fire = { "пешие" = 2.5, "машины" = 0.5 }
+toughness = 0.8
+cover = 0.6
+speed = 0.8
+
+# Роты поддержки (война дивизиями): одна на дивизию, служит всей дивизии — крупной столько же,
+# сколько мелкой, за ту же цену. men — в единицах части (батальон — десятая), товары — на роту.
+# dig — окапывается во столько раз быстрее; rough — доля дней марша по лесу, холмам, болоту, горам;
+# see — на сколько провинций глубже видит врага; org — во столько раз быстрее приходит в себя;
+# saved — доля погибших, что возвращаются в строй; eat — доля снабжения, что ест дивизия;
+# fire — во столько раз сильнее огонь; salvage — доля снаряжения, что не бросают при отходе.
+[[support]]
+id = "diggers"
+name = "копатели"
+about = "роют норы и завалы вдвое быстрее, расчищают путь — по лесу, холмам и болоту идут быстрее"
+icon = "spade"
+men = 0.03
+equip = { scrap = 0.05 }
+dig = 2.0
+rough = 0.8
+
+[[support]]
+id = "scouts"
+name = "разведчики"
+about = "дозорные на мотоциклах: видят врага на провинцию глубже, бой начинается там, где выгоднее"
+icon = "binoculars"
+men = 0.03
+equip = { guns = 0.02, scrap = 0.02 }
+supply = { fuel = 0.02 }
+see = 1
+fire = 1.05
+
+[[support]]
+id = "signals"
+name = "сигнальщики"
+about = "рации из утиля и ракеты: приказы доходят быстрее, после боя банда собирается быстрее"
+icon = "radio"
+men = 0.02
+equip = { scrap = 0.05 }
+org = 1.4
+
+[[support]]
+id = "healers"
+name = "знахари"
+about = "лекарства и знахари: выбывших насовсем на четверть меньше"
+icon = "meds"
+men = 0.02
+equip = { meds = 0.04 }
+saved = 0.25
+
+[[support]]
+id = "water"
+name = "водовозы"
+about = "свои цистерны с водой и топливом: из того, что даёт округа, берут меньше — тесноту переносят легче"
+icon = "water"
+men = 0.03
+equip = { scrap = 0.06 }
+supply = { fuel = 0.04 }
+eat = 0.75
+
+[[support]]
+id = "mechanics"
+name = "механики"
+about = "чинят и утаскивают подбитое: при отходе бросают вдвое меньше железа, трофеев берут больше"
+icon = "spanner"
+men = 0.02
+equip = { scrap = 0.05 }
+salvage = 0.5
+
+# ── Техника эпохи (см. индустриальную: ярус 0 знают все; остальное поселения узнают сами).
+[progress]
+stages = ["дикая", "поселения", "мастерские", "возрождение", "новая цивилизация"]
+
+[[tech]]
+id = "hand_tools"
+name = "Ручной инструмент"
+about = "Лом, ножовка, молоток: из руин можно что-то вынуть."
+icon = "spade"
+tier = 0
+sectors = { salvage = 0.04 }
+
+[[tech]]
+id = "roof_gardens"
+name = "Грядки на крышах"
+about = "Земля в ящиках, подальше от отравленной почвы."
+icon = "wheat"
+tier = 0
+sectors = { gardens = 0.04 }
+
+[[tech]]
+id = "charcoal_filters"
+name = "Угольные фильтры"
+about = "Песок и древесный уголь: вода из колодца не убивает."
+icon = "water"
+tier = 1
+sectors = { springs = 0.12, rain = 0.06 }
+
+[[tech]]
+id = "welding"
+name = "Сварка"
+about = "Сварочный аппарат на генераторе: железо снова можно соединять."
+icon = "anvil"
+tier = 1
+sectors = { workshops = 0.1, salvage = 0.04 }
+learn = 0.08
+
+[[tech]]
+id = "stills_tech"
+name = "Ректификационные колонны"
+about = "Горючее чище и его больше из той же браги."
+icon = "jerrycan"
+tier = 1
+sectors = { stills = 0.12 }
+
+[[tech]]
+id = "gun_drills"
+name = "Строй стрелков"
+about = "Мусорщики учатся стрелять по команде, а не кто как."
+icon = "helmet"
+tier = 1
+sphere = "military"
+units = { raiders = 0.1 }
+
+[[tech]]
+id = "technicals_tech"
+name = "Пулемёт на кузове"
+about = "Пикап, турель, ленты: быстрая огневая точка."
+icon = "jeep"
+tier = 1
+sphere = "military"
+needs = ["welding"]
+unlocks = ["technicals"]
+
+[[tech]]
+id = "hydroponics"
+name = "Гидропоника"
+about = "Растения в растворе под лампами: еда без земли."
+icon = "wheat"
+tier = 2
+needs = ["roof_gardens", "charcoal_filters"]
+sectors = { gardens = 0.14 }
+
+[[tech]]
+id = "armour_plates"
+name = "Бронирование машин"
+about = "Листы стали на грузовике: бронефура выдерживает пули."
+icon = "tank"
+tier = 2
+sphere = "military"
+needs = ["welding"]
+unlocks = ["rigs"]
+
+[[tech]]
+id = "rocket_tubes"
+name = "Реактивные трубы"
+about = "Самодельный реактивный гранатомёт из водопроводной трубы."
+icon = "rocket"
+tier = 2
+sphere = "military"
+needs = ["stills_tech"]
+unlocks = ["rockets"]
+
+[[tech]]
+id = "generators"
+name = "Генераторы и сети"
+about = "Свет и ток в мастерских: станки работают ночью."
+icon = "cog"
+tier = 2
+needs = ["welding"]
+sectors = { workshops = 0.08, labs = 0.08, springs = 0.04 }
+
+[[tech]]
+id = "radio_net"
+name = "Радиосеть"
+about = "Рации между поселениями: караваны, тревоги, приказы."
+icon = "radio"
+tier = 2
+sphere = "state"
+stability = 0.02
+supply = 0.06
+
+[[tech]]
+id = "tube_mortars"
+name = "Миномёты из труб"
+about = "Труба, плита, самодельная мина: навесной огонь по чужим стенам."
+icon = "mortar"
+tier = 3
+sphere = "military"
+needs = ["rocket_tubes"]
+unlocks = ["mortars"]
+
+[[tech]]
+id = "penicillin"
+name = "Плесень-лекарство"
+about = "Из старых книг: антибиотик из плесени спасает раненых."
+icon = "meds"
+tier = 3
+sphere = "science"
+needs = ["generators"]
+sectors = { labs = 0.14 }
+draft = 0.06
+
+[[tech]]
+id = "windmills"
+name = "Ветряки"
+about = "Лопасти из капотов: ток без горючего."
+icon = "gears"
+tier = 3
+needs = ["generators"]
+sectors = { workshops = 0.06, springs = 0.06, gardens = 0.04 }
+
+[[tech]]
+id = "archive"
+name = "Архив старого мира"
+about = "Найденные библиотеки: учатся по книгам, а не на ошибках."
+icon = "graduate"
+tier = 3
+sphere = "science"
+science = 0.15
+
+[[tech]]
+id = "old_engines"
+name = "Двигатели по старым чертежам"
+about = "Новые моторы взамен изношенных: машины снова надёжны."
+icon = "gears"
+tier = 4
+needs = ["windmills", "archive"]
+sectors = { workshops = 0.1, stills = 0.06 }
+units = { rigs = 0.15, technicals = 0.12 }
+
+[[tech]]
+id = "rifling_lathes"
+name = "Нарезные станки"
+about = "Стволы с нарезами на станке, а не вручную: оружие бьёт точно."
+icon = "helmet"
+tier = 4
+sphere = "military"
+needs = ["generators", "gun_drills"]
+units = { raiders = 0.15, mortars = 0.08 }
+
+# ---------------- флот ----------------
+# Корабли собирают мастерские из того, что есть (equip — как снаряжение части), months месяцев; crew —
+# тысяч людей. gun — стволы против судов, armor — навешанные листы, hull — сколько вреда держит корпус,
+# torpedo — самодельные мины и торпеды, asw — чем глушить ныряльщиков, stealth — как трудно найти
+# (0…1), speed — ход, raid — сколько грузов топит в месяц, escort — как охраняет свои. supply — на месяц.
+[[ship]]
+id = "barge"
+name = "бронебаржа"
+about = "Плавучая крепость из старого металла: медленная, но её не взять ни пулемётом, ни лёгкой пушкой."
+icon = "anchor"
+role = "line"
+equip = { scrap = 12, guns = 2, fuel = 2 }
+supply = { fuel = 0.3, ammo = 0.09 }
+months = 10
+crew = 0.2
+gun = 4
+armor = 3
+hull = 12
+speed = 0.6
+raid = 0.5
+escort = 1.5
+
+[[ship]]
+id = "raider_boat"
+name = "рейдерский катер"
+about = "Быстрый катер с пулемётами: перехватывает чужие грузы и уходит, пока не догнали."
+icon = "ship"
+role = "cruiser"
+equip = { scrap = 3, guns = 1, fuel = 1 }
+supply = { fuel = 0.18, ammo = 0.045 }
+months = 4
+crew = 0.05
+gun = 1.5
+armor = 0.5
+hull = 3
+speed = 2.0
+raid = 3.0
+escort = 1.0
+
+[[ship]]
+id = "picket"
+name = "сторожевик"
+about = "Сторожит свои грузы, глушит ныряльщиков взрывчаткой."
+icon = "ship"
+role = "screen"
+equip = { scrap = 2, guns = 0.6 }
+supply = { fuel = 0.09, ammo = 0.03 }
+months = 3
+crew = 0.04
+gun = 0.8
+hull = 2
+torpedo = 1
+asw = 1
+speed = 1.8
+raid = 0.5
+escort = 2.5
+
+[[ship]]
+id = "diver"
+name = "ныряльщик"
+about = "Самодельная подводная лодка: подкрадывается к баржам и цепляет мины; найти её можно только взрывчаткой."
+icon = "sub"
+role = "sub"
+equip = { scrap = 3, fuel = 1, guns = 0.5 }
+supply = { fuel = 0.06, ammo = 0.03 }
+months = 6
+crew = 0.02
+hull = 1
+torpedo = 2
+stealth = 0.6
+speed = 1.0
+raid = 2.5

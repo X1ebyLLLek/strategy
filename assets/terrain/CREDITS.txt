@@ -1,0 +1,26 @@
+Ground textures of the map (assets/terrain/*.jpg): ambientCG (https://ambientcg.com), CC0 1.0 Universal
+(public domain), taken at 1K and scaled down to 512x512; colour (_col) and OpenGL normal (_nrm) maps.
+  plains    — Grass004   https://ambientcg.com/view?id=Grass004
+  forest    — Moss002    https://ambientcg.com/view?id=Moss002
+  hills     — Ground037  https://ambientcg.com/view?id=Ground037
+  mountains — Rock028    https://ambientcg.com/view?id=Rock028   (low frequencies removed: no blotch repeats)
+  desert    — Ground059  https://ambientcg.com/view?id=Ground059 (low frequencies removed, warmed)
+  marsh     — Ground036  https://ambientcg.com/view?id=Ground036
+  tundra    — Ground068  https://ambientcg.com/view?id=Ground068
+  snow      — Snow010A   https://ambientcg.com/view?id=Snow010A
+
+Forests and marshes seen from above (aerial_*.jpg): USGS imagery (The National Map, USGSImageryOnly service,
+https://basemap.nationalmap.gov), works of the U.S. Government — public domain. Cropped, made to tile
+(offset and cross-fade), large light/dark patches evened out, colour-graded, 1024x1024:
+  aerial_broad   — broad-leaved forest, Ozark hills, Missouri (37.092 N, 91.195 W)
+  aerial_conifer — coniferous forest, northern Maine (46.05 N, 69.05 W)
+  aerial_marsh   — marsh with scrub, Seney, Michigan (46.270 N, 86.054 W)
+  aerial_farm_a  — farmland (strip fields, farmsteads), Lancaster County, Pennsylvania (40.030 N, 76.130 W)
+  aerial_farm_b  — farmland, Lancaster County, Pennsylvania (40.050 N, 76.105 W)
+  (the farmlands: large patches evened out, two copies blended by distance from their own borders, muted)
+
+Relief of the ranges and the hills (relief_*.png): heights of USGS 3DEP (The National Map, 3DEPElevation service,
+https://elevation.nationalmap.gov), works of the U.S. Government — public domain. The region's own slope taken off,
+made to tile (two copies blended by their distance from their borders), scaled to -1..1, 16-bit grey 1024x1024:
+  relief_mountains — central Idaho, Salmon River Mountains (44.6-45.4 N, 114.8-115.8 W)
+  relief_hills     — Allegheny Plateau, Pennsylvania (41.25-42.05 N, 77.3-78.6 W)

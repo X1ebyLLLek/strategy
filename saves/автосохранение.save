@@ -1,0 +1,24 @@
+strategy-save 1
+pack packs/industrial.toml
+seed 774101
+side 0
+act 3 27 claim
+act 4 14 form draft=4
+act 4 14 form establish=4
+act 6 0 answer 1 0
+act 9 0 answer 2 0
+act 16 0 answer 3 0
+act 31 0 answer 5 0
+act 35 0 answer 7 1
+act 35 0 send 29,140 827
+act 35 0 send 29,140 71
+act 36 0 send 29,140 889
+act 36 0 send 29,140 904
+act 40 0 send 320 71
+act 41 0 send 336 392
+act 41 0 send 29,140 835
+act 41 0 answer 8 0
+act 42 4 send 29,140,155,43 835
+act 45 0 answer 9 2
+now 45 0
+fingerprint bf0da998a5093106

@@ -1,0 +1,15 @@
+Pictures of the events (assets/events/*.jpg): paintings in the public domain (their painters died more than
+a hundred years ago), from Wikimedia Commons; cropped to the event window's band, contrast raised a little.
+
+  claim     — Kutuzov fili.jpg — Aleksey Kivshenko — Public domain — https://commons.wikimedia.org/wiki/File:Kutuzov_fili.jpg
+  coup      — Prise de la Bastille clean.jpg — Jean-Pierre Houël — Public domain — https://commons.wikimedia.org/wiki/File:Prise_de_la_Bastille_clean.jpg
+  dear      — Pieter Aertsen 014.jpg — Pieter Aertsen — Public domain — https://commons.wikimedia.org/wiki/File:Pieter_Aertsen_014.jpg
+  famine    — S. V. Ivanov. On the road. Death of a migrant. (1889) v2.jpg — Sergey Ivanov — Public domain — https://commons.wikimedia.org/wiki/File:S._V._Ivanov._On_the_road._Death_of_a_migrant._(1889)_v2.jpg
+  general   — Hippolyte Paul Delaroche (1797-1856) - Napoleon at Fontainebleau, 31 March 1814 - RCIN 405838 - Royal Collection.jpg — Paul Delaroche — Public domain — https://commons.wikimedia.org/wiki/File:Hippolyte_Paul_Delaroche_(1797-1856)_-_Napoleon_at_Fontainebleau,_31_March_1814_-_RCIN_405838_-_Royal_Collection.jpg
+  lenders   — Makovsky Bank collapse 1881 gtg.jpg — Vladimir Makovsky — Public domain — https://commons.wikimedia.org/wiki/File:Makovsky_Bank_collapse_1881_gtg.jpg
+  peace     — Velazquez-The Surrender of Breda.jpg — Diego Velázquez — Public domain — https://commons.wikimedia.org/wiki/File:Velazquez-The_Surrender_of_Breda.jpg
+  reform    — Bogdanov-Belsky Ustny Schet (Tretyakov).jpg — Nikolay Bogdanov-Belsky — Public domain — https://commons.wikimedia.org/wiki/File:Bogdanov-Belsky_Ustny_Schet_(Tretyakov).jpg
+  thief     — Marinus Claeszoon van Reymerswaele - Tax collectors - M.Ob.592 MNW - National Museum in Warsaw.jpg — After Marinus van Reymerswaele — Public domain — https://commons.wikimedia.org/wiki/File:Marinus_Claeszoon_van_Reymerswaele_-_Tax_collectors_-_M.Ob.592_MNW_-_National_Museum_in_Warsaw.jpg
+  treasury  — Massysm Quentin — The Moneylender and his Wife — 1514.jpg — Quinten Metsys — Public domain — https://commons.wikimedia.org/wiki/File:Massysm_Quentin_%E2%80%94_The_Moneylender_and_his_Wife_%E2%80%94_1514.jpg
+  unrest    — Robert Koehler - Der Streik (1886).jpg — Robert Koehler — Public domain — https://commons.wikimedia.org/wiki/File:Robert_Koehler_-_Der_Streik_(1886).jpg
+  weary     — 1871 Vereshchagin Apotheose des Krieges anagoria.JPG — Vasily Vereshchagin — Public domain — https://commons.wikimedia.org/wiki/File:1871_Vereshchagin_Apotheose_des_Krieges_anagoria.JPG

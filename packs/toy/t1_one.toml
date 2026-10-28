@@ -1,0 +1,37 @@
+# Игрушка 1: один товар, одна группа, одна отрасль. Хозяин — сами работники.
+name = "Игрушка 1"
+about = "Еда, крестьяне, поля."
+
+[government]
+tax = 0.1
+military = 0.0
+
+[[good]]
+id = "food"
+name = "еда"
+price = 1.0
+
+[[group]]
+id = "people"
+name = "люди"
+share = 1.0
+needs = [ { good = "food", amount = 1.0, weight = 4, vital = true } ]
+
+[[sector]]
+id = "farms"
+name = "поля"
+workers = { people = 1.0 }
+outputs = { food = 1.2 }
+owner = "people"
+start = 0.9
+land = true
+build = { food = 3 }
+
+# Торговля между странами: купцы — сами люди.
+[trade]
+owner = "people"
+margin = 0.05
+sea = 0.0002
+land = 0.001
+sea_speed = 200
+land_speed = 50
