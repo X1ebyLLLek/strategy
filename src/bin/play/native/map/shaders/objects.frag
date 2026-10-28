@@ -287,7 +287,10 @@ void main() {
     // (the photograph's relief, turned as the building is)
     vec3 n2 = vec3(vRot.x * pn.x - vRot.y * pn.y, vRot.y * pn.x + vRot.x * pn.y, pn.z);
     float diff = max(dot(n2, SUN), 0.0);
-    col = base * (sunc * 0.88 * diff * vSun + skyc * 0.46 * (0.62 + 0.38 * n2.z) + vec3(0.05, 0.045, 0.035) * (1.0 - n2.z));
+    // (30th session: the walls and roofs came out nearly black — a house is a light thing on a dark land, so
+    // more of the sky's light in the shade, and the shadows lifted as the land's are)
+    col = base * (sunc * 0.92 * diff * vSun + skyc * 0.66 * (0.62 + 0.38 * n2.z) * mix(0.8, 1.0, vSun) + vec3(0.06, 0.055, 0.045) * (1.0 - n2.z));
+    col = pow(clamp(col, 0.0, 1.0), vec3(0.80));
     col = mix(col, vec3(0.64, 0.72, 0.80), haze * 0.55);
     frag = vec4(col, 1.0);
 }

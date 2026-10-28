@@ -539,11 +539,8 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View, figures: &[Figure]) {
     gl.disable(glow::CULL_FACE);
     // the copies of each model, and of all for the shadows
     let pack = |f: &Figure| {
-        // Делим на 350.0, чтобы сместить точку баланса ближе к земле
-        let smooth_dist = (v.dist.max(1.0) / 350.0).sqrt();
-        // Расширяем диапазон от 0.25 (очень мелкие вдали) до 1.55 (крупные вблизи)
-        let scale_factor = (1.0 / smooth_dist).clamp(0.25, 1.55);
-        let smoothed_size = f.size * scale_factor;
+        // (30th session: the size is the world's own — the figure stands on the land and grows with it)
+        let smoothed_size = f.size;
         [
             f.at[0],
             f.at[1],
@@ -582,6 +579,11 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View, figures: &[Figure]) {
         gl.polygon_offset(-1.0, -4.0);
         gl.uniform_1_i32(u("uMode").as_ref(), 3);
         gl.bind_vertex_array(Some(g.shadow.vao));
+        gl.draw_arrays_instanced(glow::TRIANGLES, 0, g.shadow.verts, (all.len() / 8) as i32);
+        // the ring under each figure's feet in its country's colour (a dark figure on dark land is lost; a lit
+        // ring says whose it is and where it stands)
+        gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+        gl.uniform_1_i32(u("uMode").as_ref(), 4);
         gl.draw_arrays_instanced(glow::TRIANGLES, 0, g.shadow.verts, (all.len() / 8) as i32);
         gl.disable(glow::POLYGON_OFFSET_FILL);
         gl.disable(glow::BLEND);

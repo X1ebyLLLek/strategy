@@ -6,6 +6,9 @@ use super::*;
 /// The height of the country's bar.
 pub(super) const H: f32 = 64.0;
 
+/// The width of a sphere's cell when it carries its name (wide windows).
+const CELL: f32 = 50.0;
+
 /// The room the clock and the menu's medallion take at the bar's right end.
 const CLOCK: f32 = 300.0;
 
@@ -67,7 +70,9 @@ impl App {
             let col = Color32::from_rgb(c[0], c[1], c[2]);
             let people = g.h.home(me).people();
             // the flag: in a frame of trim, hanging a little below the bar (drawn over the map)
-            let frame = egui::Rect::from_min_size(egui::pos2(bar.min.x + 8.0, bar.min.y + 5.0), egui::vec2(104.0, 66.0));
+            // (30th session: the flag in the bar's own middle, the same margin above, below and at the left — it hung
+            // over the window's edge and below the bar, the one lopsided thing in a symmetric bar)
+            let frame = egui::Rect::from_min_size(egui::pos2(bar.min.x + 10.0 + 12.0, bar.min.y + 4.0), egui::vec2(92.0, H - 12.0));
             {
                 let fg = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("top-flag")));
                 let mut v = chrome::Out::new();
@@ -84,7 +89,7 @@ impl App {
                 }
             }
             ui.horizontal_centered(|ui| {
-                let (_, fr) = ui.allocate_exact_size(egui::vec2(120.0, H - 4.0), egui::Sense::hover());
+                let (_, fr) = ui.allocate_exact_size(egui::vec2(122.0, H - 4.0), egui::Sense::hover());
                 let fr = ui.interact(frame, egui::Id::new("top-flag-hit"), egui::Sense::hover()).union(fr);
                 fr.tip(|| Card::new(g.h.home(me).name.clone()).banner(country, col).sub("ваша страна").row("людей", format!("{people:.0} млн")).row("правительство", g.stability_word(me)).row("в мире", g.tension_word()));
                 // (the country's name only when the words of how it lives keep their numbers
@@ -116,7 +121,11 @@ impl App {
                 let radius = |lean: bool| ((ui.available_width() - 18.0 - 30.0 - 4.0 * 11.0 - Self::lives_need(ui, g, s, narrow, bare, lean) - CLOCK) / count - 3.0 - 4.0) / 2.0;
                 // (with eleven spheres the medallions give a little more of their size to the numbers)
                 let r = if radius(false) >= 13.5 { radius(false) } else { radius(true) }.clamp(13.0, 22.0);
-                self.spheres(ui, ctx, g, &ch, s, &alarms, unread, r);
+                // (30th session: on a wide window every sphere carries its name under it — eleven round
+                // icons with only a hint on the hand were a guessing game; a little smaller to make room)
+                let caps = screen.width() >= 1760.0 && radius(false) >= (CELL + 3.0 - 7.0) / 2.0;
+                let r = if caps { r.min(16.0) } else { r };
+                self.spheres(ui, ctx, g, &ch, s, &alarms, unread, r, caps);
                 ui.add_space(8.0);
                 let mut v = chrome::Out::new();
                 let x = ui.cursor().min.x;
@@ -139,7 +148,7 @@ impl App {
     /// the spheres
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::too_many_arguments)]
-    fn spheres(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, g: &Game, ch: &chrome::Chrome, s: Skin, alarms: &[Alert], unread: bool, r: f32) {
+    fn spheres(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, g: &Game, ch: &chrome::Chrome, s: Skin, alarms: &[Alert], unread: bool, r: f32, caps: bool) {
         let me = g.me;
         let tabs: Vec<(Tab, &str, &str, &str, Color32)> = [
             (Tab::Nation, "flag", "Страна", "Какая она: её особенности из прошлого и настоящего, хозяйственный строй, государственные программы, займы.", Color32::from_rgb(214, 188, 120)),
@@ -182,7 +191,22 @@ impl App {
             }
             last_group = Some(group(tab));
             let on = self.tab == Some(tab);
-            let b = hud::medallion(ui, &ch, &s, icon, r, hue, on, ("sphere", icon));
+            let b = if caps {
+                // (a cell: the disc over its name, the pair in the bar's middle; the name a word that fits)
+                let short = if tab == Tab::Arms { "Заводы" } else { name };
+                let ink = if on { s.desk_ink } else { s.desk_ink.gamma_multiply(0.74) };
+                let mut got = None;
+                ui.allocate_ui_with_layout(egui::vec2(CELL, 2.0 * r + 4.0 + 12.0), egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    let m = hud::medallion(ui, &ch, &s, icon, r, hue, on, ("sphere", icon));
+                    let (cr, _) = ui.allocate_exact_size(egui::vec2(CELL, 12.0), egui::Sense::hover());
+                    ui.painter().text(egui::pos2(cr.center().x, cr.min.y), egui::Align2::CENTER_TOP, short.to_uppercase(), egui::FontId::new(10.5, egui::FontFamily::Name("head".into())), ink);
+                    got = Some(m);
+                });
+                got.expect("the disc is drawn")
+            } else {
+                hud::medallion(ui, &ch, &s, icon, r, hue, on, ("sphere", icon))
+            };
             chrome::spot(ctx, "sphere", b.rect);
             // (a mark on the sphere when something there wants the eye)
             let worst = alarms.iter().filter(|a| a.tab == tab).map(|a| a.tone).max();

@@ -37,6 +37,9 @@ pub struct Stack {
     pub picked: usize,
 }
 
+/// A man's height in the sides of a province (what a model's size stands on).
+const FIGURE: f32 = 0.72;
+
 /// The main kind of divisions with these units: of their front kinds, the one they have most of
 /// (any kind if they have no front).
 pub fn main_kind(pack: &strategy::pack::Pack, has: &[f32]) -> usize {
@@ -279,12 +282,20 @@ impl MapView {
         list.sort_by(|a, b| b.ids.len().cmp(&a.ids.len()).then(a.q.cmp(&b.q)));
         if !crate::native::spoiled() {
             let size = room(false);
+            // (30th session: in a big war the counters stood in chains of «1», «2» a few points apart; at the
+            // middle zoom they gather further — a stretch of the front reads as a few counters — and part
+            // as the camera comes near, to a counter for each province)
+            let reach = {
+                let t = ((self.k - 3.0) / 3.5).clamp(0.0, 1.0);
+                1.0 - t * t * (3.0 - 2.0 * t)
+            };
+            let (kx, ky) = (0.8 + 0.8 * reach, 1.1 + 1.3 * reach);
             let mut merged: Vec<Stack> = Vec::new();
             for s in list {
                 let p = at(s.q);
                 if let Some(m) = merged.iter_mut().find(|m| m.side == s.side && m.fog == s.fog && {
                     let d = at(m.q) - p;
-                    d.x.abs() < size.x * 0.8 && d.y.abs() < size.y * 1.1
+                    d.x.abs() < size.x * kx && d.y.abs() < size.y * ky
                 }) {
                     let (a, b) = (m.ids.len() as f32, s.ids.len() as f32);
                     m.strength = (m.strength * a + s.strength * b) / (a + b);
@@ -307,7 +318,8 @@ impl MapView {
         // (the enemy's a little up and to the side of the province's middle, ours on it; where the
         // model of the troops stands, the counter goes under its feet — it sat on the model and
         // hid it: a plate with a flag over a figure of forty points)
-        let model_t = Self::model_show(self.k);
+        let span = Self::span(g);
+        let model_t = Self::model_show(self.k, span);
         for it in items.iter_mut() {
             if list[it.1].side != me {
                 it.0 += vec2(0.0, -6.0);
@@ -333,7 +345,7 @@ impl MapView {
             // the troops' figure by the stack (not for what fog hides): standing at the counter's
             // top edge, facing the enemy's capital — or where its first division marches
             if !s.fog {
-                figs.extend(self.squad(g, c, s, p));
+                figs.extend(self.squad(g, c, s, p, span));
             }
             let hue = (s.side == me && s.group != NONE).then(|| HUES[s.group % HUES.len()]);
             
@@ -397,19 +409,35 @@ impl MapView {
 
     /// How far the models of the troops show at this zoom (0 — not at all, the counters alone; 1 —
     /// in full, the counters step under their feet).
-    pub(super) fn model_show(k: f32) -> f32 {
-        ((k - 3.6) / 1.8).clamp(0.0, 1.0)
+    pub(super) fn model_show(k: f32, span: f32) -> f32 {
+        // (30th session: the models stand on the scale of the land — a man is `FIGURE` of a province's side tall
+        // wherever the camera is, so he grows as the camera comes down, as a thing on the ground does; they
+        // show when a man is some 20 points tall on the screen. It was 78 points at every zoom: taller than the
+        // province itself, the neighbours' figures stood on one another, and the land was lost under them)
+        let px = FIGURE * span * k;
+        ((px - 20.0) / 14.0).clamp(0.0, 1.0)
+    }
+
+    /// The side of the world's usual province, in world pixels (the scale the models stand on).
+    pub(super) fn span(g: &Game) -> f32 {
+        let (mut area, mut n) = (0.0f64, 0u32);
+        for p in g.world.provinces.iter().filter(|p| !p.sea) {
+            area += p.area as f64;
+            n += 1;
+        }
+        ((area / n.max(1) as f64).sqrt() as f32).max(1.0)
     }
 
     /// The figures of stack `s`: one for a pair of divisions, two for a few, three for an army —
     /// side by side across the way it faces, so that a big stack looks bigger than a small one.
-    fn squad(&self, g: &Game, c: &Corps, s: &Stack, p: Pos2) -> Vec<super::figures::Figure> {
-        let lead = self.figure(g, c, s, p);
+    fn squad(&self, g: &Game, c: &Corps, s: &Stack, p: Pos2, span: f32) -> Vec<super::figures::Figure> {
+        let lead = self.figure(g, c, s, p, span);
         let n = if s.n <= 2.0 { 1 } else if s.n <= 6.0 { 2 } else { 3 };
         if n == 1 || lead.size <= 0.0 {
             return vec![lead];
         }
-        let gap = 20.0 / self.k.max(0.5);
+        // (side by side inside their province: a few men's width apart, never reaching the next province's)
+        let gap = 0.27 * span;
         let across = lead.angle + std::f32::consts::FRAC_PI_2;
         (0..n)
             .map(|i| {
@@ -424,7 +452,7 @@ impl MapView {
 
     /// The figure that stands for stack `s` drawn at `p` on the screen: the model of its main kind
     /// in the era, in its country's uniform, facing the enemy or its march, a few dozen points tall.
-    fn figure(&self, g: &Game, c: &Corps, s: &Stack, p: Pos2) -> super::figures::Figure {
+    fn figure(&self, g: &Game, c: &Corps, s: &Stack, p: Pos2, span: f32) -> super::figures::Figure {
         use super::figures as f;
         let war = &g.h.war;
         let th = &war.th;
@@ -478,11 +506,13 @@ impl MapView {
         // (the country's colour worked into the era's cloth: khaki, dust, or the bright coats of
         // the old wars)
         let (cloth, share) = match era {
-            1 => ([0.40, 0.36, 0.28], 0.30),
-            2 => ([0.30, 0.30, 0.36], 0.70),
-            _ => ([0.34, 0.34, 0.24], 0.30),
+            1 => ([0.46, 0.42, 0.33], 0.40),
+            2 => ([0.36, 0.36, 0.42], 0.72),
+            _ => ([0.42, 0.42, 0.31], 0.48),
         };
-        let colour = [0, 1, 2].map(|j| (cloth[j] * (1.0 - share) + flag[j] * share) * 0.9);
+        // (30th session: the stacks of the two sides must tell apart from the height of a model: more of the
+        // country's own colour in the cloth, and brighter — it was a khaki-black crowd)
+        let colour = [0, 1, 2].map(|j| (cloth[j] * (1.0 - share) + flag[j] * share) * 1.0);
         let fighting = c.fights.iter().any(|x| x.at == s.q || (x.side == s.side && s.marks & ATTACK != 0));
         let doing = if fighting {
             2.0
@@ -495,7 +525,7 @@ impl MapView {
         // models give way to the counters)
         // (the figures wait for the close view: from 2.6 up each province carries a counter, and a crowd of
         // black figures under the counters hid the provinces and the front)
-        let t = Self::model_show(self.k);
+        let t = Self::model_show(self.k, span);
         // Meshes are normalised by height, not by their footprint.  A tank is almost twice as
         // long as a soldier is tall, so giving every mesh the same size made armour span several
         // provinces and hide both counters and borders.  Keep its on-screen presence, but scale
@@ -508,7 +538,7 @@ impl MapView {
             f::RIDER => 0.78,
             _ => 1.0,
         };
-        let size = 78.0 / self.k.max(0.5) * t * t * (3.0 - 2.0 * t) * footprint;
+        let size = FIGURE * span * t * t * (3.0 - 2.0 * t) * footprint;
         super::figures::Figure { model, at, size, angle, colour, doing }
     }
 

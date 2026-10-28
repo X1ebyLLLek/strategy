@@ -164,7 +164,7 @@ impl MapView {
         let near = near * near * (3.0 - 2.0 * near);
         let overlay = match self.mode {
             Mode::Terrain => 0.0,
-            Mode::Political => 0.74 - 0.60 * near,
+            Mode::Political => 0.80 - 0.48 * near,
             _ => 0.78,
         };
         scene::Frame {

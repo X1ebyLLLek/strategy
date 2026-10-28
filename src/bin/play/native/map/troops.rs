@@ -596,9 +596,17 @@ impl MapView {
                 }
             }
             items.sort_by(|a, b| b.n.total_cmp(&a.n));
+            // (30th session: a big war showed a counter in every province — chains of «1», «2» a few points
+            // apart, a noise over the front. At the middle zoom the counters reach further for one
+            // another, so that a stretch of the front reads as a few; close up each province has its own)
+            let reach = {
+                let t = ((self.k - AGG) / (6.5 - AGG)).clamp(0.0, 1.0);
+                1.0 - t * t * (3.0 - 2.0 * t)
+            };
+            let (mx, my) = (54.0 + 66.0 * reach, 28.0 + 36.0 * reach);
             let mut placed: Vec<Item> = Vec::new();
             for it in items {
-                if let Some(o) = placed.iter_mut().find(|o| !crate::native::spoiled() && o.foe == it.foe && (o.p.x - it.p.x).abs() < 54.0 && (o.p.y - it.p.y).abs() < 28.0) {
+                if let Some(o) = placed.iter_mut().find(|o| !crate::native::spoiled() && o.foe == it.foe && (o.p.x - it.p.x).abs() < mx && (o.p.y - it.p.y).abs() < my) {
                     o.n += it.n;
                     o.qs.extend(it.qs);
                     continue;

@@ -50,6 +50,16 @@ void main() {
         vDepth = gl_Position.w;
         return;
     }
+    if (uMode == 4) {
+        // the ring: a circle on the land round the feet, as wide as the figure's breadth asks
+        vec2 sh = uShadow[clamp(model, 0, 8)];
+        float rad = size * (0.20 + 0.60 * sh.y);
+        vec2 q = aInst.xy + aPos.xy * 2.0 * rad;
+        vPlate = aPos.xy * 2.0;
+        gl_Position = uMvp * vec4(q, ground(q) + 0.02, 1.0);
+        vDepth = gl_Position.w;
+        return;
+    }
     vec3 p = aPos;
     vec3 n = aNrm;
     // the paint: one of the paints (below 1000, by tens the limb that moves), or a colour of the

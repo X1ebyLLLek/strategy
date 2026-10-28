@@ -606,7 +606,7 @@ void main() {
             // each province a little lighter or darker than its neighbours, so that the land falls
             // into provinces even where no line is drawn
             tint *= 0.93 + 0.14 * hash(vec2(float(id), 17.0));
-            col = mix(col, tint * clamp(lum, 0.68, 1.3), uOverlay * on);
+            col = mix(col, tint * clamp(lum, 0.80, 1.25), uOverlay * on);
             // borders (far away; close up egui draws them smooth): the countries' dark, the
             // provinces' faint, the front red
             if (uBorders > 0.0) {
@@ -658,8 +658,9 @@ void main() {
         if (fogv > 0.0) {
             float mist = 0.55 + 0.45 * smoothstep(0.25, 0.75, fbm(vWorld + vec2(uTime * 0.8, uTime * 0.3), 1.0 / 32.0, 4));
             float lumf = dot(col, vec3(0.3, 0.59, 0.11));
-            vec3 hazed = mix(vec3(lumf) * 0.42, vec3(0.11, 0.13, 0.18), 0.5);
-            col = mix(col, hazed, fogv * 0.78 * mist);
+            // (30th session: a veil, not a hole — the unseen land kept its colours half, only greyed and cooled)
+            vec3 hazed = mix(vec3(lumf) * 0.80, vec3(0.24, 0.27, 0.34), 0.40);
+            col = mix(col, hazed, fogv * 0.58 * mist);
         }
     }
     // clouds far away, and their shadows
@@ -673,5 +674,13 @@ void main() {
     // haze far up a tilted view
     float haze = smoothstep(1.15, 2.6, vDepth / uDist);
     col = mix(col, vec3(0.64, 0.72, 0.80), haze * 0.55);
+    // (30th session, the grade of the whole picture: the shadows lifted and the colours a little
+    // fuller, so that a forest or a range in shade is dark but not mud, and a country's tint
+    // still reads on it; the sea is left as it is)
+    if (hs >= 0.0) {
+        float gl2 = dot(col, vec3(0.3, 0.59, 0.11));
+        col = mix(vec3(gl2), col, 1.14);
+        col = pow(clamp(col, 0.0, 1.0), vec3(0.84));
+    }
     frag = vec4(col, 1.0);
 }
