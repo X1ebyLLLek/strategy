@@ -15,6 +15,7 @@ use super::{designer, map, App, Tab};
 
 mod cards;
 mod divs;
+mod economy;
 mod land;
 mod layout;
 mod policy;
@@ -131,6 +132,18 @@ pub fn uitest(shared: Arc<Mutex<Game>>, control: bool) -> bool {
         lines.push(format!("[{}] {name} — {detail}", if ok { "OK" } else { "FAIL" }));
         ok
     };
+    // (`UIECON=1`: only the economy's checks — for working on them)
+    if std::env::var("UIECON").is_ok() {
+        economy::vitals(&mut app, &ctx, &mut say);
+        economy::tax_lever(&shared, &mut app, &ctx, &mut say);
+        economy::advice(&shared, &mut app, &ctx, &mut say);
+        economy::appoint(&shared, &mut app, &ctx, &mut say);
+        economy::forecast(&shared, &mut app, &ctx, &mut say);
+        for l in &lines {
+            println!("{l}");
+        }
+        return lines.iter().all(|l| l.starts_with("[OK]"));
+    }
     layout::folders(&shared, &mut app, &ctx, t0, &mut say);
     land::counters(&mut app, &ctx, &mut say);
     land::camera(&mut app, &ctx, &mut say);
@@ -155,6 +168,12 @@ pub fn uitest(shared: Arc<Mutex<Game>>, control: bool) -> bool {
     policy::eco_law(&shared, &mut app, &ctx, &mut say);
     policy::priority(&shared, &mut app, &ctx, &mut say);
     policy::tax_step(&shared, &mut app, &ctx, &mut say);
+    // 39–43. the economy's overview: the vital signs, the lever in a breakdown, the advice, the economist, the forecast
+    economy::vitals(&mut app, &ctx, &mut say);
+    economy::tax_lever(&shared, &mut app, &ctx, &mut say);
+    economy::advice(&shared, &mut app, &ctx, &mut say);
+    economy::appoint(&shared, &mut app, &ctx, &mut say);
+    economy::forecast(&shared, &mut app, &ctx, &mut say);
     divs::stacks(&shared, &mut app, &ctx, &mut say);
     // 26–28. the war's orders: the groups' plans, the chosen divisions' way, the keys
     war::plans(&shared, &mut app, &ctx, &mut say);

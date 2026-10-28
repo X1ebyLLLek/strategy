@@ -7,13 +7,25 @@ use super::*;
 
 /// the folders to look at, and what each check found
 pub(super) fn folders(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Context, t0: std::time::Instant, say: &mut dyn FnMut(bool, &str, String) -> bool) {
-    let tabs: Vec<(Option<Tab>, &str)> = {
+    // (each folder, and each page of a folder that has pages: 29th session — the checks looked at the
+    // first page of each; the second page of the economy was never read)
+    let tabs: Vec<(Option<Tab>, usize, String)> = {
         let g = shared.lock().unwrap();
-        let mut v = vec![(None, "без папки"), (Some(Tab::Nation), "страна"), (Some(Tab::Econ), "экономика"), (Some(Tab::Arms), "производство")];
+        let mut folders: Vec<(Tab, &str)> = vec![(Tab::Nation, "страна"), (Tab::Econ, "экономика"), (Tab::Arms, "производство")];
         if g.h.labs[g.me].is_some() {
-            v.push((Some(Tab::Science), "наука"));
+            folders.push((Tab::Science, "наука"));
         }
-        v.extend([(Some(Tab::Army), "армия"), (Some(Tab::Politics), "политика"), (Some(Tab::Society), "общество"), (Some(Tab::Ledger), "сводка"), (Some(Tab::News), "события")]);
+        folders.extend([(Tab::Army, "армия"), (Tab::Politics, "политика"), (Tab::Society, "общество"), (Tab::Ledger, "сводка"), (Tab::News, "события")]);
+        let mut v: Vec<(Option<Tab>, usize, String)> = vec![(None, 0, "без папки".into())];
+        for (tab, name) in folders {
+            let pages = super::super::panels::pages(tab);
+            if pages.is_empty() {
+                v.push((Some(tab), 0, name.to_string()));
+            }
+            for (k, page) in pages.iter().enumerate() {
+                v.push((Some(tab), k, format!("{name}/{}", page.to_lowercase())));
+            }
+        }
         v
     };
     let mut hidden: Vec<(String, f32)> = Vec::new();
@@ -32,8 +44,11 @@ pub(super) fn folders(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Cont
             frame(ctx, app, w, h);
         }
         app.map = None;
-        for (tab, name) in &tabs {
+        for (tab, page, name) in &tabs {
             app.tab = *tab;
+            if let Some(t) = tab {
+                super::super::set_page(ctx, *t, *page);
+            }
             app.chosen = None;
             app.edit = None;
             if *tab == Some(Tab::Army) {
@@ -178,6 +193,12 @@ pub(super) fn folders(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Cont
                     }
                 }
             }
+        }
+    }
+    // (the folders' pages put back to the first: the checks after these look at the first pages)
+    for (tab, page, _) in &tabs {
+        if let Some(t) = tab.filter(|_| *page > 0) {
+            super::super::set_page(ctx, t, 0);
         }
     }
     let worst = hidden.iter().cloned().fold(("везде 0".to_string(), 0.0f32), |a, b| if b.1 > a.1 { b } else { a });

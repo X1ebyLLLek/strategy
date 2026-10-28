@@ -1,8 +1,8 @@
 //! The widgets of the window in the era's dress (egui's own are plain boxes): a slider with a sunk
-//! groove, the rail filled up to a knob of trim and a notch where the usual value is; a check box
-//! of paper with a tick of ink; a field to write in, sunk into the paper; the scroll bar as a
-//! groove with a plate; bars of shares in a frame with the kinds' names in them; a switch of joined
-//! plates; a meter against the usual; a bar of progress; small plate-buttons.
+//! groove, the rail filled up to a knob of trim and a notch where the usual value is; a field to
+//! write in, sunk into the paper; the scroll bar as a groove with a plate; bars of shares in a
+//! frame with the kinds' names in them; a switch of joined plates; a meter against the usual; a bar
+//! of progress; small plate-buttons; a number with − and +.
 
 use eframe::egui::{self, pos2, vec2, Color32, CursorIcon, FontFamily, FontId, Rect, Response, Sense, Shape, Stroke, Ui};
 
@@ -77,34 +77,6 @@ pub fn slider(ui: &mut Ui, value: &mut f32, range: std::ops::RangeInclusive<f32>
         }
         knob(&mut v, &ch, Rect::from_center_size(pos2(x, r.center().y), vec2(14.0, 22.0)), resp.hovered() || resp.dragged());
         ui.painter().extend(v);
-    }
-    resp
-}
-
-/// A check box of paper with a tick of ink, its words after it; the whole line takes the click.
-pub fn check(ui: &mut Ui, on: &mut bool, text: &str) -> Response {
-    let (ch, s) = chrome::dress(ui);
-    let g = ui.painter().layout_no_wrap(text.to_string(), FontId::proportional(15.0), s.ink);
-    let h = g.size().y.max(22.0);
-    let (r, mut resp) = ui.allocate_exact_size(vec2(26.0 + g.size().x, h), Sense::click());
-    if resp.clicked() {
-        *on = !*on;
-        resp.mark_changed();
-    }
-    let resp = resp.on_hover_cursor(CursorIcon::PointingHand);
-    if ui.is_rect_visible(r) {
-        let b = Rect::from_min_size(pos2(r.min.x, r.center().y - 9.0), vec2(18.0, 18.0));
-        let mut v = Out::new();
-        ch.lay(&mut v, b, &ch.paper, 2.0);
-        v.push(Shape::rect_filled(b, 2.0, Color32::from_black_alpha(26)));
-        ch.bevel(&mut v, b, false, 1.2);
-        v.push(Shape::rect_stroke(b, 2.0, Stroke::new(if resp.hovered() { 1.6 } else { 1.0 }, if resp.hovered() { ch.trim } else { Color32::from_black_alpha(140) })));
-        if *on {
-            let p = |x: f32, y: f32| pos2(b.min.x + x, b.min.y + y);
-            v.push(Shape::line(vec![p(3.5, 9.0), p(7.5, 13.5), p(15.0, 3.5)], Stroke::new(2.8, s.accent)));
-        }
-        ui.painter().extend(v);
-        ui.painter().galley(pos2(b.max.x + 8.0, r.center().y - g.size().y / 2.0), g, s.ink);
     }
     resp
 }
@@ -313,6 +285,29 @@ pub fn switch(ui: &mut Ui, options: &[&str], chosen: usize) -> Option<usize> {
 pub fn small(ui: &mut Ui, text: &str) -> Response {
     let (ch, s) = chrome::dress(ui);
     chrome::press(ui, &ch, &s, Press { text, size: vec2(0.0, 27.0), font: 14.0, ..Press::default() })
+}
+
+/// A number moved by − and +: its figure between two plates, `w` wide in all; −1, 0 or +1 for the plate
+/// pressed, and the rectangle of the + plate (for the window's self-checks). Greyed out and deaf
+/// when it may not be moved.
+pub fn stepper(ui: &mut Ui, text: &str, w: f32, enabled: bool) -> (i8, Rect) {
+    let (ch, s) = chrome::dress(ui);
+    let (r, _) = ui.allocate_exact_size(vec2(w, 27.0), Sense::hover());
+    let bw = 25.0;
+    let minus = Rect::from_min_size(r.min, vec2(bw, r.height()));
+    let plus = Rect::from_min_size(pos2(r.max.x - bw, r.min.y), vec2(bw, r.height()));
+    let b1 = ui.put(minus, |ui: &mut Ui| chrome::press(ui, &ch, &s, Press { text: "−", size: minus.size(), font: 17.0, enabled, ..Press::default() }));
+    let b2 = ui.put(plus, |ui: &mut Ui| chrome::press(ui, &ch, &s, Press { text: "+", size: plus.size(), font: 17.0, enabled, ..Press::default() }));
+    let g = ui.painter().layout_no_wrap(text.to_string(), FontId::new(14.5, FontFamily::Name("bold".into())), if enabled { s.ink } else { s.soft });
+    ui.painter().galley(pos2(r.center().x - g.size().x / 2.0, r.center().y - g.size().y / 2.0), g, s.ink);
+    let out = if enabled && b1.clicked() {
+        -1
+    } else if enabled && b2.clicked() {
+        1
+    } else {
+        0
+    };
+    (out, b2.rect)
 }
 
 /// A plate-button on paper, chosen (the accent) or not, that may be greyed out.

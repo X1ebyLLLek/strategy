@@ -9,6 +9,7 @@ use super::*;
 use super::super::charts::num;
 use super::super::kit::{self, Stat};
 use super::super::reports::glow;
+use super::super::hud;
 
 /// One line of the sheet: its name and a note after it, the money, a bar of its share of `of`
 /// behind it; − and + with `step` between them when the line has a lever (greyed out when it is not
@@ -54,24 +55,12 @@ fn line_marked(ui: &mut egui::Ui, s: &Skin, name: &str, note: &str, money: f32, 
     }
     let mut out = 0i8;
     if let Some((what, enabled)) = step {
-        let (ch, sk) = chrome::dress(ui);
-        let lr = egui::Rect::from_min_max(egui::pos2(r.max.x - lever_w + 4.0, r.min.y + 1.0), egui::pos2(r.max.x, r.max.y - 1.0));
-        let bw = 25.0;
-        let minus = egui::Rect::from_min_size(lr.min, vec2(bw, lr.height()));
-        let plus = egui::Rect::from_min_size(egui::pos2(lr.max.x - bw, lr.min.y), vec2(bw, lr.height()));
-        let b1 = ui.put(minus, |ui: &mut egui::Ui| chrome::press(ui, &ch, &sk, chrome::Press { text: "−", size: minus.size(), font: 17.0, enabled, ..chrome::Press::default() }));
-        let b2 = ui.put(plus, |ui: &mut egui::Ui| chrome::press(ui, &ch, &sk, chrome::Press { text: "+", size: plus.size(), font: 17.0, enabled, ..chrome::Press::default() }));
-        let g = ui.painter().layout_no_wrap(what.to_string(), egui::FontId::new(14.5, egui::FontFamily::Name("bold".into())), if enabled { s.ink } else { s.soft });
-        ui.painter().galley(egui::pos2(lr.center().x - g.size().x / 2.0, lr.center().y - g.size().y / 2.0), g, s.ink);
-        if let Some(m) = mark.filter(|_| ui.clip_rect().contains_rect(b2.rect)) {
-            chrome::spot(ui.ctx(), m, b2.rect);
+        let lr = egui::Rect::from_min_max(egui::pos2(r.max.x - lever_w + 4.0, r.min.y), egui::pos2(r.max.x, r.max.y));
+        let (d, plus) = ui.allocate_new_ui(egui::UiBuilder::new().max_rect(lr), |ui| widgets::stepper(ui, what, lr.width(), enabled)).inner;
+        if let Some(m) = mark.filter(|_| ui.clip_rect().contains_rect(plus)) {
+            chrome::spot(ui.ctx(), m, plus);
         }
-        if enabled && b1.clicked() {
-            out = -1;
-        }
-        if enabled && b2.clicked() {
-            out = 1;
-        }
+        out = d;
     }
     (resp, out)
 }
@@ -86,6 +75,52 @@ fn total(ui: &mut egui::Ui, s: &Skin, name: &str, money: f32, colour: Color32) {
     p.galley(egui::pos2(r.min.x + 8.0, r.center().y - g.size().y / 2.0), g, s.ink);
     let g = p.layout_no_wrap(num(money), egui::FontId::new(15.5, egui::FontFamily::Name("bold".into())), s.ink);
     p.galley(egui::pos2(r.max.x - 104.0 - 6.0 - g.size().x, r.center().y - g.size().y / 2.0), g, s.ink);
+}
+
+/// The treasury's month as two bars of one scale — what came in over what went out: each source and
+/// each line a stretch in its colour (its name in it where it fits), the card of a stretch with its
+/// number and share. A glance says whether the month left something over, and who took the most.
+fn flows(ui: &mut egui::Ui, s: &Skin, income: &[(&str, f32, Color32)], spent: &[(&str, f32, Color32)]) {
+    let (ch, _) = chrome::dress(ui);
+    let all_in: f32 = income.iter().map(|x| x.1.max(0.0)).sum();
+    let all_out: f32 = spent.iter().map(|x| x.1.max(0.0)).sum();
+    let top = all_in.max(all_out).max(1e-6);
+    let label_w = 62.0;
+    let w = ui.available_width().min(ui.clip_rect().max.x - ui.cursor().min.x - 2.0);
+    for (title, parts, total) in [("приходит", income, all_in), ("уходит", spent, all_out)] {
+        let (r, _) = ui.allocate_exact_size(vec2(w, 30.0), egui::Sense::hover());
+        ui.painter().text(egui::pos2(r.min.x + 1.0, r.center().y), egui::Align2::LEFT_CENTER, title.to_uppercase(), egui::FontId::new(12.5, egui::FontFamily::Name("head".into())), s.soft);
+        let area = egui::Rect::from_min_max(egui::pos2(r.min.x + label_w, r.min.y + 3.0), egui::pos2(r.max.x, r.max.y - 3.0));
+        let mut v = chrome::Out::new();
+        v.push(egui::Shape::rect_filled(area, 2.0, Color32::from_black_alpha(34)));
+        ch.bevel(&mut v, area, false, 1.0);
+        ui.painter().extend(v);
+        let mut x = area.min.x;
+        let mut labels = Vec::new();
+        for (name, val, col) in parts.iter().filter(|p| p.1 > 1e-4) {
+            let pw = area.width() * val / top;
+            let seg = egui::Rect::from_min_size(egui::pos2(x, area.min.y), vec2(pw, area.height()));
+            let resp = ui.interact(seg, ui.id().with(("flow", title, *name)), egui::Sense::hover());
+            let mut v = chrome::Out::new();
+            v.push(egui::Shape::rect_filled(seg.shrink2(vec2(0.0, 1.0)), 0.0, *col));
+            ch.gloss(&mut v, seg.shrink2(vec2(0.0, 1.0)), Color32::from_white_alpha(if resp.hovered() { 90 } else { 50 }), Color32::from_black_alpha(50));
+            if x > area.min.x + 0.5 {
+                v.push(egui::Shape::line_segment([seg.left_top(), seg.left_bottom()], egui::Stroke::new(1.0, Color32::from_black_alpha(160))));
+            }
+            ui.painter().extend(v);
+            let g = ui.painter().layout_no_wrap(name.to_string(), egui::FontId::new(12.5, egui::FontFamily::Name("bold".into())), widgets::ink_on(*col));
+            if g.size().x + 8.0 <= pw {
+                labels.push((egui::pos2(seg.center().x - g.size().x / 2.0, seg.center().y - g.size().y / 2.0), g, widgets::ink_on(*col)));
+            }
+            let (n, m) = (name.to_string(), *val);
+            resp.tip(|| Card::new(n).icon("coins").row("за месяц", num(m)).row(format!("доля того, что {title}"), format!("{:.0}%", m / total.max(1e-6) * 100.0)));
+            x += pw;
+        }
+        for (p, g, c) in labels {
+            ui.painter().galley(p, g, c);
+        }
+    }
+    ui.add_space(2.0);
 }
 
 /// The page «Бюджет»: the treasury in figures, the month's sheet with its levers.
@@ -127,8 +162,23 @@ pub(super) fn sheet(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     if g.rows.is_empty() {
         say(ui, s, "Итоги первого месяца появятся через месяц.");
     }
-    say(ui, s, if mine { "Каждая статья — в своей строке; кнопки «−» и «+» меняют её здесь же, подсказка — сколько это денег в месяц." } else { "Налог и стройку ведёт [adviser]советник; армию и науку решаете вы." });
+    say(ui, s, if mine { "Статью меняют кнопки «−» и «+» в её строке; подсказка скажет, сколько это денег в месяц." } else { "Налог и стройку ведёт [adviser]советник; армию и науку решаете вы." });
     ui.add_space(3.0);
+    flows(
+        ui,
+        s,
+        &[("налоги", b.tax, kit::GOOD), ("пошлины", b.duty, hud::lighten(kit::GOOD, 0.25)), ("заводы казны", b.sectors, hud::darken(kit::GOOD, 0.2)), ("прочее", b.other.max(0.0), kit::PLAIN)],
+        &[
+            ("армия", b.army, Color32::from_rgb(176, 58, 42)),
+            ("жалованье", b.soldiers, Color32::from_rgb(150, 70, 52)),
+            ("наука", b.science, Color32::from_rgb(86, 130, 196)),
+            ("стройка", b.build + b.subsidy, kit::MIXED),
+            ("гражданские", b.civil, Color32::from_rgb(120, 110, 160)),
+            ("долг", b.bonds, Color32::from_rgb(110, 110, 110)),
+            ("раздача", b.dole, kit::PLAIN),
+            ("прочее", (-b.other).max(0.0), hud::lighten(kit::PLAIN, 0.2)),
+        ],
+    );
     let top = income.max(spent).max(1e-6);
     let green = kit::GOOD;
     // what the treasury took in

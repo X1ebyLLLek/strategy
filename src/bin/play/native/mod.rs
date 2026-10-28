@@ -128,6 +128,9 @@ pub struct Shot {
     /// The fronts shown off: the first two groups on the whole front with the enemy, the third
     /// facing another neighbour; the tool of the front in hand.
     pub fronts: bool,
+    /// More folders after the first, each in a picture of its own (`FILE_econ_1.png`…): one world,
+    /// one start of the window for a whole round of pictures (29th session).
+    pub tour: Vec<String>,
 }
 
 /// The window spoiled on purpose (`SPOIL=1`), for the negative control of its self-checks: the
@@ -161,6 +164,9 @@ struct App {
     shot: Option<Shot>,
     frame: u32,
     asked: bool,
+    /// The folders still to be taken in a round of pictures, and the one being taken (none: the first).
+    tour: std::collections::VecDeque<String>,
+    tour_now: Option<String>,
     /// A new world being built (in its own thread), and whether the player is asked to confirm it.
     building: Option<Building>,
     confirm_new: bool,
@@ -252,6 +258,7 @@ impl Settings {
 
 impl App {
     fn new(shared: Arc<Mutex<Game>>, ctx: &egui::Context, theme: &str, shot: Option<Shot>) -> App {
+        let tour: std::collections::VecDeque<String> = shot.as_ref().map_or_else(Default::default, |x| x.tour.iter().cloned().collect());
         look::fonts(ctx, theme);
         let skin = Skin::of(theme);
         look::style(ctx, &skin);
@@ -274,6 +281,8 @@ impl App {
             shot,
             frame: 0,
             asked: false,
+            tour,
+            tour_now: None,
             building: None,
             confirm_new: false,
             menu: false,
@@ -330,7 +339,8 @@ pub fn run(shared: Arc<Mutex<Game>>, shot: Option<Shot>, start: bool) -> eframe:
         viewport: egui::ViewportBuilder::default().with_inner_size([size.0, size.1]).with_min_inner_size([1100.0, 640.0]).with_title(format!("{name} — стратегия")),
         // (the land in three dimensions: a depth buffer, smooth edges of the mountains)
         depth_buffer: 24,
-        multisampling: 4,
+        // (`MSAA=0`: for a screen with no smoothing in its visuals — a virtual one taking pictures)
+        multisampling: std::env::var("MSAA").ok().and_then(|v| v.parse().ok()).unwrap_or(4),
         // (pictures measure the frames as fast as they go, not at the screen's pace)
         vsync: shot.is_none(),
         ..Default::default()
@@ -402,6 +412,7 @@ impl eframe::App for App {
         self.draw(ctx);
         self.cpu.push(t0.elapsed().as_secs_f32());
         // a picture of the window, if one was asked for
+        let mut next_tab: Option<String> = None;
         if let Some(shot) = &self.shot {
             if let (Some(k), 10) = (shot.choose, self.frame) {
                 self.chosen = Some(k);
@@ -457,8 +468,15 @@ impl eframe::App for App {
             let got = ctx.input(|i| i.raw.events.iter().find_map(|e| if let egui::Event::Screenshot { image, .. } = e { Some(image.clone()) } else { None }));
             if let Some(img) = got {
                 let rgb: Vec<u8> = img.pixels.iter().flat_map(|c| [c.r(), c.g(), c.b()]).collect();
-                let _ = std::fs::write(&shot.file, strategy::png::encode_rgb(img.size[0], img.size[1], &rgb));
-                println!("снимок окна: {}", shot.file.display());
+                let path = match &self.tour_now {
+                    Some(label) => {
+                        let stem = shot.file.file_stem().map_or(String::new(), |x| x.to_string_lossy().into_owned());
+                        shot.file.with_file_name(format!("{stem}_{}.png", label.replace(':', "_")))
+                    }
+                    None => shot.file.clone(),
+                };
+                let _ = std::fs::write(&path, strategy::png::encode_rgb(img.size[0], img.size[1], &rgb));
+                println!("снимок окна: {}", path.display());
                 if let Some(m) = &self.map {
                     for (how, n, t, a) in &m.painted {
                         println!("  в видеокарту: {how} (сменили хозяина {n} провинций), {:.3} с, {:.2}% слоёв земли", t, a * 100.0);
@@ -491,8 +509,26 @@ impl eframe::App for App {
                         println!("  видеокарта на карту: земля {:.2} мс, деревья и дома {:.2} мс (медиана {} кадров)", med(&|t| t.0) * 1e3, med(&|t| t.1) * 1e3, tail.len());
                     }
                 }
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                match self.tour.front() {
+                    Some(next) => next_tab = Some(next.clone()),
+                    None => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                }
             }
+        }
+        // (the next folder of a round of pictures: opened, waited for, taken)
+        if let Some(next) = next_tab {
+            self.tour.pop_front();
+            if let Some(t) = Tab::of(&next) {
+                self.tab = Some(t);
+                if let Some(k) = next.split_once(':').and_then(|x| x.1.parse::<usize>().ok()) {
+                    set_page(ctx, t, k);
+                }
+            }
+            self.tour_now = Some(next);
+            self.frame = 0;
+            self.asked = false;
+            self.gaps.clear();
+            self.cpu.clear();
         }
     }
 }

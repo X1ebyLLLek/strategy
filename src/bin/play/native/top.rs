@@ -286,7 +286,7 @@ impl App {
                     .note("щёлкните — бюджет: каждая статья и её рычаг")
             })
         {
-            open = Some((Tab::Econ, 0));
+            open = Some((Tab::Econ, panels::economy::BUDGET));
         }
         let power_text = if spoiled() || lean { power.to_string() } else { text_of("власть") };
         if word(ui, "crown", Color32::from_rgb(214, 178, 236), "власть", &power_text, if st < crate::world::statecraft::SHAKY { 2 } else if st < 0.5 { 1 } else { 0 }, st * 5.0, trends[2], &|| {

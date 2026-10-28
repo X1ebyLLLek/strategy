@@ -5,7 +5,7 @@
 use super::*;
 
 /// Frames of the window at 1600×900, the clock going on by a 60th of a second each.
-fn stepper(ctx: &egui::Context) -> impl FnMut(&mut App, Vec<egui::Event>) + '_ {
+pub(super) fn stepper(ctx: &egui::Context) -> impl FnMut(&mut App, Vec<egui::Event>) + '_ {
     let mut t = ctx.input(|i| i.time);
     move |app: &mut App, events: Vec<egui::Event>| {
         t += 1.0 / 60.0;
@@ -14,7 +14,7 @@ fn stepper(ctx: &egui::Context) -> impl FnMut(&mut App, Vec<egui::Event>) + '_ {
 }
 
 /// A click at `p`: the hand there, pressed, let go, a frame after.
-fn click(step: &mut impl FnMut(&mut App, Vec<egui::Event>), app: &mut App, p: Pos2) {
+pub(super) fn click(step: &mut impl FnMut(&mut App, Vec<egui::Event>), app: &mut App, p: Pos2) {
     for ev in [
         vec![egui::Event::PointerMoved(p)],
         vec![egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() }],
@@ -26,7 +26,7 @@ fn click(step: &mut impl FnMut(&mut App, Vec<egui::Event>), app: &mut App, p: Po
 }
 
 /// The folder `tab` open and turned down till the spot `name` is in sight (none: it never was).
-fn find(step: &mut impl FnMut(&mut App, Vec<egui::Event>), app: &mut App, ctx: &egui::Context, tab: Tab, name: &str) -> Option<Rect> {
+pub(super) fn find(step: &mut impl FnMut(&mut App, Vec<egui::Event>), app: &mut App, ctx: &egui::Context, tab: Tab, name: &str) -> Option<Rect> {
     app.tab = Some(tab);
     app.menu = false;
     app.chosen = None;
@@ -57,7 +57,7 @@ fn find(step: &mut impl FnMut(&mut App, Vec<egui::Event>), app: &mut App, ctx: &
 }
 
 /// The folder slid shut before the next check.
-fn close(step: &mut impl FnMut(&mut App, Vec<egui::Event>), app: &mut App) {
+pub(super) fn close(step: &mut impl FnMut(&mut App, Vec<egui::Event>), app: &mut App) {
     app.tab = None;
     for _ in 0..30 {
         step(app, vec![egui::Event::PointerGone]);
@@ -168,7 +168,7 @@ pub(super) fn tax_step(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Con
         let mut g = shared.lock().unwrap();
         g.adviser = None;
     }
-    super::super::set_page(ctx, Tab::Econ, 0);
+    super::super::set_page(ctx, Tab::Econ, super::super::panels::economy::BUDGET);
     let plus = find(&mut step, app, ctx, Tab::Econ, "tax_plus");
     let (me, before, now) = {
         let g = shared.lock().unwrap();

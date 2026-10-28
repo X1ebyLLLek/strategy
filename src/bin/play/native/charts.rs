@@ -20,7 +20,25 @@ pub fn num(x: f32) -> String {
     } else {
         format!("{x:.2}")
     };
-    s.replace('.', ",")
+    s.replace('.', ",").replace('-', "−")
+}
+
+/// A number with `d` decimals, a comma for the point and a true minus: 1.5 → «1,5», −0.25 → «−0,25».
+pub fn fix(x: f32, d: usize) -> String {
+    format!("{x:.d$}").replace('.', ",").replace('-', "−")
+}
+
+/// `fix` with its sign always shown (+ or −); a value that rounds to nothing is written without one.
+pub fn sfix(x: f32, d: usize) -> String {
+    let t = fix(x, d);
+    let zero = !t.chars().any(|c| c.is_ascii_digit() && c != '0');
+    if zero {
+        t.trim_start_matches('−').to_string()
+    } else if x > 0.0 {
+        format!("+{t}")
+    } else {
+        t
+    }
 }
 
 /// A share as percent: 0.234 → «23%».
@@ -38,6 +56,18 @@ pub fn delta(x: f32) -> String {
 /// its end, a legend under it with the values now; under the hand a rule at the month and the
 /// values of that month on a card. `fmt` writes a value.
 pub fn plot(ui: &mut Ui, title: &str, series: &[(String, Color32, Vec<f32>)], months: &[u32], h: f32, fmt: &dyn Fn(f32) -> String) -> Response {
+    plot_marked(ui, title, series, months, h, fmt, &[])
+}
+
+/// A decision of the player's, marked on the foot of a chart: the month, what he decided.
+pub struct Marker {
+    pub month: u32,
+    pub text: String,
+}
+
+/// `plot` with the player's decisions marked along its foot (a small wedge at the month, the words
+/// on the card of that month): the chart then shows what followed what.
+pub fn plot_marked(ui: &mut Ui, title: &str, series: &[(String, Color32, Vec<f32>)], months: &[u32], h: f32, fmt: &dyn Fn(f32) -> String, marks: &[Marker]) -> Response {
     let (ch, s) = chrome::dress(ui);
     let w = ui.available_width();
     let (r, resp) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
@@ -123,6 +153,14 @@ pub fn plot(ui: &mut Ui, title: &str, series: &[(String, Color32, Vec<f32>)], mo
             ends.push((p.y, *col, fmt(vals.last().copied().unwrap_or(0.0))));
         }
     }
+    // the player's decisions: a wedge at the foot, on the month's rule
+    for m in marks.iter().filter(|m| months.first().is_some_and(|&a| m.month >= a)) {
+        if let Some(i) = months.iter().position(|&x| x >= m.month) {
+            let x = x_of(i);
+            v.push(Shape::line_segment([pos2(x, inner.top()), pos2(x, inner.bottom())], Stroke::new(0.8, s.accent.gamma_multiply(0.45))));
+            v.push(Shape::convex_polygon(vec![pos2(x - 4.0, inner.bottom() - 0.5), pos2(x + 4.0, inner.bottom() - 0.5), pos2(x, inner.bottom() - 8.0)], s.accent, Stroke::new(0.8, Color32::from_black_alpha(160))));
+        }
+    }
     // the hand
     let mut at = None;
     if let Some(p) = resp.hover_pos() {
@@ -155,6 +193,14 @@ pub fn plot(ui: &mut Ui, title: &str, series: &[(String, Color32, Vec<f32>)], mo
             let mut c = Card::new(title.to_string()).sub(crate::words::date_words(months[i]));
             for (name, _, vals) in series {
                 c = c.row(name.clone(), fmt(vals.get(i).copied().unwrap_or(0.0)));
+            }
+            // (the decisions of that month and the one before: what the line may answer to)
+            let near: Vec<&Marker> = marks.iter().filter(|m| m.month + 1 >= months[i] && m.month <= months[i] && months.first().is_some_and(|&a| m.month >= a)).collect();
+            if !near.is_empty() {
+                c = c.head("ваши решения");
+                for m in near {
+                    c = c.text(m.text.clone());
+                }
             }
             c
         }),
@@ -241,4 +287,40 @@ pub fn shares(ui: &mut Ui, parts: &[(String, f32, Color32)], h: f32) -> Response
     v.push(Shape::rect_stroke(r, 2.0, Stroke::new(1.0, Color32::from_black_alpha(120))));
     ui.painter().extend(v);
     resp
+}
+
+/// A line of the last values in `r` with no scale: a dot at its end, a soft fill under it. A nearly
+/// flat series stays flat (the range is at least a few percent of its size), not stretched to the
+/// whole height.
+pub fn spark(p: &egui::Painter, r: Rect, vals: &[f32], col: Color32) {
+    let vals: Vec<f32> = vals.iter().copied().filter(|x| x.is_finite()).collect();
+    if vals.len() < 2 {
+        p.line_segment([pos2(r.left(), r.center().y), pos2(r.right(), r.center().y)], Stroke::new(1.0, col.gamma_multiply(0.4)));
+        return;
+    }
+    let (mut lo, mut hi) = vals.iter().fold((f32::MAX, f32::MIN), |a, &x| (a.0.min(x), a.1.max(x)));
+    let mid = (lo + hi) / 2.0;
+    let least = mid.abs().max(1e-3) * 0.06;
+    if hi - lo < least {
+        lo = mid - least / 2.0;
+        hi = mid + least / 2.0;
+    }
+    let n = vals.len();
+    let pts: Vec<egui::Pos2> = vals.iter().enumerate().map(|(i, &x)| pos2(r.left() + r.width() * i as f32 / (n - 1) as f32, r.bottom() - r.height() * ((x - lo) / (hi - lo)).clamp(0.0, 1.0))).collect();
+    let mut mesh = epaint::Mesh::default();
+    for q in &pts {
+        mesh.colored_vertex(*q, col.gamma_multiply(0.30));
+        mesh.colored_vertex(pos2(q.x, r.bottom()), col.gamma_multiply(0.02));
+    }
+    for i in 0..(n - 1) as u32 {
+        let j = i * 2;
+        mesh.add_triangle(j, j + 1, j + 3);
+        mesh.add_triangle(j, j + 3, j + 2);
+    }
+    p.add(Shape::mesh(mesh));
+    p.add(Shape::line(pts.clone(), Stroke::new(1.8, col)));
+    if let Some(&q) = pts.last() {
+        p.circle_filled(q, 2.6, col);
+        p.circle_stroke(q, 2.6, Stroke::new(1.0, Color32::from_black_alpha(150)));
+    }
 }

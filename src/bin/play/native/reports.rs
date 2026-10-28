@@ -59,15 +59,15 @@ pub(super) fn goal(g: &Game) -> Option<Goal> {
         });
     };
     let (help, tab, page, focus): (&'static str, Tab, usize, Option<&'static str>) = match t.goal {
-        G::Industry => ("стройка казны — в «Бюджете»", Tab::Econ, 0, Some("build")),
-        G::Harvest => ("стройка казны на земле — в «Бюджете»", Tab::Econ, 0, Some("build")),
-        G::Literacy => ("школы — гражданские статьи в «Бюджете»", Tab::Econ, 0, Some("civil")),
-        G::Army => ("доля армии в тратах — в «Бюджете»", Tab::Econ, 0, Some("army")),
-        G::Treasury => ("налог и траты — в «Бюджете»", Tab::Econ, 0, Some("tax")),
+        G::Industry => ("стройка казны — в «Бюджете»", Tab::Econ, panels::economy::BUDGET, Some("build")),
+        G::Harvest => ("стройка казны на земле — в «Бюджете»", Tab::Econ, panels::economy::BUDGET, Some("build")),
+        G::Literacy => ("школы — гражданские статьи в «Бюджете»", Tab::Econ, panels::economy::BUDGET, Some("civil")),
+        G::Army => ("доля армии в тратах — в «Бюджете»", Tab::Econ, panels::economy::BUDGET, Some("army")),
+        G::Treasury => ("налог и траты — в «Бюджете»", Tab::Econ, panels::economy::BUDGET, Some("tax")),
         G::Tech(_) => ("наука — упор на это направление", Tab::Science, 0, None),
         G::Reform(..) => ("реформа — в «Обществе», «Законы»", Tab::Society, 1, None),
         G::Calm => ("порядок, призрение, твёрдая рука — «Общество»", Tab::Society, 2, None),
-        G::Outgrow => ("стройка и рынок — в «Бюджете»", Tab::Econ, 0, Some("build")),
+        G::Outgrow => ("стройка и рынок — в «Бюджете»", Tab::Econ, panels::economy::BUDGET, Some("build")),
         G::Faith => ("вера и движения — «Общество»", Tab::Society, 2, None),
         G::Revanche(_) => ("война за область — «Политика»", Tab::Politics, 1, None),
     };
@@ -109,7 +109,7 @@ pub(super) fn reports(g: &Game, most: usize) -> Vec<Report> {
             todo: "Поднимите налог или урежьте самую большую статью — строки и рычаги в «Бюджете».".into(),
             tone: if debt || months < 3.0 { 2 } else { 1 },
             tab: Tab::Econ,
-            page: 0,
+            page: panels::economy::BUDGET,
             focus: Some(if debt { "tax" } else { top.2 }),
             rows: vec![("в казне".into(), num(n.treasury)), ("итог месяца".into(), num(net)), ("запаса на".into(), format!("{months:.0} мес.")), (top.0.into(), pct(top.1 / spent.max(1e-6)))],
         });
@@ -143,7 +143,7 @@ pub(super) fn reports(g: &Game, most: usize) -> Vec<Report> {
                 todo: "Больше денег армии («Бюджет») или упор заводов на нужный род («Производство»).".into(),
                 tone: if short * 2 > all { 2 } else { 1 },
                 tab: Tab::Econ,
-                page: 0,
+                page: panels::economy::BUDGET,
                 focus: Some("army"),
                 rows: vec![("недооснащённых".into(), format!("{short}")), ("выпуск, бат./мес.".into(), format!("{made:.1}"))],
             });
@@ -178,7 +178,7 @@ pub(super) fn reports(g: &Game, most: usize) -> Vec<Report> {
             todo: "Призрение и медицина (гражданские статьи) и налог — в «Бюджете»; чего не хватает — «Хозяйство», «Рынок».".into(),
             tone: if mood >= 1.5 { 2 } else { 1 },
             tab: Tab::Econ,
-            page: 0,
+            page: panels::economy::BUDGET,
             focus: Some("civil"),
             rows: vec![("недовольство".into(), format!("{mood:.2}")), ("цены за год".into(), format!("{:+.1}%", infl * 100.0))],
         });
@@ -201,7 +201,7 @@ pub(super) fn reports(g: &Game, most: usize) -> Vec<Report> {
             todo: "Стройка казны — новые заводы и места; «Что строит казна» — где не хватает товара.".into(),
             tone: if idle > 0.25 { 1 } else { 0 },
             tab: Tab::Econ,
-            page: 0,
+            page: panels::economy::BUDGET,
             focus: Some("build"),
             rows: vec![("без работы".into(), pct(idle))],
         });
@@ -303,7 +303,7 @@ pub(super) fn reports(g: &Game, most: usize) -> Vec<Report> {
                     todo: "Доля армии в тратах — «Бюджет»; штат мирного времени — «Армия», «Бюджет».".into(),
                     tone: 1,
                     tab: Tab::Econ,
-                    page: 0,
+                    page: panels::economy::BUDGET,
                     focus: Some("army"),
                     rows: vec![],
                 });
@@ -360,6 +360,12 @@ pub fn glow(ui: &egui::Ui, r: Rect, key: &str) {
     let col = Color32::from_rgb(255, 214, 96).gamma_multiply(pulse * fade);
     ui.painter().rect_stroke(r.expand(2.0), 3.0, Stroke::new(3.0, col));
     ctx.request_repaint();
+}
+
+/// Light the lever `key` for a few seconds, the page turning to it once (as a report's click does).
+pub(super) fn light(ctx: &egui::Context, key: &str) {
+    let now = ctx.input(|i| i.time);
+    ctx.data_mut(|d| d.insert_temp(focus_id(), (key.to_string(), now, false)));
 }
 
 impl App {
