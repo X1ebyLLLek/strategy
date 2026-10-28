@@ -219,6 +219,17 @@ fn page_figures(ui: &mut egui::Ui, s: &Skin, ch: &chrome::Chrome, g: &Game, go: 
     }
     head(ui, ch, "Где искать цифры");
     words(ui, s, "Папка «Сводка» — бюджет казны с числами, графики по месяцам и откуда берётся каждый множитель. «События» — вести страны и летопись мира. Подсказки на любом слове с подчёркиванием объясняют само слово.");
+    ui.horizontal_wrapped(|ui| {
+        if chip(ui, ch, "Открыть «Сводку»: бюджет и графики", false).clicked() {
+            *go = Some((Tab::Ledger, 0));
+        }
+        if chip(ui, ch, "Открыть «События»", false).clicked() {
+            *go = Some((Tab::News, 0));
+        }
+        if chip(ui, ch, "Деятели: кто есть кто", false).clicked() {
+            *go = Some((Tab::People, 0));
+        }
+    });
     let _ = g;
 }
 
