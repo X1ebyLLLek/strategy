@@ -78,6 +78,7 @@ impl MapView {
         // the borders as smooth lines, close up
         self.smooth_borders(&painter, g);
         self.names(&painter, rect, g);
+        self.hover_outline(&painter, &resp, g);
         self.marks(&painter, &resp, g);
         self.smoke(&painter, rect);
         // the month's battles (gold where it went our way) under the troops; the troops, the
@@ -106,7 +107,11 @@ impl MapView {
         // the small map in the corner: the view's ground on it; a click there brings the view
         // (above the modes' plate when it stands over the map's foot — 29th session)
         let foot = ui.ctx().memory(|m| m.area_rect(egui::Id::new("modes"))).map_or(rect.bottom(), |r| r.min.y.min(rect.bottom()));
-        let mm = Rect::from_min_size(pos2(rect.right() - 312.0, foot.min(rect.bottom() - 6.0) - 14.0 - 150.0), vec2(300.0, 150.0));
+        // (30th session: a window of 1280 points lost a quarter of its map to a fixed 300-point plate — it grows with
+        // the window, from 210 to 300)
+        let (mw, mh) = ((rect.width() * 0.24).clamp(210.0, 300.0), 0.0);
+        let mh = mh + mw / 2.0;
+        let mm = Rect::from_min_size(pos2(rect.right() - mw - 12.0, foot.min(rect.bottom() - 6.0) - 14.0 - mh), vec2(mw, mh));
         self.last_mini = mm.expand(7.0);
         if let Some(t) = &self.mini {
             // (in a bezel of the bar's material, with a line of trim)
@@ -367,6 +372,39 @@ impl MapView {
             let p0 = self.pt(Self::at(g, th.provs[a]));
             painter.circle_filled(p0, 6.0, Color32::from_rgb(232, 199, 106));
             painter.circle_stroke(p0, 6.0, Stroke::new(1.5, Color32::from_rgb(40, 30, 20)));
+        }
+    }
+
+    /// The province under the hand outlined (30th session): the card in the corner says which land it
+    /// is, but nothing on the map showed where it ends — a warm line round it, a dark shade outside.
+    fn hover_outline(&self, painter: &egui::Painter, resp: &egui::Response, g: &Game) {
+        let Some(hp) = resp.hover_pos() else { return };
+        if resp.dragged() || self.picking {
+            return;
+        }
+        let Some(p) = self.province_at(g, hp).filter(|&p| !g.world.provinces[p].sea) else { return };
+        let p = p as u32;
+        let w = g.world.w as f32;
+        let seen = self.cam.seen(RELIEF);
+        let ramp = |a: f32, b: f32| {
+            let t = ((self.k - a) / (b - a)).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        };
+        // (bolder as the province grows on the screen, never thicker than a line of the eye)
+        let width = 1.6 + 1.4 * ramp(1.0, 4.0);
+        let breath = 0.82 + 0.18 * (self.t() * 3.0).sin();
+        for (pts, b, l, r) in &self.borders {
+            if *l != p && *r != p {
+                continue;
+            }
+            let mid = (b[0] + b[2]) / 2.0;
+            let dx = ((self.cx - mid) / w).round() * w;
+            if b[2] + dx < seen[0] || b[0] + dx > seen[2] || b[3] < seen[1] || b[1] > seen[3] {
+                continue;
+            }
+            let line: Vec<Pos2> = pts.iter().map(|q| self.cam.project_abs(q[0] + dx, q[1], self.z(q[0], q[1])).0).collect();
+            painter.add(egui::Shape::line(line.clone(), Stroke::new(width + 3.4, Color32::from_black_alpha(120))));
+            painter.add(egui::Shape::line(line, Stroke::new(width, Color32::from_rgba_unmultiplied(255, 236, 170, (235.0 * breath) as u8))));
         }
     }
 

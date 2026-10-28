@@ -68,7 +68,9 @@ impl App {
                     widgets::scroll(ui, "saves", 260.0, false, |ui| {
                         ui.spacing_mut().item_spacing.y = 4.0;
                         for (file, name, _) in saves.iter().take(40) {
-                            let b = chrome::press(ui, &ch, &s, chrome::Press { text: name, size: egui::vec2(ui.available_width(), 28.0), font: 14.0, ..chrome::Press::default() });
+                            // (the file's own name, the first letter capital: «автосохранение» sat in the list as a stray)
+                            let shown: String = name.chars().next().map(|c| c.to_uppercase().chain(name.chars().skip(1)).collect()).unwrap_or_default();
+                            let b = chrome::press(ui, &ch, &s, chrome::Press { text: &shown, size: egui::vec2(ui.available_width(), 28.0), font: 14.0, ..chrome::Press::default() });
                             if b.tip(|| Card::new(name.clone()).icon("scroll").text("Загрузить: мир строится и проживается заново с теми же решениями.")).clicked() {
                                 pick = Some(file.clone());
                             }

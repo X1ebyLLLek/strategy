@@ -284,7 +284,11 @@ void main() {
         vec4 dt = texture(uDetail, uv);
         vec4 ln = texture(uLines, uv);
         vec4 wy = texture(uWays, uv);
-        float cav = dt.r * 2.0 - 1.0;
+        // (30th session, the second hand: the mountains were crumpled foil at the middle zoom — the small folds, the
+        // snow's breakup and the rock's grain are finer than a screen pixel there and only glitter; they give way
+        // to the large forms as the pixel grows)
+        float coarse = smoothstep(0.28, 0.95, max(px.x, px.y));
+        float cav = (dt.r * 2.0 - 1.0) * mix(1.0, 0.40, coarse);
         // the tilled land round the towns and villages: fields in patches, each patch of fields
         // turned its own way, each field its own crop, hedges between, furrows close up
         if ((uDbg & 4) != 0) { dt = vec4(0.5, 0.0, 0.0, 0.0); ln = vec4(1.0); wy = vec4(1.0); }
@@ -313,7 +317,7 @@ void main() {
         float rhw = dt.b * 1.28;
         float pxr = max(px.x, px.y);
         float least = uK < 1.2 ? 0.30 : uK < 2.0 ? 0.14 : 0.0;
-        float vis = rhw >= least ? max(rhw, 0.6 * pxr) : rhw;
+        float vis = rhw >= least ? max(rhw, 0.95 * pxr) : rhw;
         float near_r = step(dc, 2.99);
         float water = (1.0 - smoothstep(vis - 0.5 * pxr, vis + 0.5 * pxr, dc)) * near_r;
         float bank = (1.0 - smoothstep(vis, vis + 0.30 + pxr, dc)) * (1.0 - water) * near_r;
@@ -435,7 +439,7 @@ void main() {
         }
         // (its edge sharp and broken — by the rock showing through, by the wind's drifts — the
         // snow's own photograph in it)
-        float drift = fbm(vWorld, 1.0 / 6.0, 3) - 0.5;
+        float drift = (fbm(vWorld, 1.0 / 6.0, 3) - 0.5) * mix(1.0, 0.45, coarse);
         float snow = smoothstep(sline, sline + 0.045, h + 0.10 * drift + 0.03 * grain + 0.16 * cav) * smoothstep(0.62, 0.82, n.z + 0.10 * drift) * smoothstep(-0.20, 0.15, cav);
         vec3 snowp = mix(texture(uPhotos, vec3(t1, 7.0)).rgb, texture(uPhotos, vec3(t2, 7.0)).rgb, 0.4);
         col = mix(col, snowp * vec3(0.98, 0.99, 1.0), snow);
@@ -516,7 +520,8 @@ void main() {
                 vec2 g = fbmd(vWorld * 2.0 + vec2(uTime * 0.25, uTime * 0.1), 0.5, 2).yz;
                 wn = normalize(vec3(-g * 0.9 * lodw, 1.0));
             }
-            vec3 wc = mix(vec3(0.11, 0.25, 0.30), vec3(0.06, 0.16, 0.25), smoothstep(0.15, 0.9, rhw));
+            // (30th session: lighter, bluer — a river must read as water from afar, not as a dark crack)
+            vec3 wc = mix(vec3(0.17, 0.40, 0.50), vec3(0.10, 0.27, 0.44), smoothstep(0.15, 0.9, rhw));
             float fres = pow(1.0 - max(dot(wn, V), 0.0), 5.0);
             wc = mix(wc, vec3(0.42, 0.54, 0.66), fres * 0.35);
             vec3 Hh = normalize(V + SUN);
