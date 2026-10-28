@@ -104,7 +104,9 @@ impl MapView {
         self.seas_draw(&painter, rect, g);
         self.box_choose(&painter, ui, &resp, corps, &mut asks);
         // the small map in the corner: the view's ground on it; a click there brings the view
-        let mm = Rect::from_min_size(rect.right_bottom() - vec2(312.0, 212.0), vec2(300.0, 150.0));
+        // (above the modes' plate when it stands over the map's foot — 29th session)
+        let foot = ui.ctx().memory(|m| m.area_rect(egui::Id::new("modes"))).map_or(rect.bottom(), |r| r.min.y.min(rect.bottom()));
+        let mm = Rect::from_min_size(pos2(rect.right() - 312.0, foot.min(rect.bottom() - 6.0) - 14.0 - 150.0), vec2(300.0, 150.0));
         self.last_mini = mm.expand(7.0);
         if let Some(t) = &self.mini {
             // (in a bezel of the bar's material, with a line of trim)
@@ -257,12 +259,17 @@ impl MapView {
                             let (x2, y2) = l.at(u + 0.5);
                             self.cam.to_screen(x2, y2, 0.0)
                         });
-                        let size = (l.size * self.cam.scale_at(x, y, 0.0)).clamp(9.0, 72.0);
+                        let size = (l.size * self.cam.scale_at(x, y, 0.0)).clamp(9.0, 54.0);
                         let ang = (b.y - a.y).atan2(b.x - a.x);
                         boxes.push(Rect::from_center_size(a, vec2(size * 0.75, size * 0.9)));
                         placed.push((a, ang, size, *ch));
                     }
                     if boxes.iter().any(|b| taken.iter().any(|t| t.intersects(b.shrink(2.0)))) {
+                        continue;
+                    }
+                    // (29th session: a name cut by the screen's edge reads as a fault — it waits
+                    // till the map is moved)
+                    if boxes.iter().filter(|b| !rect.contains_rect(**b)).count() * 10 > boxes.len() * 3 {
                         continue;
                     }
                     if solid {
@@ -275,8 +282,8 @@ impl MapView {
                         let half = galley.size() / 2.0;
                         let (sn, cs) = ang.sin_cos();
                         let corner = a - vec2(half.x * cs - half.y * sn, half.x * sn + half.y * cs);
-                        let ink = Color32::from_rgba_unmultiplied(245, 238, 222, (225.0 * fade) as u8);
-                        let shade = Color32::from_black_alpha((140.0 * fade) as u8);
+                        let ink = Color32::from_rgba_unmultiplied(245, 238, 222, (200.0 * fade) as u8);
+                        let shade = Color32::from_black_alpha((110.0 * fade) as u8);
                         painter.add(egui::epaint::TextShape::new(corner + vec2(1.5, 1.5), galley.clone(), shade).with_override_text_color(shade).with_angle(ang));
                         painter.add(egui::epaint::TextShape::new(corner, galley, ink).with_override_text_color(ink).with_angle(ang));
                     }

@@ -30,6 +30,8 @@ struct Text {
     size: f32,
     colour: Color32,
     under: Option<Color32>,
+    /// The box that lies under it (for the debug print).
+    under_box: Option<Rect>,
     clip: Rect,
 }
 
@@ -65,8 +67,9 @@ fn texts_of(shapes: &[epaint::ClippedShape], hidden: bool) -> Vec<Text> {
                     colour = c;
                 }
                 let c = rect.center();
-                let under = boxes.iter().rev().find(|b| b.0.contains(c)).map(|b| b.1);
-                out.push(Text { text: t.galley.job.text.clone(), rect, size, colour, under, clip });
+                let found = boxes.iter().rev().find(|b| b.0.contains(c));
+                let (under, under_box) = (found.map(|b| b.1), found.map(|b| b.0));
+                out.push(Text { text: t.galley.job.text.clone(), rect, size, colour, under, under_box, clip });
             }
             _ => {}
         }
@@ -145,6 +148,13 @@ pub fn uitest(shared: Arc<Mutex<Game>>, control: bool) -> bool {
         return lines.iter().all(|l| l.starts_with("[OK]"));
     }
     layout::folders(&shared, &mut app, &ctx, t0, &mut say);
+    // (`UIONLY=layout`: the layout checks alone, for a quick look)
+    if std::env::var("UIONLY").is_ok_and(|v| v == "layout") {
+        for l in &lines {
+            println!("{l}");
+        }
+        return lines.iter().all(|l| l.starts_with("[OK]"));
+    }
     land::counters(&mut app, &ctx, &mut say);
     land::camera(&mut app, &ctx, &mut say);
     land::clicks(&shared, &mut app, &ctx, &mut say);

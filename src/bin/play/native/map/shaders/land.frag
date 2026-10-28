@@ -630,7 +630,9 @@ void main() {
                 // forest's or a range's shade, and a thick one cuts the eye on a plain)
                 float lb = dot(col, vec3(0.3, 0.59, 0.11));
                 vec3 ink = mix(col * 0.38, col * 0.55 + vec3(0.11), smoothstep(0.26, 0.10, lb));
-                col = mix(col, ink, prov * uBorders * 0.9);
+                // (29th session, the second hand: a hierarchy — the countries' borders at full ink, the provinces' lighter,
+                // so that 9000 of them do not make a net over the whole map)
+                col = mix(col, ink, prov * uBorders * 0.9 * mix(0.62, 1.0, edge));
                 // (and a soft shade just inside the edge, so that a province reads as a tile)
                 float rim = 0.0;
                 for (int i = 0; i < 4; i++) {

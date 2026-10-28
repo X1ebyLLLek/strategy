@@ -119,7 +119,7 @@ pub(super) fn folders(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Cont
                     if r < if t.size >= 18.0 { 3.0 } else { 4.5 } {
                         dim.push(format!("{} ({r:.1})", t.text.chars().take(20).collect::<String>()));
                         if std::env::var("UIDBG").is_ok() {
-                            eprintln!("бледно: «{}» {:?} на {:?}, {:.0} пт, {name}", t.text, t.colour, bg, t.size);
+                            eprintln!("бледно: «{}» {:?} на {:?}, {:.0} пт, {name} {w}x{h}; текст {:?} под ним {:?}", t.text, t.colour, bg, t.size, t.rect, t.under_box);
                         }
                     }
                 }

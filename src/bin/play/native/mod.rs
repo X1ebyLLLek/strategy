@@ -225,11 +225,13 @@ pub struct Settings {
     pub scale: f32,
     pub full: bool,
     pub tip: f64,
+    /// The guide has been shown once (it opens by itself only the first time).
+    pub guide_seen: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { scale: 1.0, full: false, tip: chrome::TIP_WAIT }
+        Settings { scale: 1.0, full: false, tip: chrome::TIP_WAIT, guide_seen: true }
     }
 }
 
@@ -240,11 +242,14 @@ impl Settings {
 
     pub fn load() -> Settings {
         let mut s = Settings::default();
+        // (no file yet: the first time the game is played)
+        s.guide_seen = false;
         if let Ok(text) = std::fs::read_to_string(Self::file()) {
             for l in text.lines() {
                 match l.split_once('=') {
                     Some(("scale", v)) => s.scale = v.trim().parse().unwrap_or(1.0f32).clamp(0.7, 1.6),
                     Some(("full", v)) => s.full = v.trim() == "1",
+                    Some(("guide", v)) => s.guide_seen = v.trim() == "1",
                     Some(("tip", v)) => s.tip = v.trim().parse().unwrap_or(chrome::TIP_WAIT).clamp(0.0, 2.0),
                     _ => {}
                 }
@@ -255,7 +260,7 @@ impl Settings {
 
     fn save(&self) {
         let _ = std::fs::create_dir_all(crate::tools::saves::DIR);
-        let _ = std::fs::write(Self::file(), format!("scale={}\nfull={}\ntip={}\n", self.scale, self.full as u8, self.tip));
+        let _ = std::fs::write(Self::file(), format!("scale={}\nfull={}\ntip={}\nguide={}\n", self.scale, self.full as u8, self.tip, self.guide_seen as u8));
     }
 
     /// The settings put into the window.

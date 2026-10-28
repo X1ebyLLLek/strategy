@@ -411,7 +411,7 @@ impl App {
             v.push(egui::Shape::rect_filled(hr, 2.0, Color32::from_black_alpha(120)));
             ui.painter().extend(v);
             let grave = list.iter().filter(|r| r.tone >= 2).count();
-            let head = format!("ДОКЛАДЫ · {}{}", list.len(), if grave > 0 { format!(" · срочных {grave}") } else { String::new() });
+            let head = if list.is_empty() && goal.is_none() { "ДОКЛАДЫ · СРОЧНОГО НЕТ".to_string() } else { format!("ДОКЛАДЫ · {}{}", list.len(), if grave > 0 { format!(" · срочных {grave}") } else { String::new() }) };
             ui.painter().text(pos2(hr.min.x + 8.0, hr.center().y), egui::Align2::LEFT_CENTER, head, FontId::new(13.5, FontFamily::Name("head".into())), s.desk_ink);
             ui.painter().text(pos2(hr.max.x - 10.0, hr.center().y), egui::Align2::RIGHT_CENTER, if open { "свернуть" } else { "развернуть" }, FontId::proportional(12.0), s.desk_ink.gamma_multiply(0.75));
             if hresp.tip(|| Card::new("Доклады").icon("scroll").text("Цель страны и то, что важно сейчас: что случилось, почему (в числах) и где это исправить. Щелчок по докладу открывает нужную страницу и подсвечивает рычаг.")).clicked() {
@@ -524,9 +524,6 @@ impl App {
                 if resp.clicked() {
                     ctx.data_mut(|d| d.insert_temp(all_id, !all));
                 }
-            }
-            if goal.is_none() && list.is_empty() {
-                kit::words(ui, "Срочного нет.", 13.0, s.desk_ink.gamma_multiply(0.8));
             }
         });
         if let Some((t, p, f)) = go {

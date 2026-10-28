@@ -1,6 +1,6 @@
 //! The guide (29th session, F1 or the «?» under the bar): the window said nothing of itself — where
 //! to look, what a number is, what moves it, where the lever is, what a counter on the map means,
-//! how an army is led. Four pages: the screen (a plan with numbered places), the figures of the
+//! how an army is led. Five pages: first steps (the one that opens by itself the first game), the screen (a plan with numbered places), the figures of the
 //! country (what it is, what moves it, where to change it — a button to the folder), the map and
 //! the war (the counters and lines drawn live, as they are on the map), leading the army (the
 //! steps, the keys). The words are the game's own (`terms`), not new ones.
@@ -10,7 +10,7 @@ use eframe::egui::{pos2, vec2, Align2, FontFamily, FontId, Rect, Sense, Shape, S
 
 use super::map::{self, counter, Counter, ATTACK, HUNGRY, MARCH, OWN, SHORT};
 
-const PAGES: [&str; 4] = ["Экран", "Показатели страны", "Карта и война", "Армия"];
+const PAGES: [&str; 5] = ["С чего начать", "Экран", "Показатели страны", "Карта и война", "Армия"];
 
 impl App {
     /// The window of the guide over everything, when it is open.
@@ -53,9 +53,10 @@ impl App {
                 egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 6.0;
                     match self.guide_page {
-                        0 => page_screen(ui, &s, &ch, g),
-                        1 => page_figures(ui, &s, &ch, g, &mut go),
-                        2 => page_map(ui, &s, &ch, g),
+                        0 => page_start(ui, &s, &ch, g),
+                        1 => page_screen(ui, &s, &ch, g),
+                        2 => page_figures(ui, &s, &ch, g, &mut go),
+                        3 => page_map(ui, &s, &ch, g),
                         _ => page_army(ui, &s, &ch, &mut go),
                     }
                 });
@@ -120,6 +121,36 @@ fn words(ui: &mut egui::Ui, s: &Skin, text: &str) {
 fn head(ui: &mut egui::Ui, ch: &chrome::Chrome, text: &str) {
     ui.add_space(4.0);
     ui.label(RichText::new(text).font(FontId::new(14.5, FontFamily::Name("head".into()))).color(hud::lighten(ch.trim, 0.3)));
+}
+
+/// The first steps (the page that opens by itself, once, in the first game played).
+fn page_start(ui: &mut egui::Ui, s: &Skin, ch: &chrome::Chrome, g: &Game) {
+    words(ui, s, &format!("Вы правите страной «{}»: деньги, люди, армия и отношения с соседями. Победа — выжить и стать сильнее; как — выбирать вам. Пять первых шагов:", g.h.home(g.me).name));
+    let icons = chrome::icons(ui.ctx());
+    for (i, (icon, head_, text)) in [
+        ("play", "Пустите время", "Пробел или большая кнопка справа вверху. Месяцы идут сами; чёрточки под датой — скорость (клавиши + и −). Игра останавливается сама, когда случилось важное."),
+        ("scroll", "Читайте «Доклады»", "Справа под полосой: цель страны и то, что важно сейчас — что случилось, почему и в каких числах. Щёлкните доклад: откроется нужная страница, а нужный рычаг подсветится."),
+        ("econ", "Правьте страну папками", "Значки вверху слева, по группам: Страна · Экономика, Производство, Наука · Армия, Флот · Политика, Общество, Деятели · Сводка, События. Папка открывается слева; Esc закрывает её."),
+        ("chart", "Следите за четырьмя словами", "Народ, Казна, Власть и (в войну) Снабжение — в верхней полосе. Зелёный — хорошо, жёлтый — внимание, красный — беда. Щёлкните слово — откроется папка, где это чинят."),
+        ("army", "Война идёт армиями", "Внизу карточки армий. Выберите армию, затем F — линия фронта (проведите вдоль границы), A — стрела наступления, Enter — исполнить. Остальное делает генерал и штаб."),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        ui.horizontal_top(|ui| {
+            let (rc, _) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::hover());
+            hud::seal(ui, ch, rc.center(), 15.0, icon, ch.trim);
+            ui.painter().circle_filled(rc.right_top() + vec2(-3.0, 3.0), 8.0, s.accent);
+            ui.painter().text(rc.right_top() + vec2(-3.0, 3.0), Align2::CENTER_CENTER, (i + 1).to_string(), FontId::new(11.5, FontFamily::Name("bold".into())), s.on_accent());
+            ui.vertical(|ui| {
+                ui.label(RichText::new(head_).font(FontId::new(15.0, FontFamily::Name("bold".into()))).color(s.desk_ink));
+                words(ui, s, text);
+            });
+        });
+    }
+    let _ = icons;
+    head(ui, ch, "Если запутались");
+    words(ui, s, "Esc — отменить план, снять выбор, закрыть папку, потом — меню. Пробел остановит время в любой миг. Задержите руку над чем угодно — значком, словом, плиткой, провинцией: появится карточка с объяснением. Игра сама сохраняется раз в год; своё сохранение — в меню. Это окно — F1.");
 }
 
 /// The plan of the window: a drawing with numbered places and what each is.

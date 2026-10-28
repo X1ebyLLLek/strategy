@@ -217,6 +217,8 @@ pub fn stats(ui: &mut Ui, items: &[Stat], cols: usize) -> Vec<Response> {
                 // (the word after the number only whole: a word cut short — «пол…» — says nothing, and
                 // the card of the tile has it)
                 let room = tw - nw - 6.0;
+                // (29th session: the word whole or not at all — «пол...» cut in the middle read as a fault;
+                // the card of the tile says it in full)
                 if room > 24.0 && !it.value.is_empty() {
                     let gw = ui.painter().layout_no_wrap(it.value.clone(), FontId::new(12.5, FontFamily::Proportional), s.desk_ink.gamma_multiply(0.8));
                     if gw.size().x <= room {
