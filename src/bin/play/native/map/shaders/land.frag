@@ -626,7 +626,11 @@ void main() {
                 // At strategic zoom this is the only province contour.  Make it a firm ink line:
                 // a faint, terrain-coloured line vanishes completely in a forest or in mountain
                 // shadow before the smooth close-up contour takes over.
-                col = mix(col, col * 0.34, prov * uBorders);
+                // (dark ink on light land, a lighter line on dark land — a black hairline vanishes in a
+                // forest's or a range's shade, and a thick one cuts the eye on a plain)
+                float lb = dot(col, vec3(0.3, 0.59, 0.11));
+                vec3 ink = mix(col * 0.38, col * 0.55 + vec3(0.11), smoothstep(0.26, 0.10, lb));
+                col = mix(col, ink, prov * uBorders * 0.9);
                 // (and a soft shade just inside the edge, so that a province reads as a tile)
                 float rim = 0.0;
                 for (int i = 0; i < 4; i++) {

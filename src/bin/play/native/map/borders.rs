@@ -123,6 +123,7 @@ impl MapView {
                 front.push((line, shown(*l).1 as usize != g.me, k, k != usize::MAX && strong(k)));
                 continue;
             }
+            let mut halo = false;
             let stroke = if *l == u32::MAX || *r == u32::MAX {
                 if coast_a <= 0.01 {
                     continue;
@@ -147,6 +148,7 @@ impl MapView {
                     }
                     // Границы регионов: плотные, но мягкого земляного цвета, без прозрачности
                     let dynamic_state_w = 1.5 + (self.k - 1.1).max(0.0).min(1.5) * 0.3;
+                    halo = true;
                     Stroke::new(dynamic_state_w, Color32::from_rgb(50, 43, 35))
                 } else if prov_a > 0.01 {
                     // Делаем линии провинций тонкими и приглушенными по прозрачности (95.0 вместо 165.0),
@@ -168,6 +170,11 @@ impl MapView {
                 }
             };
             let line: Vec<Pos2> = pts.iter().map(|p| self.cam.project_abs(p[0] + dx, p[1], self.z(p[0], p[1])).0).collect();
+            // (a light under-stroke: a dark line alone is lost in a forest's or a range's shade; dark on
+            // light it reads on any ground, and neither is loud)
+            if halo {
+                painter.add(egui::Shape::line(line.clone(), Stroke::new(stroke.width + 2.2, Color32::from_rgba_unmultiplied(238, 230, 208, 62))));
+            }
             painter.add(egui::Shape::line(line, stroke));
         }
         // the countries' borders over the states' and provinces': each country's colour along its
@@ -193,6 +200,7 @@ impl MapView {
             painter.add(egui::Shape::line(offset(line, off), Stroke::new(band_w, *cr)));
         }
         for line in countries {
+            painter.add(egui::Shape::line(line.clone(), Stroke::new(country_w + 2.6, Color32::from_rgba_unmultiplied(240, 232, 210, 74))));
             painter.add(egui::Shape::line(line, Stroke::new(country_w, Color32::from_rgba_unmultiplied(22, 18, 14, 235))));
         }
         let t = self.t();
