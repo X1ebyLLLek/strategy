@@ -548,11 +548,23 @@ impl MapView {
             if part.is_empty() {
                 continue;
             }
-            let p = self.pt(Self::at(g, th.provs[part[part.len() / 2]])) + vec2(0.0, -38.0);
+            let mut p = self.pt(Self::at(g, th.provs[part[part.len() / 2]])) + vec2(0.0, -38.0);
             if !rect.shrink(20.0).contains(p) {
                 continue;
             }
             let on = chosen.contains(&k);
+            // (up out of the way of the counters, which the badge sat on)
+            {
+                let r = if on { 15.0 } else { 12.0 };
+                let taken = self.counters.lock().unwrap();
+                for _ in 0..8 {
+                    let me = Rect::from_center_size(p + vec2(0.0, 2.0), vec2(2.0 * r + 4.0, 2.4 * r + 4.0));
+                    if !taken.iter().any(|c| c.intersects(me)) {
+                        break;
+                    }
+                    p.y -= 12.0;
+                }
+            }
             let hue = HUES[k % HUES.len()];
             let r = if on { 15.0 } else { 12.0 };
             let shield = |c: Pos2, r: f32| vec![c + vec2(-r, -r), c + vec2(r, -r), c + vec2(r, r * 0.35), c + vec2(0.0, r * 1.25), c + vec2(-r, r * 0.35)];

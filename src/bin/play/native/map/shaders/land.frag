@@ -603,7 +603,10 @@ void main() {
             float on = p0.a > 0.5 ? 1.0 : 0.55;
             if (p1.a > 0.5 && mod(floor((vWorld.x + vWorld.y) / uStripe), 2.0) == 1.0) tint = p1.rgb;
             float lum = dot(col, vec3(0.3, 0.59, 0.11)) / 0.42;
-            col = mix(col, tint * clamp(lum, 0.55, 1.3), uOverlay * on);
+            // each province a little lighter or darker than its neighbours, so that the land falls
+            // into provinces even where no line is drawn
+            tint *= 0.93 + 0.14 * hash(vec2(float(id), 17.0));
+            col = mix(col, tint * clamp(lum, 0.68, 1.3), uOverlay * on);
             // borders (far away; close up egui draws them smooth): the countries' dark, the
             // provinces' faint, the front red
             if (uBorders > 0.0) {
@@ -623,7 +626,19 @@ void main() {
                 // At strategic zoom this is the only province contour.  Make it a firm ink line:
                 // a faint, terrain-coloured line vanishes completely in a forest or in mountain
                 // shadow before the smooth close-up contour takes over.
-                col = mix(col, col * 0.34, prov * uBorders);
+                // (dark ink on light land, a lighter line on dark land — a black hairline vanishes in a
+                // forest's or a range's shade, and a thick one cuts the eye on a plain)
+                float lb = dot(col, vec3(0.3, 0.59, 0.11));
+                vec3 ink = mix(col * 0.38, col * 0.55 + vec3(0.11), smoothstep(0.26, 0.10, lb));
+                col = mix(col, ink, prov * uBorders * 0.9);
+                // (and a soft shade just inside the edge, so that a province reads as a tile)
+                float rim = 0.0;
+                for (int i = 0; i < 4; i++) {
+                    vec2 d = i == 0 ? vec2(1.0, 0.0) : i == 1 ? vec2(-1.0, 0.0) : i == 2 ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
+                    int id3 = idAt(vWorld + d * px * 3.4);
+                    if (id3 != id && id3 != 0 && who(id3).x >= 0) rim = 1.0;
+                }
+                col *= 1.0 - 0.16 * rim * (1.0 - prov) * uBorders;
                 edge += front * 0.0;
             }
         }

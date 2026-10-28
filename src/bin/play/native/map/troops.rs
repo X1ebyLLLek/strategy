@@ -38,6 +38,8 @@ pub struct Counter<'a> {
     /// supply, `OWN` — sent by the player himself (its general leaves it be), `SHORT` — short of
     /// the equipment its norm gives it.
     pub marks: u8,
+    /// The enemy's counter: a red frame and a red tab, whatever its country's colour.
+    pub foe: bool,
 }
 
 pub const MARCH: u8 = 1;
@@ -90,7 +92,9 @@ pub fn counter(painter: &egui::Painter, p: Pos2, o: &Counter) -> Rect {
     // (the plate: the side's colour, lighter above, darker below; a sheen on the upper half)
 
     {
-        let (top, bottom) = (shade(o.fill, if o.fog { 0.50 } else { 0.66 }), shade(o.fill, if o.fog { 0.34 } else { 0.40 }));
+        // (the country's colour must read at a glance — it was shaded to near-black, and the two
+        // sides' counters differed only by a flag of a dozen points)
+        let (top, bottom) = (shade(o.fill, if o.fog { 0.78 } else { 0.98 }), shade(o.fill, if o.fog { 0.52 } else { 0.64 }));
         let mut m = egui::epaint::Mesh::default();
         m.colored_vertex(r.left_top(), a(top));
         m.colored_vertex(r.right_top(), a(top));
@@ -139,7 +143,8 @@ pub fn counter(painter: &egui::Painter, p: Pos2, o: &Counter) -> Rect {
     painter.add(egui::epaint::TextShape::new(at + vec2(1.0, 1.0), galley.clone(), Color32::BLACK).with_override_text_color(Color32::from_black_alpha(200)));
     painter.galley(at, galley, Color32::WHITE);
     // the edge: gold — chosen; a group's colour; dashed — seen through fog
-    let edge = Stroke::new(if o.chosen { 2.4 } else { 1.3 }, if o.chosen { Color32::from_rgb(255, 216, 96) } else { o.edge.unwrap_or(Color32::from_rgba_unmultiplied(8, 8, 8, 230)) });
+    let plain = if o.foe { Color32::from_rgb(214, 52, 40) } else { Color32::from_rgba_unmultiplied(236, 230, 212, 235) };
+    let edge = Stroke::new(if o.chosen { 2.4 } else if o.foe { 2.0 } else { 1.5 }, if o.chosen { Color32::from_rgb(255, 216, 96) } else { o.edge.unwrap_or(plain) });
     if o.chosen {
         let t = painter.ctx().input(|i| i.time) as f32;
         let breath = 0.5 + 0.5 * (t * 4.0).sin();
@@ -326,7 +331,36 @@ pub fn arrow(painter: &egui::Painter, a: Pos2, z: Pos2, width: f32, color: Color
 
 /// Counters moved apart till none sits on another (a few rounds, each pair pushed along the line
 /// between them).
-pub fn apart<'a, T>(mut todo: Vec<(Pos2, Counter<'a>, T)>) -> Vec<(Pos2, Counter<'a>, T)> {
+pub fn apart<'a, T: PartialEq + Copy>(todo: Vec<(Pos2, Counter<'a>, T)>) -> Vec<(Pos2, Counter<'a>, T)> {
+    // (counters of one side and one group that would sit on each other are one counter: the staff
+    // map showed a pile of "4", "2", "19" of the same army, none of them readable)
+    let mut todo = todo;
+    todo.sort_by(|a, b| b.1.n.total_cmp(&a.1.n));
+    let mut merged: Vec<(Pos2, Counter<'a>, T)> = Vec::new();
+    'next: for (p, c, t) in todo {
+        let size = room(c.big);
+        for m in merged.iter_mut() {
+            let d = m.0 - p;
+            if m.1.foe == c.foe && m.1.fog == c.fog && m.2 == t && d.x.abs() < size.x * 0.95 && d.y.abs() < size.y * 1.3 {
+                let (a, b) = (m.1.n, c.n);
+                m.0 = pos2((m.0.x * a + p.x * b) / (a + b), (m.0.y * a + p.y * b) / (a + b));
+                m.1.n += b;
+                m.1.marks |= c.marks;
+                m.1.chosen |= c.chosen;
+                m.1.supply = match (m.1.supply, c.supply) {
+                    (Some(x), Some(y)) => Some((x * a + y * b) / (a + b)),
+                    (x, y) => x.or(y),
+                };
+                m.1.dug = match (m.1.dug, c.dug) {
+                    (Some(x), Some(y)) => Some((x * a + y * b) / (a + b)),
+                    (x, y) => x.or(y),
+                };
+                continue 'next;
+            }
+        }
+        merged.push((p, c, t));
+    }
+    let mut todo = merged;
     let mut ps: Vec<Pos2> = todo.iter().map(|t| t.0).collect();
     let sizes: Vec<egui::Vec2> = todo.iter().map(|t| room(t.1.big)).collect();
     spread(&mut ps, &sizes);
@@ -339,7 +373,7 @@ pub fn apart<'a, T>(mut todo: Vec<(Pos2, Counter<'a>, T)>) -> Vec<(Pos2, Counter
 /// Points of boxes of these sizes moved apart till no box sits on another (a few rounds, each
 /// pair pushed out along the shorter way).
 pub fn spread(ps: &mut [Pos2], sizes: &[egui::Vec2]) {
-    for _ in 0..24 {
+    for _ in 0..60 {
         let mut moved = false;
         for i in 0..ps.len() {
             for j in i + 1..ps.len() {
@@ -487,7 +521,7 @@ impl MapView {
                     let d = (e - p).normalized();
                     let e = e + d * 30.0;
                     if on_screen(e) {
-                        todo.push((e, Counter { bars: None, marks: 0, n: foe, fill: colour(1 - me), sym: None, big: false, fog: true, hue: None, edge: None, order: None, chosen: false, supply: None, dug: None, country: Some(war.th.countries[1 - me]) }, None));
+                        todo.push((e, Counter { bars: None, marks: 0, n: foe, fill: colour(1 - me), sym: None, big: false, fog: true, hue: None, edge: None, order: None, chosen: false, supply: None, dug: None, country: Some(war.th.countries[1 - me]), foe: true }, None));
                     }
                 }
                 let total: f32 = own[k].iter().map(|&q| units(q)).sum();
@@ -516,6 +550,7 @@ impl MapView {
                         supply: g.h.at_war.then_some(fed),
                         dug: g.h.at_war.then_some(dug),
                         country: Some(war.th.countries[me]),
+                        foe: false,
                     },
                     gr.map(|_| k),
                 ));
@@ -580,7 +615,7 @@ impl MapView {
             }
             for it in &placed {
                 if it.foe {
-                    let r = counter(painter, it.p, &Counter { bars: None, marks: 0, n: it.n, fill: colour(1 - me), sym: None, big: false, fog: true, hue: None, edge: None, order: None, chosen: false, supply: None, dug: None, country: Some(war.th.countries[1 - me]) });
+                    let r = counter(painter, it.p, &Counter { bars: None, marks: 0, n: it.n, fill: colour(1 - me), sym: None, big: false, fog: true, hue: None, edge: None, order: None, chosen: false, supply: None, dug: None, country: Some(war.th.countries[1 - me]), foe: true });
                     self.counters.lock().unwrap().push(r);
                     continue;
                 }
@@ -603,6 +638,7 @@ impl MapView {
                     supply: g.h.at_war.then_some(fed),
                     dug: g.h.at_war.then_some(dug),
                     country: Some(war.th.countries[me]),
+                    foe: false,
                 });
                 self.counters.lock().unwrap().push(r);
                 if let Some(k) = grp {

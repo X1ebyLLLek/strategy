@@ -37,8 +37,8 @@ mod view;
 mod ways;
 pub use camera::Camera;
 pub use ground::RELIEF;
-pub use divs::{doing, main_kind};
-pub use troops::{badge, sign, AGG};
+pub use divs::{doing, main_kind, stacks};
+pub use troops::{arrow as troops_arrow, badge, counter, sign, Counter, AGG, ATTACK, HUNGRY, MARCH, OWN, SHORT};
 pub use ways::step_of;
 pub use plans::{border_with, country_now};
 

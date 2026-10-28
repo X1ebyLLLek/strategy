@@ -294,6 +294,7 @@ fn main() {
             draft: args.iter().any(|a| a == "--draft"),
             fronts: args.iter().any(|a| a == "--fronts"),
             tour: arg("--tour").map_or_else(Vec::new, |v| v.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()),
+            guide: arg("--guide").and_then(|v| v.parse().ok()),
             size: arg("--size").and_then(|v| {
                 let (x, y) = v.split_once('x')?;
                 Some((x.trim().parse().ok()?, y.trim().parse().ok()?))

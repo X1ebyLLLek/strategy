@@ -9,6 +9,7 @@
 //! (to look at the window without playing).
 
 mod armybar;
+mod briefing;
 mod charts;
 mod chrome;
 mod command;
@@ -16,6 +17,7 @@ mod cursor;
 mod designer;
 mod flags;
 mod frame;
+mod guide;
 mod hud;
 mod kit;
 mod look;
@@ -131,6 +133,8 @@ pub struct Shot {
     /// More folders after the first, each in a picture of its own (`FILE_econ_1.png`…): one world,
     /// one start of the window for a whole round of pictures (29th session).
     pub tour: Vec<String>,
+    /// The guide open at a page.
+    pub guide: Option<usize>,
 }
 
 /// The window spoiled on purpose (`SPOIL=1`), for the negative control of its self-checks: the
@@ -196,6 +200,11 @@ struct App {
     /// How many lines of the news the player has seen (the newspaper's medallion is marked while
     /// hot news waits unread).
     news_seen: usize,
+    /// The war's briefing over the map unfolded (29th session).
+    brief_open: bool,
+    /// The guide (F1) open, and its page.
+    guide_open: bool,
+    guide_page: usize,
 }
 
 /// A mark on a sphere's medallion: its folder and how grave (from the reports, 28th session).
@@ -299,6 +308,9 @@ impl App {
             settings: Settings::default(),
             hist: Vec::new(),
             news_seen: 0,
+            brief_open: true,
+            guide_open: false,
+            guide_page: 0,
         }
     }
 
@@ -339,8 +351,8 @@ pub fn run(shared: Arc<Mutex<Game>>, shot: Option<Shot>, start: bool) -> eframe:
         viewport: egui::ViewportBuilder::default().with_inner_size([size.0, size.1]).with_min_inner_size([1100.0, 640.0]).with_title(format!("{name} — стратегия")),
         // (the land in three dimensions: a depth buffer, smooth edges of the mountains)
         depth_buffer: 24,
-        // (`MSAA=0`: for a screen with no smoothing in its visuals — a virtual one taking pictures)
-        multisampling: std::env::var("MSAA").ok().and_then(|v| v.parse().ok()).unwrap_or(4),
+        // (`MSAA=0` or `STRAT_NOMSAA=1`: for a screen with no smoothing in its visuals — a virtual one taking pictures)
+        multisampling: if std::env::var_os("STRAT_NOMSAA").is_some() { 0 } else { std::env::var("MSAA").ok().and_then(|v| v.parse().ok()).unwrap_or(4) },
         // (pictures measure the frames as fast as they go, not at the screen's pace)
         vsync: shot.is_none(),
         ..Default::default()
@@ -353,6 +365,7 @@ pub fn run(shared: Arc<Mutex<Game>>, shot: Option<Shot>, start: bool) -> eframe:
             let tab = shot.as_ref().and_then(|s| s.tab.as_deref()).and_then(Tab::of);
             let page = shot.as_ref().and_then(|s| s.tab.as_deref()).and_then(|x| x.split_once(':')).and_then(|x| x.1.parse::<usize>().ok());
             let with_menu = shot.as_ref().is_some_and(|s| s.menu);
+            let with_guide = shot.as_ref().and_then(|s| s.guide);
             let edit = shot.as_ref().and_then(|s| s.design).and_then(|k| {
                 let g = shared.lock().unwrap();
                 (k < g.templates.len()).then(|| designer::Edit::of(&g, Some(k)))
@@ -371,6 +384,10 @@ pub fn run(shared: Arc<Mutex<Game>>, shot: Option<Shot>, start: bool) -> eframe:
                 set_page(&cc.egui_ctx, t, k);
             }
             app.menu = with_menu;
+            if let Some(p) = with_guide {
+                app.guide_open = true;
+                app.guide_page = p;
+            }
             app.keys_open = with_menu && std::env::args().any(|a| a == "--keys");
             app.loading = with_menu && !app.keys_open;
             app.edit = edit;

@@ -304,11 +304,15 @@ impl MapView {
             list = merged;
         }
         let mut items: Vec<(Pos2, usize)> = list.iter().enumerate().filter(|(_, s)| on_screen(at(s.q))).map(|(i, s)| (at(s.q), i)).collect();
-        // (the enemy's a little up and to the side of the province's middle, ours on it)
+        // (the enemy's a little up and to the side of the province's middle, ours on it; where the
+        // model of the troops stands, the counter goes under its feet — it sat on the model and
+        // hid it: a plate with a flag over a figure of forty points)
+        let model_t = Self::model_show(self.k);
         for it in items.iter_mut() {
             if list[it.1].side != me {
                 it.0 += vec2(0.0, -6.0);
             }
+            it.0 += vec2(0.0, 24.0 * model_t);
         }
         if !crate::native::spoiled() {
             let mut ps: Vec<Pos2> = items.iter().map(|x| x.0).collect();
@@ -329,12 +333,17 @@ impl MapView {
             // the troops' figure by the stack (not for what fog hides): standing at the counter's
             // top edge, facing the enemy's capital — or where its first division marches
             if !s.fog {
-                figs.push(self.figure(g, c, s, p));
+                figs.extend(self.squad(g, c, s, p));
             }
             let hue = (s.side == me && s.group != NONE).then(|| HUES[s.group % HUES.len()]);
             
-            // HOI4 Схлопывание: если дивизий много, мы уменьшаем фишку и делаем её компактной
-            let is_huge_stack = s.n > 2.0; 
+            // (the bars of strength and organisation only where the eye is wanted: a chosen stack, the
+            // one under the hand, a fight, trouble — under every counter they made a fringe of
+            // green and yellow over the whole front)
+            let near_hand = painter.ctx().input(|i| i.pointer.hover_pos()).is_some_and(|h| (h.x - p.x).abs() < 50.0 && (h.y - p.y).abs() < 22.0);
+            let fighting = c.fights.iter().any(|f| f.at == s.q);
+            let trouble = s.strength < 0.5 || s.org < 0.3 || s.kit < 0.6;
+            let details = s.picked > 0 || near_hand || fighting || trouble || (s.side == me && s.group != NONE && self.chosen == Some(s.group));
             
             let r = counter(
                 painter,
@@ -351,10 +360,13 @@ impl MapView {
                     chosen: s.picked > 0,
                     supply: None,
                     dug: None,
-                    country: Some(th.countries[s.side]),
-                    // Скрываем громоздкие полоски индивидуального XP/орги, если это плотный стек
-                    bars: if is_huge_stack { None } else { (!s.fog).then_some((s.strength, s.org)) },
+                    // (the flag only on a counter that is chosen, under the hand, in a fight or in trouble: on all of
+                    // them it was a dozen busy little stripes over the figures; the plate's colour and the
+                    // enemy's red frame already tell the sides)
+                    country: details.then_some(th.countries[s.side]),
+                    bars: if details { (!s.fog).then_some((s.strength, s.org)) } else { None },
                     marks: s.marks,
+                    foe: s.side != me,
                 },
             );
             // (the chosen group's stacks: a ring of its colour round them, breathing — where its
@@ -381,6 +393,33 @@ impl MapView {
                 foes.push((r, s.q));
             }
         }
+    }
+
+    /// How far the models of the troops show at this zoom (0 — not at all, the counters alone; 1 —
+    /// in full, the counters step under their feet).
+    pub(super) fn model_show(k: f32) -> f32 {
+        ((k - 3.6) / 1.8).clamp(0.0, 1.0)
+    }
+
+    /// The figures of stack `s`: one for a pair of divisions, two for a few, three for an army —
+    /// side by side across the way it faces, so that a big stack looks bigger than a small one.
+    fn squad(&self, g: &Game, c: &Corps, s: &Stack, p: Pos2) -> Vec<super::figures::Figure> {
+        let lead = self.figure(g, c, s, p);
+        let n = if s.n <= 2.0 { 1 } else if s.n <= 6.0 { 2 } else { 3 };
+        if n == 1 || lead.size <= 0.0 {
+            return vec![lead];
+        }
+        let gap = 20.0 / self.k.max(0.5);
+        let across = lead.angle + std::f32::consts::FRAC_PI_2;
+        (0..n)
+            .map(|i| {
+                let o = (i as f32 - (n as f32 - 1.0) / 2.0) * gap;
+                let back = if i % 2 == 1 { gap * 0.45 } else { 0.0 };
+                let mut f = lead;
+                f.at = [lead.at[0] + across.cos() * o - lead.angle.cos() * back, lead.at[1] + across.sin() * o - lead.angle.sin() * back];
+                f
+            })
+            .collect()
     }
 
     /// The figure that stands for stack `s` drawn at `p` on the screen: the model of its main kind
@@ -454,7 +493,9 @@ impl MapView {
         };
         // (a few dozen points tall on the screen; far away they shrink away smoothly, as HOI4's
         // models give way to the counters)
-        let t = ((self.k - 0.5) / 0.35).clamp(0.0, 1.0);
+        // (the figures wait for the close view: from 2.6 up each province carries a counter, and a crowd of
+        // black figures under the counters hid the provinces and the front)
+        let t = Self::model_show(self.k);
         // Meshes are normalised by height, not by their footprint.  A tank is almost twice as
         // long as a soldier is tall, so giving every mesh the same size made armour span several
         // provinces and hide both counters and borders.  Keep its on-screen presence, but scale
@@ -467,7 +508,7 @@ impl MapView {
             f::RIDER => 0.78,
             _ => 1.0,
         };
-        let size = 64.0 / self.k.max(0.5) * t * t * (3.0 - 2.0 * t) * footprint;
+        let size = 78.0 / self.k.max(0.5) * t * t * (3.0 - 2.0 * t) * footprint;
         super::figures::Figure { model, at, size, angle, colour, doing }
     }
 

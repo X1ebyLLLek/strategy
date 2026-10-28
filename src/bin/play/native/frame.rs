@@ -184,6 +184,11 @@ impl App {
         self.modes(ctx);
         self.picked_panel(ctx, &mut g);
         self.planbar(ctx, &mut g);
+        self.briefing(ctx, &mut g);
+        if !g.h.at_war {
+            self.guide_chip(ctx);
+        }
+        self.guide(ctx, &mut g);
         egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
             if let Some(m) = self.map.as_mut() {
                 m.also = self.more.clone();
@@ -216,7 +221,12 @@ impl App {
             }
             // (Esc: the menu closes; else the plan being drawn, the chosen divisions, the chosen
             // group, what is open; with nothing open, the menu opens)
-            if esc {
+            if ctx.input(|i| i.key_pressed(egui::Key::F1)) {
+                self.guide_open = !self.guide_open;
+            }
+            if esc && self.guide_open {
+                self.guide_open = false;
+            } else if esc {
                 let open = self.tab.is_some() || self.map.as_ref().is_some_and(|m| m.build != map::Build::None);
                 let picked = self.map.as_ref().is_some_and(|m| !m.picked.is_empty());
                 let drawing = self.map.as_ref().is_some_and(|m| m.tool != map::Tool::None);
