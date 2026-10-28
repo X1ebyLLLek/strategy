@@ -72,9 +72,7 @@ pub static PRINTS: [Choice; 4] = [
 /// What a subsidy level gives a sector a month (a share of the state's budget), and a state
 /// ownership level takes of its dividends.
 pub const SUBSIDY: [f32; 4] = [0.0, 0.01, 0.025, 0.05];
-pub const SUBSIDY_WORDS: [&str; 4] = ["без субсидий", "малая субсидия", "субсидия", "большая субсидия"];
 pub const PUBLIC: [f32; 4] = [0.0, 0.25, 0.5, 1.0];
-pub const PUBLIC_WORDS: [&str; 4] = ["частная", "¼ казне", "½ казне", "казённая"];
 /// The cap on vital goods, times their usual price.
 pub const CAP: f32 = 1.25;
 

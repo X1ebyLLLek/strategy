@@ -228,6 +228,10 @@ fn main() {
                 game.act(saves::Act::Line(rail, path));
             }
         }
+        // (for pictures: an economist put in charge of the economy — `adv0`…`adv2` — or the player himself, `me`)
+        if let Some(v) = arg("--econ") {
+            game.act(saves::Act::Form(vec![("econ".to_string(), v)]));
+        }
         // (for pictures: months of peace lived first — another time of year)
         if let Some(m) = arg("--peace").and_then(|v| v.parse::<u32>().ok()) {
             for _ in 0..m {
@@ -289,6 +293,7 @@ fn main() {
             choose: arg("--choose").and_then(|v| v.parse().ok()),
             draft: args.iter().any(|a| a == "--draft"),
             fronts: args.iter().any(|a| a == "--fronts"),
+            tour: arg("--tour").map_or_else(Vec::new, |v| v.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()),
             size: arg("--size").and_then(|v| {
                 let (x, y) = v.split_once('x')?;
                 Some((x.trim().parse().ok()?, y.trim().parse().ok()?))

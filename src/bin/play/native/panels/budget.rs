@@ -116,7 +116,74 @@ pub(super) fn people(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     for (r, cd) in resp.into_iter().zip(cards.iter()) {
         r.tip(|| cd());
     }
-    say(ui, s, "Рождаемость и смертность у каждой группы свои: деревня рожает и хоронит больше города. Врачи, сытость и грамотность меняют их медленно — плоды видны через годы.");
+    kit::words(ui, "Рождаемость и смертность у каждой группы свои: деревня рожает и хоронит больше города. Врачи, сытость и грамотность меняют их медленно — плоды видны через годы.", 13.0, s.soft);
+    groups(ui, s, g);
+}
+
+/// The people by groups (29th session; the page was six tiles and a blank folder): for each group how
+/// many it is, and three gauges, the longer the better — whether it has what it needs, whether there
+/// is work for it, how much of its patience is left; the cards say which goods it goes without.
+fn groups(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
+    let me = g.me;
+    let pack = g.pack.clone();
+    kit::ribbon(ui, "Кто как живёт", Some("village"));
+    kit::words(ui, "У каждой группы три полоски — чем длиннее, тем лучше: хватает ли нужного, есть ли работа, сколько терпения осталось.", 12.5, s.soft);
+    ui.add_space(3.0);
+    let n = g.h.home(me);
+    let all: f32 = n.pop.iter().sum::<f32>().max(1e-9);
+    let tone = |good: f32| if good >= 0.85 { kit::GOOD } else if good >= 0.6 { kit::MIXED } else { kit::BAD };
+    for (gi, grp) in pack.groups.iter().enumerate() {
+        if n.pop[gi] <= 1e-6 {
+            continue;
+        }
+        let needs = 1.0 - n.hardship[gi].clamp(0.0, 1.0);
+        let work = n.unemployed[gi].map(|u| 1.0 - u.clamp(0.0, 1.0));
+        let patience = 1.0 - (n.discontent[gi] / grp.patience.max(1e-6)).clamp(0.0, 1.0);
+        let gauges: [(&str, Option<f32>, String); 3] = [
+            ("нужное", Some(needs), format!("{:.0}%", needs * 100.0)),
+            ("работа", work, work.map_or("—".to_string(), |w| format!("{:.0}%", w * 100.0))),
+            ("терпение", Some(patience), if n.unrest[gi] > 0 { "восстали".to_string() } else { format!("{:.0}%", patience * 100.0) }),
+        ];
+        let worst = [Some(needs), work, Some(patience)].into_iter().flatten().fold(1.0f32, f32::min);
+        kit::framed(ui, Some(tone(worst)), false, |ui| {
+            ui.horizontal(|ui| {
+                kit::bold(ui, grp.name.clone(), 15.0, s.ink);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(RichText::new(format!("{} млн · {:.0}%", num(n.pop[gi]), n.pop[gi] / all * 100.0)).size(13.0).color(s.soft));
+                });
+            });
+            let gap = 10.0;
+            let w = ((ui.available_width() - 2.0 * gap) / 3.0).floor();
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = gap;
+                for (k, (name, frac, text)) in gauges.iter().enumerate() {
+                    ui.vertical(|ui| {
+                        ui.set_width(w);
+                        ui.spacing_mut().item_spacing.y = 1.0;
+                        let (r, _) = ui.allocate_exact_size(vec2(w, 16.0), egui::Sense::hover());
+                        ui.painter().text(r.left_center(), egui::Align2::LEFT_CENTER, *name, egui::FontId::proportional(12.5), s.soft);
+                        ui.painter().text(r.right_center(), egui::Align2::RIGHT_CENTER, text, egui::FontId::new(12.5, egui::FontFamily::Name("bold".into())), s.ink);
+                        let resp = kit::gauge(ui, w, 10.0, frac.unwrap_or(0.0), frac.map_or(kit::PLAIN, tone));
+                        let (gname, miss, disc, pat, unrest) = (grp.name.clone(), (0..grp.needs.len()).map(|j| (pack.goods[grp.needs[j].good].name.clone(), n.unmet[gi][j])).filter(|x| x.1 > 0.01).collect::<Vec<_>>(), n.discontent[gi], grp.patience, n.unrest[gi]);
+                        resp.tip(|| {
+                            let mut c = Card::new(gname).icon("people");
+                            match k {
+                                0 => {
+                                    c = c.tone("хватает нужного", format!("{:.0}%", needs * 100.0), if needs >= 0.85 { Tone::Good } else { Tone::Bad });
+                                    for (good, m) in &miss {
+                                        c = c.row(format!("не хватает: {}", good.to_lowercase()), format!("{:.0}%", m * 100.0));
+                                    }
+                                    c.note("доля потребностей группы, что покрыты, с весом важности: хлеб весит больше, чем всё остальное")
+                                }
+                                1 => c.row("без работы", work.map_or("работы не ищет".to_string(), |w| format!("{:.0}%", (1.0 - w) * 100.0))).note("доля группы, которой не нашлось места на заводах и в хозяйствах"),
+                                _ => c.row("накоплено недовольства", format!("{disc:.2} из {pat:.2}")).row("волнения", if unrest > 0 { format!("идут ещё {unrest} мес.") } else { "нет".to_string() }).note("когда терпение кончится — забастовки и мятеж: группа рвёт связи с властью"),
+                            }
+                        });
+                    });
+                }
+            });
+        });
+    }
 }
 
 /// The banks, the money and the debt at home: the credit's depth, the money's growth, a crisis, the

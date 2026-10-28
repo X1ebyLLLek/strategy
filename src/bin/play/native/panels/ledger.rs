@@ -6,144 +6,11 @@
 //! ahead with one decision changed against none (the rival and luck live too: it is the game
 //! itself, not a formula), so that the player sees what a decision does before he takes it.
 
-use std::sync::{Mutex, OnceLock};
-
-use rayon::prelude::*;
 use crate::country::spirits::Eff;
+use super::forecast;
 use super::*;
 use super::super::charts;
 use super::super::kit::{self, Stat};
-
-/// What a decision did after a year, against doing nothing.
-#[derive(Clone, Debug, Default)]
-struct Outcome {
-    name: String,
-    about: String,
-    gdp: f32,
-    treasury: f32,
-    anger: f32,
-    stability: f32,
-    legit: f32,
-    unrest: f32,
-    techs: f32,
-    army: f32,
-    level: f32,
-    science: f32,
-}
-
-#[derive(Default)]
-struct Forecast {
-    /// The game month and the stamp of decisions it was reckoned from; whether it is being reckoned.
-    month: u32,
-    stamp: u64,
-    running: bool,
-    rows: Vec<Outcome>,
-    secs: f32,
-}
-
-fn forecast() -> &'static Mutex<Forecast> {
-    static F: OnceLock<Mutex<Forecast>> = OnceLock::new();
-    F.get_or_init(|| Mutex::new(Forecast::default()))
-}
-
-/// The decisions tried: a name, what it is, the form the window would send.
-fn options(g: &Game) -> Vec<(String, String, Vec<(String, String)>)> {
-    let me = g.me;
-    let n = g.h.home(me);
-    let mut v: Vec<(String, String, Vec<(String, String)>)> = vec![("Ничего не менять".into(), "как сейчас — с чем сравнивается всё остальное".into(), Vec::new())];
-    if g.adviser.is_none() {
-        let t = (n.tax * 100.0).round();
-        v.push(("Налог +5".into(), format!("налог {:.0}% вместо {t:.0}%", t + 5.0), vec![("tax".into(), format!("{}", t + 5.0))]));
-        if t >= 5.0 {
-            v.push(("Налог −5".into(), format!("налог {:.0}% вместо {t:.0}%", t - 5.0), vec![("tax".into(), format!("{}", t - 5.0))]));
-        }
-        if n.build_share < 0.95 {
-            v.push(("Всё в стройку".into(), format!("стройка 100% свободных денег казны вместо {:.0}%", n.build_share * 100.0), vec![("build".into(), "100".into())]));
-        }
-    }
-    if g.h.labs[me].is_some() {
-        let sci = (n.science_share * 100.0).max(0.5);
-        let to = (sci * 2.0).max(sci + 3.0).min(50.0);
-        v.push(("Наука ×2".into(), format!("доля науки {to:.0}% вместо {sci:.0}%"), vec![("science".into(), format!("{to:.1}"))]));
-    }
-    let army = (n.mil_share * 100.0).round();
-    v.push(("Армия +10".into(), format!("доля армии {:.0}% вместо {army:.0}%", (army + 10.0).min(90.0)), vec![("army".into(), format!("{}", (army + 10.0).min(90.0)))]));
-    if army >= 10.0 {
-        v.push(("Армия −10".into(), format!("доля армии {:.0}% вместо {army:.0}%", army - 10.0), vec![("army".into(), format!("{}", army - 10.0))]));
-    }
-    if g.fiscal.tariff[me] != 2 {
-        v.push(("Защита промышленности".into(), "высокие пошлины на чужие товары".into(), vec![("fx_tariff".into(), "2".into())]));
-    }
-    if g.fiscal.tariff[me] != 0 {
-        v.push(("Свободная торговля".into(), "без пошлин".into(), vec![("fx_tariff".into(), "0".into())]));
-    }
-    if g.realm.crackdown[me] == 0 {
-        v.push(("Твёрдая рука".into(), "год жёсткого порядка".into(), vec![("crackdown".into(), "1".into())]));
-    }
-    v
-}
-
-/// The world `g` lived `months` ahead with `form` decided now; what it came to.
-fn live(mut w: Game, form: &[(String, String)], months: u32) -> Outcome {
-    w.auto = None;
-    if !form.is_empty() {
-        w.apply(form);
-    }
-    for _ in 0..months {
-        w.advance();
-        if w.h.war.fallen.is_some() {
-            break;
-        }
-    }
-    let me = w.me;
-    let c = w.country(me);
-    Outcome {
-        gdp: w.h.home(me).gdp_real,
-        treasury: w.h.home(me).treasury,
-        anger: w.h.home(me).anger(),
-        stability: w.state.stability[me],
-        legit: w.polity.of[c].legit,
-        unrest: w.polity.of[c].unrest,
-        techs: w.know.get(c).map_or(0.0, |k| k.count() as f32),
-        army: w.h.war.sides[me].army.count.iter().sum(),
-        level: w.h.home(me).level,
-        science: w.research.points[me],
-        ..Default::default()
-    }
-}
-
-/// Start reckoning the forecast for game `g` (in the background).
-fn start(g: &Game) {
-    {
-        let mut f = forecast().lock().unwrap();
-        if f.running {
-            return;
-        }
-        f.running = true;
-        f.month = g.month();
-        f.stamp = g.stamp;
-    }
-    let base = g.clone();
-    std::thread::spawn(move || {
-        let t0 = std::time::Instant::now();
-        let opts = options(&base);
-        // (a world of its own for each decision: the game is not to be shared between threads)
-        let worlds: Vec<(Game, (String, String, Vec<(String, String)>))> = opts.into_iter().map(|o| (base.clone(), o)).collect();
-        let rows: Vec<Outcome> = worlds
-            .into_par_iter()
-            .map(|(w, (name, about, form))| {
-                let mut o = live(w, &form, 12);
-                o.name = name.clone();
-                o.about = about.clone();
-                o
-            })
-            .collect();
-        let mut f = forecast().lock().unwrap();
-        f.rows = rows;
-        f.running = false;
-        f.secs = t0.elapsed().as_secs_f32();
-    });
-}
 
 /// The folder of the ledger.
 pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
@@ -329,16 +196,14 @@ pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     }
     // the forecast
     kit::ribbon(ui, "Прогноз: что будет через год, если…", Some("forecast"));
-    kit::words(ui, "Тот же мир проживается на 12 месяцев вперёд — с решением и без него. Сосед, рынок и случай тоже живут: это сама игра, а не формула. Числа — разница с «ничего не менять».", 12.5, s.soft);
-    let (running, rows_f, fm, fs, secs) = {
-        let f = forecast().lock().unwrap();
-        (f.running, f.rows.clone(), f.month, f.stamp, f.secs)
-    };
-    let stale = !rows_f.is_empty() && (fm != g.month() || fs != g.stamp);
+    kit::words(ui, "Тот же мир проживается на 12 месяцев вперёд — с решением и без него. Сосед, рынок и случай тоже живут: это сама игра, а не формула; только войны в ней не начинаются — военное положение перекрыло бы любое решение. Числа — разница с «ничего не менять».", 12.5, s.soft);
+    let f = forecast::state();
+    let (running, rows_f, fm, secs) = (f.running, f.rows.clone(), f.month, f.secs);
+    let stale = f.stale(g);
     let label = if running { "Считается…" } else if rows_f.is_empty() { "Посчитать прогноз" } else { "Пересчитать прогноз" };
     let b = kit::act_button(ui, label, "forecast", !running, false);
     if b.tip(|| Card::new("Прогноз").icon("forecast").text("Займёт несколько секунд: мир проживается вперёд по разу на каждое решение (на всех ядрах процессора). Игра не останавливается.")).clicked() && !running {
-        start(g);
+        forecast::start(g);
     }
     if running {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));

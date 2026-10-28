@@ -3,26 +3,17 @@
 //! who pays the tax, to whom the state hands back, duties, credit, the press, the labour law, a cap
 //! on the price of bread; subsidies and state ownership of each trade.
 
-use crate::country::fiscal::{Choice, CAP, DOLES, LABOUR, PRINTS, PUBLIC, PUBLIC_WORDS, RATES, SUBSIDY, SUBSIDY_WORDS, TARIFFS, TAXES};
+use crate::country::fiscal::{Choice, CAP, DOLES, LABOUR, PRINTS, RATES, TARIFFS, TAXES};
 use super::*;
 use super::super::kit::{self, Stat};
 
-/// A lever as a row of tiles (the law widget): its label, its choices; the chosen one sent as
-/// `key` when another is clicked.
-fn choices(ui: &mut egui::Ui, s: &Skin, g: &mut Game, label: &str, list: &[Choice; 4], chosen: usize, usual: usize, key: &str) {
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = 5.0;
-        ui.label(RichText::new(label).size(14.5).color(s.soft));
-        ui.label(RichText::new(list[chosen].name).family(egui::FontFamily::Name("bold".into())).size(14.5).color(s.ink));
-    });
-    let tiles: Vec<(&str, &str)> = list.iter().map(|c| (c.name, c.icon)).collect();
-    let picked = widgets::law(ui, &tiles, chosen, usual, &|k| {
-        Card::new(list[k].name).icon(list[k].icon).sub(label.trim_end_matches(':').to_string()).text(list[k].about).note(if k == chosen { "действует сейчас" } else { "щёлкните — решение уйдёт в правительство" })
-    });
-    if let Some(k) = picked {
+/// A law of four choices as a row (29th session): its name, ‹ the one in force ›, what it means; the
+/// choice asked for is sent as `key`.
+fn choices(ui: &mut egui::Ui, s: &Skin, g: &mut Game, label: &str, icon: &str, list: &'static [Choice; 4], chosen: usize, key: &str) {
+    if let Some(k) = levers::pick(ui, s, icon, label, list, chosen) {
         act(g, &[(key, k.to_string())]);
     }
-    ui.add_space(2.0);
+    levers::rule(ui, s);
 }
 
 /// The section of finances.
@@ -65,82 +56,52 @@ pub(super) fn finance(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             x if x < 1.6 => "хватает",
             _ => "с избытком",
         };
-        let items = vec![
-            Stat::new("stamper", "Налоги", share(fig.taxes), kit::PLAIN),
-            Stat::new("wall", "Пошлины", share(fig.duties), kit::PLAIN),
-            Stat::new("anvil", "Казённые отрасли", share(fig.public), kit::PLAIN),
+        let balance = fig.exports - fig.imports;
+        let _ = balance;
+        let conf = fig.confidence;
+        let printed = fig.printed;
+        let mut items = vec![
             Stat::new("backforth", "Торговля", trade, kit::PLAIN),
             Stat::new("gem", "Доля богатых", rich, if fig.owners > 0.45 { kit::BAD } else { kit::PLAIN }),
             Stat::new("bread", "Плата бедных", pay, if worst < 1.0 { kit::BAD } else { kit::GOOD }),
         ];
-        let conf = fig.confidence;
-        let mut items = items;
         items.push(Stat::new("sprout", "Деловой климат", if conf < 0.6 { "паника" } else if conf < 0.85 { "тревожный" } else if conf < 1.15 { "спокойный" } else { "подъём" }, if conf < 0.85 { kit::BAD } else if conf > 1.15 { kit::GOOD } else { kit::PLAIN }));
         items.push(Stat::new("backforth", "Капитал за границей", share(fig.fled), if fig.fled > 0.3 * income { kit::BAD } else { kit::PLAIN }));
         items.push(Stat::new("hand", "Уклонение от налога", if fig.evaded < 0.03 { "почти нет" } else if fig.evaded < 0.12 { "заметное" } else { "повальное" }, if fig.evaded > 0.12 { kit::BAD } else { kit::PLAIN }));
-        // the economy as a whole: output over a year, prices over a year, men out of work, the press
-        let (gr, inf, idle, printed) = (fig.growth, fig.inflation, fig.idle, fig.printed);
-        items.push(Stat::new("sprout", "Выпуск за год", match gr { x if x < -0.03 => "падает", x if x < 0.01 => "стоит", x if x < 0.04 => "растёт", _ => "быстро растёт" }, if gr < -0.03 { kit::BAD } else if gr > 0.01 { kit::GOOD } else { kit::PLAIN }));
-        items.push(Stat::new("coins", "Цены за год", match inf { x if x < -0.03 => "падают", x if x < 0.04 => "спокойны", x if x < 0.15 => "растут", _ => "скачут" }, if !(-0.03..=0.15).contains(&inf) { kit::BAD } else { kit::PLAIN }));
-        items.push(Stat::new("hand", "Без работы", match idle { x if x < 0.04 => "почти никого", x if x < 0.1 => "немного", x if x < 0.2 => "много", _ => "каждый пятый" }, if idle >= 0.1 { kit::BAD } else { kit::PLAIN }));
         items.push(Stat::new("stamper", "Станок", if printed <= 0.0 { "стоит" } else { share(printed) }, if printed > 0.1 * income { kit::BAD } else { kit::PLAIN }));
         let resp = kit::stats(ui, &items, 3);
-        let f2 = fig.clone();
-        let cards: [Box<dyn Fn() -> Card>; 6] = [
-            Box::new(move || Card::new("Налоги").icon("stamper").row("в месяц", format!("{:.2}", f2.taxes)).note("налог берут с доходов групп — как велит шкала налога")),
-            Box::new({
-                let d = fig.duties;
-                move || Card::new("Пошлины").icon("wall").row("в месяц", format!("{d:.2}")).note("доля цены чужих товаров, проданных у нас")
-            }),
-            Box::new({
-                let p = fig.public;
-                move || Card::new("Казённые отрасли").icon("anvil").row("в месяц", format!("{p:.2}")).note("доля прибыли отраслей, которыми владеет казна")
-            }),
-            Box::new({
-                let (e, i) = (fig.exports, fig.imports);
-                move || Card::new("Торговля").icon("backforth").row("вывоз в месяц", format!("{e:.2}")).row("ввоз в месяц", format!("{i:.2}"))
-            }),
-            Box::new({
-                let o = fig.owners;
-                move || Card::new("Доля богатых").icon("gem").row("собственникам из всех доходов", format!("{:.0}%", o * 100.0))
-            }),
-            Box::new({
-                let w = fig.wages.clone();
-                move || {
-                    let mut c = Card::new("Что покупает плата").icon("bread");
-                    for (name, x) in &w {
-                        c = c.row(name.clone(), format!("{:.0}% нужд", x * 100.0));
-                    }
-                    c.note("плата работающего против того, что стоят нужды его группы")
-                }
-            }),
-        ];
         let (fled, ev) = (fig.fled, fig.evaded);
-        let more: [Box<dyn Fn() -> Card>; 7] = [
+        let (ex, im, ow) = (fig.exports, fig.imports, fig.owners);
+        let w = fig.wages.clone();
+        let cards: Vec<Box<dyn Fn() -> Card>> = vec![
+            Box::new(move || Card::new("Торговля").icon("backforth").row("вывоз в месяц", format!("{ex:.2}")).row("ввоз в месяц", format!("{im:.2}"))),
+            Box::new(move || Card::new("Доля богатых").icon("gem").row("собственникам из всех доходов", format!("{:.0}%", ow * 100.0))),
+            Box::new(move || {
+                let mut c = Card::new("Что покупает плата").icon("bread");
+                for (name, x) in &w {
+                    c = c.row(name.clone(), format!("{:.0}% нужд", x * 100.0));
+                }
+                c.note("плата работающего против того, что стоят нужды его группы")
+            }),
             Box::new(move || Card::new("Деловой климат").icon("sprout").row("уверенность собственников", format!("{:.0}%", conf * 100.0)).note("растёт с выпуском и спокойной властью; падает от инфляции, войны, волнений, отнятых заводов, высоких налогов и сильных профсоюзов. От неё зависит, сколько строят хозяева")),
             Box::new(move || Card::new("Капитал за границей").icon("backforth").row("увезено", format!("{fled:.2}")).note("когда собственникам страшно, они увозят деньги; вернутся, когда климат станет лучше")),
             Box::new(move || Card::new("Уклонение от налога").icon("hand").row("не доплачивают", format!("{:.0}% налога", ev * 100.0)).note("чем выше налог и слабее власть, тем больше прячут — больше всех богатые")),
-            Box::new(move || Card::new("Выпуск за год").icon("sprout").row("рост", format!("{:+.1}%", gr * 100.0)).note("всё, что страна сделала, в ценах прошлого года")),
-            Box::new(move || Card::new("Цены за год").icon("coins").row("рост цен", format!("{:+.1}%", inf * 100.0)).note("станок, нехватка и война поднимают цены; застой роняет")),
-            Box::new(move || Card::new("Без работы").icon("hand").row("из работающих", format!("{:.1}%", idle * 100.0)).note("безработные тратят меньше и злее смотрят на власть")),
             Box::new(move || Card::new("Печатный станок").icon("stamper").row("напечатано в месяц", format!("{printed:.2}")).note("деньги без налогов, но цены растут тем быстрее, чем больше печатают")),
         ];
-        let all: Vec<&Box<dyn Fn() -> Card>> = cards.iter().chain(more.iter()).collect();
-        for (r, c) in resp.into_iter().zip(all) {
+        for (r, c) in resp.into_iter().zip(cards.iter()) {
             r.tip(|| c());
         }
     }
-    say(ui, s, "Каждый рычаг меняет само хозяйство: у кого сколько денег, что выгодно строить, что везут из-за границы. Что из этого выйдет — покажут цены, стройка и настроение людей.");
+    kit::words(ui, "Рычаги меняют само хозяйство: у кого сколько денег, что выгодно строить, что везут из-за границы. Что выйдет — покажут цены, стройка и настроение людей.", 13.0, s.soft);
     let fx = g.fiscal.clone();
-    choices(ui, s, g, "Кто платит налог:", &TAXES, fx.tax[me], 0, "fx_tax");
-    choices(ui, s, g, "Кому раздаёт казна:", &DOLES, fx.dole[me], 0, "fx_dole");
-    choices(ui, s, g, "Пошлины:", &TARIFFS, fx.tariff[me], 0, "fx_tariff");
-    choices(ui, s, g, "Кредит:", &RATES, fx.rate[me], 1, "fx_rate");
-    choices(ui, s, g, "Печатный станок:", &PRINTS, fx.print[me], 0, "fx_print");
+    choices(ui, s, g, "Кто платит налог", "stamper", &TAXES, fx.tax[me], "fx_tax");
+    choices(ui, s, g, "Кому раздаёт казна", "bread", &DOLES, fx.dole[me], "fx_dole");
+    choices(ui, s, g, "Пошлины", "wall", &TARIFFS, fx.tariff[me], "fx_tariff");
+    choices(ui, s, g, "Кредит", "coins", &RATES, fx.rate[me], "fx_rate");
+    choices(ui, s, g, "Печатный станок", "stamper", &PRINTS, fx.print[me], "fx_print");
     {
         let k = g.bond_level(me);
-        let usual = if g.h.at_war { 1 } else { 0 };
-        choices(ui, s, g, "Военные займы:", &crate::country::war_mood::BONDS, k, usual, "fx_bonds");
+        choices(ui, s, g, "Военные займы", "scroll", &crate::country::war_mood::BONDS, k, "fx_bonds");
         let owed: f32 = g.war_mood.owed[me].iter().sum();
         if owed > 0.0 || g.war_mood.took[me] > 0.0 {
             let line = format!(
@@ -152,36 +113,39 @@ pub(super) fn finance(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             say(ui, s, &line);
         }
     }
-    choices(ui, s, g, "Закон о труде:", &LABOUR, fx.labour[me], 1, "fx_labour");
-    ui.horizontal(|ui| {
+    choices(ui, s, g, "Закон о труде", "hand", &LABOUR, fx.labour[me], "fx_labour");
+    {
         let on = fx.caps[me];
-        let text = if on { "Снять твёрдые цены" } else { "Твёрдые цены на хлеб" };
-        if kit::act_button(ui, text, "bread", true, on)
-            .tip(|| Card::new("Твёрдые цены").icon("bread").text(format!("Цена того, без чего не живут, не выше {:.0}% обычной: бедным легче, но чего не хватает — делят в очередях, а делать это становится менее выгодно.", CAP * 100.0)).note(if on { "действуют сейчас" } else { "щёлкните — ввести" }))
-            .clicked()
-        {
+        if levers::switch(ui, s, "bread", "Твёрдые цены на хлеб", on, ["Нет", "Введены"], true, &format!("цена того, без чего не живут, не выше {:.0}% обычной: бедным легче, но чего не хватает — делят в очередях, а делать это становится менее выгодно", CAP * 100.0)) {
             act(g, &[("fx_caps", if on { "0".into() } else { "1".into() })]);
         }
-    });
-    ui.horizontal(|ui| {
+        levers::rule(ui, s);
+    }
+    {
         let on = g.fiscal.embargo[me];
         let rival = g.h.home(1 - me).name.clone();
-        let text = if on { "Снять эмбарго" } else { "Эмбарго соседу" };
-        if kit::act_button(ui, text, "wall", !g.h.at_war, on)
-            .tip(|| Card::new("Эмбарго").icon("wall").text(format!("Запретить торговлю с {rival}: его товары к нам не идут, наши к нему тоже. Соседу хуже, если он живёт привозом, — но и нам дороже то, что везли от него.")).note(if on { "действует: щёлкните — снять" } else { "напряжённость с соседом вырастет" }))
-            .clicked()
-        {
+        let about = format!("запретить торговлю с {rival}: его товары к нам не идут, наши к нему тоже; соседу хуже, если он живёт привозом, — но и нам дороже то, что везли от него{}", if g.fiscal.embargo[1 - me] { ". Сосед закрыл для нас свою торговлю" } else { "" });
+        if levers::switch(ui, s, "wall", "Эмбарго соседу", on, ["Нет", "Введено"], !g.h.at_war, &about) {
             act(g, &[("fx_embargo", if on { "0".into() } else { "1".into() })]);
         }
-        if g.fiscal.embargo[1 - me] {
-            ui.label(RichText::new("сосед закрыл для нас свою торговлю").size(13.0).color(kit::ink(s, kit::BAD)));
-        }
-    });
-    // the trades: subsidies and state ownership
-    kit::words(ui, "ОТРАСЛИ: СУБСИДИИ И КАЗЁННАЯ ДОЛЯ", 12.0, s.soft);
+        levers::rule(ui, s);
+    }
+    // the trades: subsidies and state ownership, each a figure with − and +
+    kit::bold(ui, "Отрасли: субсидии и казённая доля", 14.0, s.ink);
+    kit::words(ui, "Субсидия — доля бюджета казны в месяц деньгами отрасли: она держит места и строится быстрее. Казённая доля — часть прибыли, что идёт казне, а не собственникам; отобрать отрасль — собственники долго не простят.", 12.5, s.soft);
     let n = g.h.home(me).clone();
     let mut sub_click: Option<(usize, u8)> = None;
     let mut pub_click: Option<(usize, u8)> = None;
+    let label_w = 150.0;
+    let gap = ui.spacing().item_spacing.x;
+    let colw = ((ui.available_width() - label_w - 2.0 * gap - 2.0) / 2.0).clamp(90.0, 124.0);
+    ui.horizontal(|ui| {
+        ui.add_space(label_w + gap);
+        for t in ["субсидия", "казне"] {
+            let (r, _) = ui.allocate_exact_size(vec2(colw, 16.0), egui::Sense::hover());
+            ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, t.to_uppercase(), egui::FontId::new(12.0, egui::FontFamily::Name("head".into())), s.soft);
+        }
+    });
     for (k, sec) in pack.sectors.iter().enumerate() {
         if n.cap.get(k).copied().unwrap_or(0.0) <= 1e-4 && sec.build.is_empty() {
             continue;
@@ -190,22 +154,19 @@ pub(super) fn finance(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         let own = fx.public[me].get(k).copied().unwrap_or(0);
         ui.horizontal(|ui| {
             let mut job = egui::text::LayoutJob::simple_singleline(sec.name.clone(), egui::FontId::new(14.0, egui::FontFamily::Proportional), s.ink);
-            job.wrap = egui::text::TextWrapping::truncate_at_width(150.0);
+            job.wrap = egui::text::TextWrapping::truncate_at_width(label_w - 4.0);
             let gal = ui.painter().layout_job(job);
-            let (lr, _) = ui.allocate_exact_size(vec2(156.0, 24.0), egui::Sense::hover());
+            let (lr, _) = ui.allocate_exact_size(vec2(label_w, 27.0), egui::Sense::hover());
             ui.painter().galley(egui::pos2(lr.min.x, lr.center().y - gal.size().y / 2.0), gal, s.ink);
-            let (words_sub, words_pub) = (SUBSIDY_WORDS, PUBLIC_WORDS);
-            if kit::act_button(ui, words_sub[sub as usize], "coins", true, sub > 0)
-                .tip(|| Card::new(format!("Субсидия: {}", sec.name)).icon("coins").row("сейчас", format!("{:.1}% бюджета в месяц", SUBSIDY[sub as usize] * 100.0)).text("Деньги казны отрасли: она держит выпуск, когда невыгодно, и строится быстрее.").note("щёлкните — следующая ступень"))
-                .clicked()
-            {
-                sub_click = Some((k, (sub + 1) % 4));
+            let words_sub = ["нет", "1%", "2,5%", "5%"];
+            let words_pub = ["нет", "¼", "½", "вся"];
+            let (d, _) = widgets::stepper(ui, words_sub[sub as usize], colw, true);
+            if d != 0 {
+                sub_click = Some((k, (sub as i32 + d as i32).clamp(0, 3) as u8));
             }
-            if kit::act_button(ui, words_pub[own as usize], "anvil", true, own > 0)
-                .tip(|| Card::new(format!("Владелец: {}", sec.name)).icon("anvil").row("казне идёт", format!("{:.0}% прибыли", PUBLIC[own as usize] * 100.0)).text("Прибыль казённой доли идёт в казну, а не собственникам. Отобрать отрасль — собственники долго не простят, власть пошатнётся; вернуть — можно в любой момент.").note("щёлкните — следующая ступень"))
-                .clicked()
-            {
-                pub_click = Some((k, (own + 1) % 4));
+            let (d, _) = widgets::stepper(ui, words_pub[own as usize], colw, true);
+            if d != 0 {
+                pub_click = Some((k, (own as i32 + d as i32).clamp(0, 3) as u8));
             }
         });
     }

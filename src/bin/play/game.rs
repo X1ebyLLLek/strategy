@@ -57,6 +57,12 @@ pub struct Row {
     pub science: [f32; 2],
     pub level: [f32; 2],
     pub moods: [f32; strategy::world::polity::BLOCS],
+    /// Share of the working people out of work; the worst share of a vital need gone without; the
+    /// year's growth of output and rise of prices (29th session: the economy's overview draws them).
+    pub idle: [f32; 2],
+    pub hunger: [f32; 2],
+    pub growth: [f32; 2],
+    pub inflation: [f32; 2],
 }
 
 /// What a treasury took and paid in a month: taxes, duties, its own trades' dividends; handed
@@ -604,6 +610,10 @@ impl Game {
             science: self.research.points,
             level: [self.h.home(0).level, self.h.home(1).level],
             moods: self.polity_of(me).mood,
+            idle: [self.figures(0).idle, self.figures(1).idle],
+            hunger: [self.spirits.facts[0].hunger, self.spirits.facts[1].hunger],
+            growth: [self.spirits.facts[0].growth, self.spirits.facts[1].growth],
+            inflation: [self.spirits.facts[0].inflation, self.spirits.facts[1].inflation],
         });
     }
 

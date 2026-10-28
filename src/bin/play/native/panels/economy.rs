@@ -58,163 +58,59 @@ pub(super) fn pair_chart(ui: &mut egui::Ui, s: &Skin, g: &Game, title: &str, wha
     ui.add_space(4.0);
 }
 
-/// The pages of the economy's folder (28th session).
-pub const PAGES: [&str; 4] = ["Бюджет", "Хозяйство", "Деньги", "Люди"];
+/// The pages of the economy's folder (28th session; the overview in front of them, 29th).
+pub const PAGES: [&str; 5] = ["Обзор", "Бюджет", "Хозяйство", "Деньги", "Люди"];
 
-/// The economy, page by page: the budget (the treasury's sheet with its levers, what the state
-/// builds, the civil lines, who runs the economy); the economy itself (figures, charts, what weighs
+/// The pages by what they are: the overview (the vital signs, what needs attention, the levers of
+/// each), the budget (the treasury's sheet), the economy (market, trades), the money (finances,
+/// banks), the people.
+pub const OVERVIEW: usize = 0;
+pub const BUDGET: usize = 1;
+pub const ECONOMY: usize = 2;
+pub const MONEY: usize = 3;
+pub const PEOPLE: usize = 4;
+
+/// The economy, page by page: the overview (who runs the economy, what needs attention, the vital
+/// signs with their causes and levers); the budget (the treasury's sheet with its levers, what the
+/// state builds, the civil lines); the economy itself (figures, charts, what weighs
 /// on it, the market, the sectors, modernisation); the money (the state's finances, the banks and
 /// the debt); the people.
 pub fn econ(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
     match page {
-        1 => economy(ui, s, g),
-        2 => {
+        BUDGET => budget(ui, s, g),
+        ECONOMY => economy(ui, s, g),
+        MONEY => {
             super::finance::finance(ui, s, g);
             super::budget::money(ui, s, g);
         }
-        3 => super::budget::people(ui, s, g),
-        _ => budget(ui, s, g),
+        PEOPLE => super::budget::people(ui, s, g),
+        OVERVIEW | _ => super::overview::overview(ui, s, g),
     }
 }
 
 /// The page «Бюджет».
 fn budget(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
-    let me = g.me;
-    let pack = g.pack.clone();
+    super::overview::govern::strip(ui, s, g);
     super::sheet::sheet(ui, s, g);
     if g.adviser.is_none() {
-        head(ui, s, "Что строит казна");
-        words(ui, "Отмеченные отрасли казна строит по очереди, месяц за месяцем; ничего не отмечено — где людям хуже всего. Цена против обычной: дороже ×1,3 — товара не хватает.", 13.5, s.soft);
-        ui.add_space(3.0);
-        let mut queue = g.state.queue.clone();
-        let mut changed = false;
-        for (k, sec) in pack.sectors.iter().enumerate() {
-            let n = g.h.home(me);
-            let ratio = sec.outputs.first().map_or(1.0, |o| n.price[o.0] / (pack.goods[o.0].price * n.level).max(1e-9));
-            let word = if ratio > 1.3 { "не хватает" } else if ratio < 0.8 { "в избытке" } else { "как обычно" };
-            let (jobs, busy) = (n.cap.get(k).copied().unwrap_or(0.0), n.worked.get(k).copied().unwrap_or(0.0));
-            let now_building = n.build_focus == Some(k);
-            let mut on = queue.contains(&k);
-            ui.horizontal(|ui| {
-                if widgets::check(ui, &mut on, &sec.name).changed() {
-                    changed = true;
-                }
-                let name = sec.name.clone();
-                ui.label(RichText::new(format!("×{ratio:.2} · {word}{}", if now_building { " · строится" } else { "" })).size(13.5).color(if ratio > 1.3 { s.accent } else { s.soft }))
-                    .tip(|| {
-                        Card::new(name)
-                            .icon("gears")
-                            .tone("цена к обычной", format!("×{ratio:.2}"), if ratio > 1.3 { Tone::Bad } else { Tone::Plain })
-                            .row("рабочих мест", format!("{:.2} млн", jobs))
-                            .row("из них заняты", format!("{:.0}%", busy / jobs.max(1e-9) * 100.0))
-                            .note(if now_building { "казна строит её в этом месяце" } else { "дорого — значит, не хватает" })
-                    });
-            });
-            if on && !queue.contains(&k) {
-                queue.push(k);
-            } else if !on {
-                queue.retain(|&x| x != k);
-            }
-        }
-        if changed {
-            let mut pairs: Vec<(&str, String)> = vec![("queue_set", "1".into())];
-            let keys: Vec<String> = queue.iter().map(|k| format!("q{k}")).collect();
-            for key in &keys {
-                pairs.push((key.as_str(), "1".into()));
-            }
-            act(g, &pairs);
-        }
+        super::builds::builds(ui, s, g);
     }
     super::budget::civil(ui, s, g);
-    head(ui, s, "Кто правит хозяйством");
-    say(ui, s, "Хозяйство можно вести самому или отдать [adviser]советнику.");
-    ui.add_space(3.0);
-    let adviser = g.adviser;
-    if person(ui, s, g, "Вы сами", "me", adviser.is_none(), "налог, стройку и что строить решаете вы") {
-        act(g, &[("econ", "me".into())]);
-    }
-    for k in 0..g.pool.len() {
-        let name = g.pool[k].0.clone();
-        let on = adviser == Some(k);
-        // (what anyone may know of him: his schooling, family, views, his last deeds; in office —
-        // what he does and what his years came to)
-        let mut body = g.roster.pool.get(k).map_or(String::new(), |&id| candidate_words(g, id, false));
-        if on {
-            if let Some(e) = g.h.econ[me].as_ref() {
-                body = format!("{}\n{}", crate::words::levers_words(&e.levers, &pack), body);
-                for y in e.years.iter().rev().take(3) {
-                    body += &format!("\n{}-й год при нём: выпуск {:+.1}%, благосостояние {:+.1}%, волнений {}", y.year, y.output * 100.0, y.welfare * 100.0, y.unrest);
-                }
-                if e.years.is_empty() {
-                    body += "\nитоги его первого года — через год";
-                }
-            }
-        }
-        if person(ui, s, g, &name, "econ", on, &body) {
-            act(g, &[("econ", format!("adv{k}"))]);
-        }
-    }
-    ui.add_space(6.0);
-    words(ui, format!("У {} хозяйством правит {}.", g.h.home(1 - me).name, g.foe_adviser), 13.5, s.soft);
 }
 
 
-/// The page «Хозяйство»: the figures and charts, what weighs on the economy, the market, the
-/// sectors, modernisation.
+/// The page «Хозяйство»: what weighs on the economy, the market, the sectors, modernisation (the
+/// figures and charts of the country are on the overview, with their causes and levers).
 fn economy(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
-    let me = g.me;
-    let n = g.h.home(me);
-    let mood = match n.anger() {
-        a if a < 0.5 => "невелико",
-        a if a < 1.5 => "растёт",
-        _ => "велико",
-    };
-    let (pp, an) = (n.people(), n.anger());
-    {
-        use super::super::kit::{self, Stat};
-        let f = &g.spirits.facts[me];
-        let idle: f32 = {
-            let (mut out, mut all) = (0.0f32, 0.0f32);
-            for (k, u) in n.unemployed.iter().enumerate() {
-                if let Some(u) = u {
-                    out += u * n.pop[k];
-                    all += n.pop[k];
-                }
-            }
-            out / all.max(1e-9)
-        };
-        let crowd_w = match pp {
-            x if x < 5.0 => "малолюдна",
-            x if x < 40.0 => "средняя",
-            x if x < 150.0 => "многолюдна",
-            _ => "огромна",
-        };
-        let items = vec![
-            Stat::new("people", "Людей", crowd_w, kit::PLAIN),
-            Stat::new("revolt", "Недовольство", mood, if an < 0.5 { kit::GOOD } else if an < 1.5 { kit::MIXED } else { kit::BAD }),
-            Stat::new("sprout", "Выпуск за год", kit::change(f.growth, "растёт", "падает"), if f.growth >= 0.0 { kit::GOOD } else { kit::BAD }),
-            Stat::new("coins", "Цены за год", kit::change(f.inflation, "растут", "падают"), if f.inflation > 0.08 { kit::BAD } else { kit::PLAIN }),
-            Stat::new("hand", "Без работы", if idle < 0.02 { "почти никого" } else if idle < 0.08 { "немногие" } else if idle < 0.2 { "многие" } else { "очень многие" }, if idle > 0.1 { kit::BAD } else { kit::GOOD }),
-            Stat::new("backforth", "Из-за границы", if f.imports < 0.03 { "почти ничего" } else if f.imports < 0.12 { "немного" } else if f.imports < 0.3 { "заметно" } else { "много" }, kit::PLAIN),
-        ];
-        let nums = [format!("{pp:.1} млн"), format!("{an:.2}"), format!("{:+.1}%", f.growth * 100.0), format!("{:+.1}%", f.inflation * 100.0), format!("{:.0}%", idle * 100.0), format!("{:.0}%", f.imports * 100.0)];
-        let items: Vec<Stat> = items.into_iter().zip(nums.iter()).map(|(it, n)| it.num(n.clone())).collect();
-        let resp = kit::stats(ui, &items, 3);
-        let tips: [&str; 6] = [
-            "людей в стране, включая тех, кто служит",
-            "чем выше, тем ближе волнения: голод, налоги, война, дороговизна",
-            "выпуск в неизменных ценах против того, что был год назад",
-            "уровень цен против прошлого года",
-            "доля тех, кто ищет работу и не находит",
-            "доля купленного в стране, что пришло из-за границы",
-        ];
-        for (i, r) in resp.into_iter().enumerate() {
-            let (t, v) = (items[i].title.clone(), nums[i].clone());
-            r.tip(|| Card::new(t).icon(items[i].icon.clone()).row("сейчас", v).note(tips[i]));
-        }
+    let mut look = false;
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
+        ui.label(RichText::new("Показатели страны, графики и что на них влияет — на странице «Обзор».").size(13.0).color(s.soft));
+        look = widgets::small(ui, "Открыть обзор").clicked();
+    });
+    if look {
+        super::super::set_page(ui.ctx(), super::super::Tab::Econ, OVERVIEW);
     }
-    pair_chart(ui, s, g, "Выпуск", "выпуск в неизменных ценах", &|r, k| r.gdp[k], &|v| format!("{v:.1}"));
-    pair_chart(ui, s, g, "Недовольство", "чем выше, тем ближе волнения", &|r, k| r.anger[k], &|v| format!("{v:.2}"));
     influences(ui, s, g);
     market(ui, s, g);
     sectors(ui, s, g);

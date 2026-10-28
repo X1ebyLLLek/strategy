@@ -184,7 +184,8 @@ pub fn section(ui: &mut egui::Ui, s: &Skin, g: &mut Game, icons: &HashMap<String
     // the templates as cards, as many in a row as the folder holds (a frame's size is known only
     // once drawn: the row is broken before it); a click opens one in the designer
     let per_row = ((ui.available_width() + 8.0) / 180.0).floor().max(1.0) as usize;
-    ui.horizontal_wrapped(|ui| {
+    // (the cards by their tops: cards of different heights centred on one another sat at different levels)
+    ui.with_layout(egui::Layout::left_to_right(egui::Align::Min).with_main_wrap(true), |ui| {
         for (k, t) in g.templates.iter().enumerate() {
             if k > 0 && k % per_row == 0 {
                 ui.end_row();

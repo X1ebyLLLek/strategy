@@ -15,7 +15,7 @@ impl App {
         let w = if spoiled() { 400.0 } else { 214.0 };
         let modes = ctx.memory(|m| m.area_rect(egui::Id::new("modes"))).map_or(460.0, |r| r.width() + 24.0);
         let room = ctx.screen_rect().width() - modes - 12.0;
-        let (mut cw, chh, gap) = (w, 60.0, 8.0);
+        let (mut cw, chh, gap) = (w, 66.0, 8.0);
         // (after the armies: the staff's reserve, and the fleet when the era has one and we a coast)
         let fleet = !g.pack.ships.is_empty() && !g.navy.coast[me].is_empty();
         let extras = if spoiled() || g.h.war.corps.is_none() { 0 } else { 1 + fleet as usize };
@@ -97,10 +97,10 @@ impl App {
                 let gen = gr.general.as_ref().map_or(String::new(), |x| x.name.clone());
                 let order = match gr.order {
                     _ if parts.get(k).is_none_or(|p| p.is_empty()) => "в резерве",
-                    _ if gr.facing.is_some() => "держит границу",
-                    _ if drafts.contains(&k) && !matches!(gr.order, strategy::military::front::Order::Attack(_)) => "план наступления",
-                    strategy::military::front::Order::Hold => "держит участок",
-                    strategy::military::front::Order::Deep => "держит в глубину",
+                    _ if gr.facing.is_some() => "граница",
+                    _ if drafts.contains(&k) && !matches!(gr.order, strategy::military::front::Order::Attack(_)) => "план атаки",
+                    strategy::military::front::Order::Hold => "держит",
+                    strategy::military::front::Order::Deep => "в глубине",
                     strategy::military::front::Order::Attack(_) => "наступает",
                 };
                 let fed = if acc[k].1 > 0.0 { acc[k].0 / acc[k].1 } else { g.h.fed[me] };
@@ -124,13 +124,23 @@ impl App {
                 // (the portrait's frame)
                 let face = egui::Rect::from_min_size(at2.min + egui::vec2(14.0, 6.0), egui::vec2(38.0, 48.0));
                 v.push(egui::Shape::rect_filled(face.expand(2.5), 2.0, Color32::from_black_alpha(220)));
-                // (the supply gauge, bottom right)
+                // (the supply gauge in the card's foot: the crate, the pips as wide as the room leaves, the
+                // count of divisions after them)
                 let x = face.max.x + 9.0;
                 let pip_col = if fed > 0.85 { Color32::from_rgb(150, 210, 110) } else if fed > 0.6 { Color32::from_rgb(240, 196, 92) } else { Color32::from_rgb(240, 110, 90) };
-                hud::pips(&mut v, egui::pos2(x + 18.0, at2.max.y - 13.0), 5, fed * 5.0, pip_col, 10.0, 5.0);
+                let count = g.h.war.corps.as_ref().map(|c| {
+                    let n = acc[k].1 as usize;
+                    let size = g.h.war.army_size(c, g.me);
+                    (n, size, format!("{n}/{size}"))
+                });
+                let count_w = count.as_ref().map_or(0.0, |c| ui.painter().layout_no_wrap(c.2.clone(), egui::FontId::proportional(12.5), s.desk_ink).size().x);
+                let foot_y = at2.max.y - 14.0;
+                let pips_room = (at2.max.x - 8.0 - (x + 17.0) - if count_w > 0.0 { count_w + 6.0 } else { 0.0 }).max(30.0);
+                let pip_w = ((pips_room - 4.0 * 2.0) / 5.0).clamp(5.0, 10.0);
+                let pips = hud::pips(&mut v, egui::pos2(x + 17.0, foot_y + 3.0), 5, fed * 5.0, pip_col, pip_w, 5.0);
                 // (its divisions' strength and organisation, upright at the right edge)
                 if acc[k].1 > 0.0 {
-                    command::upright(&mut v, egui::Rect::from_min_max(egui::pos2(at2.max.x - 21.0, at2.min.y + 20.0), egui::pos2(at2.max.x - 8.0, at2.max.y - 7.0)), fit[k].0 / acc[k].1, fit[k].1 / acc[k].1);
+                    command::upright(&mut v, egui::Rect::from_min_max(egui::pos2(at2.max.x - 21.0, at2.min.y + 8.0), egui::pos2(at2.max.x - 8.0, at2.max.y - 22.0)), fit[k].0 / acc[k].1, fit[k].1 / acc[k].1);
                 }
                 if on {
                     v.push(egui::Shape::rect_stroke(at2.expand(1.0), 3.0, egui::Stroke::new(2.0, hud::lighten(dress.trim, 0.3))));
@@ -158,10 +168,10 @@ impl App {
                 }
                 // the crate before the gauge
                 let icons = chrome::icons(ctx);
-                look::icon(&icons, "crate", 13.0, s.desk_ink.gamma_multiply(0.8)).paint_at(ui, egui::Rect::from_min_size(egui::pos2(x, at2.max.y - 17.0), egui::vec2(13.0, 13.0)));
+                look::icon(&icons, "crate", 13.0, s.desk_ink.gamma_multiply(0.8)).paint_at(ui, egui::Rect::from_min_size(egui::pos2(x, foot_y), egui::vec2(13.0, 13.0)));
                 // the group's name, its order with the order's badge
                 let name = crate::words::group_name(k);
-                let room_w = at2.max.x - x - 26.0;
+                let room_w = at2.max.x - x - 24.0;
                 // (a long name in smaller letters before it is cut short)
                 let size = [15.5f32, 14.0, 12.5].into_iter().find(|&z| ui.painter().layout_no_wrap(name.to_uppercase(), egui::FontId::new(z, egui::FontFamily::Name("head".into())), s.desk_ink).size().x <= room_w).unwrap_or(12.5);
                 let font = egui::FontId::new(size, egui::FontFamily::Name("head".into()));
@@ -169,24 +179,22 @@ impl App {
                 job.wrap = egui::text::TextWrapping::truncate_at_width(room_w);
                 let gal = ui.painter().layout_job(job);
                 ui.painter().galley(egui::pos2(x, at2.min.y + 5.0), gal, s.desk_ink);
-                map::badge(ui.painter(), egui::pos2(x + 7.0, at2.min.y + 33.0), gr.order, hue);
+                map::badge(ui.painter(), egui::pos2(x + 7.0, at2.min.y + 35.0), gr.order, hue);
                 let mut job = egui::text::LayoutJob::simple_singleline(order.to_string(), egui::FontId::proportional(13.5), s.desk_ink);
                 job.wrap = egui::text::TextWrapping::truncate_at_width(room_w - 4.0);
                 let gal = ui.painter().layout_job(job);
-                ui.painter().galley(egui::pos2(x + 18.0, at2.min.y + 25.0), gal, s.desk_ink);
+                ui.painter().galley(egui::pos2(x + 18.0, at2.min.y + 27.0), gal, s.desk_ink);
                 // (its divisions out of what a general leads well: red over it)
-                if g.h.war.corps.is_some() {
-                    let n = acc[k].1 as usize;
-                    let size = g.h.war.corps.as_ref().map_or(strategy::military::front::ARMY, |c| g.h.war.army_size(c, g.me));
+                if let Some((n, size, text)) = &count {
                     let col = if n > size { Color32::from_rgb(240, 110, 90) } else { s.desk_ink.gamma_multiply(0.85) };
-                    ui.painter().text(egui::pos2(at2.max.x - 26.0, at2.max.y - 6.0), egui::Align2::RIGHT_BOTTOM, format!("{n}/{size}"), egui::FontId::proportional(12.5), col);
+                    ui.painter().text(egui::pos2(pips.max.x + 6.0, foot_y + 6.5), egui::Align2::LEFT_CENTER, text, egui::FontId::proportional(12.5), col);
                 }
                 self.cards.push(at);
                 let general = gr.general.clone();
                 let staff = gr.staff;
                 let fought = fights[k];
                 let card = || {
-                    let mut c = Card::new(name.clone()).face(g.face_of(&gen, "general")).sub(if gen.is_empty() { "без генерала".to_string() } else { format!("генерал {gen}") }).row("приказ", order).row("ведёт", if staff { "генштаб" } else { "вы" }).row("дивизий", format!("{:.0} (хорошо ведёт до {})", acc[k].1, strategy::military::front::ARMY)).row("провинций", format!("{:.0}", acc[k].2)).tone("снабжение", format!("{:.0}%", fed * 100.0), if fed > 0.85 { chrome::Tone::Good } else { chrome::Tone::Bad });
+                    let mut c = Card::new(name.clone()).face(g.face_of(&gen, "general")).sub(if gen.is_empty() { "без генерала".to_string() } else { format!("генерал {gen}") }).row("приказ", match order { "граница" => "держит границу", "держит" => "держит участок", "в глубине" => "держит в глубину", "план атаки" => "план наступления", o => o }).row("ведёт", if staff { "генштаб" } else { "вы" }).row("дивизий", format!("{:.0} (хорошо ведёт до {})", acc[k].1, strategy::military::front::ARMY)).row("провинций", format!("{:.0}", acc[k].2)).tone("снабжение", format!("{:.0}%", fed * 100.0), if fed > 0.85 { chrome::Tone::Good } else { chrome::Tone::Bad });
                     if fought.0 > 0 {
                         c = c.tone("боёв в этом месяце", format!("{} · наших {}", fought.0, fought.1), if 2 * fought.1 >= fought.0 { chrome::Tone::Good } else { chrome::Tone::Bad });
                     }
@@ -261,6 +269,13 @@ impl App {
                 let icons = chrome::icons(ctx);
                 look::icon(&icons, icon, 28.0, hue).paint_at(ui, egui::Rect::from_center_size(socket.center(), egui::vec2(28.0, 28.0)));
                 let x = socket.max.x + 9.0;
+                // (a line in the card's foot, cut short rather than run over its edge)
+                let foot = |ui: &egui::Ui, text: String, col: Color32| {
+                    let mut job = egui::text::LayoutJob::simple_singleline(text, egui::FontId::proportional(12.5), col);
+                    job.wrap = egui::text::TextWrapping::truncate_at_width(at2.max.x - 8.0 - x);
+                    let gal = ui.painter().layout_job(job);
+                    ui.painter().galley(egui::pos2(x, at2.max.y - 7.0 - gal.size().y), gal, col);
+                };
                 ui.painter().text(egui::pos2(x, at2.min.y + 6.0), egui::Align2::LEFT_TOP, title, egui::FontId::new(14.5, egui::FontFamily::Name("head".into())), s.desk_ink);
                 if i == 0 {
                     // the reserve: divisions outside the armies, recruits still drilling, the depots
@@ -271,7 +286,7 @@ impl App {
                     let stored = g.mil.stored[me].iter().sum::<f32>() / strategy::military::corps::BATTALION;
                     let line = if g.mobilised(me) && !g.h.at_war { format!("{reserve} див. · мобилизация") } else { format!("{reserve} {}", crate::words::plural(reserve, "дивизия", "дивизии", "дивизий")) };
                     ui.painter().text(egui::pos2(x, at2.min.y + 26.0), egui::Align2::LEFT_TOP, line, egui::FontId::proportional(13.5), s.desk_ink);
-                    ui.painter().text(egui::pos2(x, at2.max.y - 6.0), egui::Align2::LEFT_BOTTOM, format!("запас {stored:.0} бат. · {:.1} млн", g.mil.reservists[me]), egui::FontId::proportional(12.5), s.desk_ink.gamma_multiply(0.85));
+                    foot(ui, format!("запас {stored:.0} бат."), s.desk_ink.gamma_multiply(0.85));
                     let est = g.est_divisions(me);
                     let all = g.h.war.corps.as_ref().map_or(0, |c| c.divs.iter().filter(|d| d.side == me).count());
                     let resp = resp.tip(|| {
@@ -302,13 +317,13 @@ impl App {
                     ui.painter().text(egui::pos2(x, at2.min.y + 26.0), egui::Align2::LEFT_TOP, format!("{n} {}", crate::words::plural(n, "корабль", "корабля", "кораблей")), egui::FontId::proportional(13.5), s.desk_ink);
                     let sunk = g.navy.sunk_trade[me];
                     let line = if theirs < 0.5 {
-                        "у врага флота нет".to_string()
+                        "врага нет".to_string()
                     } else if sunk > 0.0 {
-                        format!("сила ×{ratio:.1} · топят грузы")
+                        format!("×{} · топят грузы", super::charts::fix(ratio, 1))
                     } else {
-                        format!("сила ×{ratio:.1} к врагу")
+                        format!("сила ×{}", super::charts::fix(ratio, 1))
                     };
-                    ui.painter().text(egui::pos2(x, at2.max.y - 6.0), egui::Align2::LEFT_BOTTOM, line, egui::FontId::proportional(12.5), col);
+                    foot(ui, line, col);
                     let resp = resp.tip(|| {
                         Card::new("Флот")
                             .icon("anchor")

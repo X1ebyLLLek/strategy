@@ -57,7 +57,7 @@ pub(super) fn tips(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Context
         app.tab = tab;
         // (the economy's laws in tiles: its page «Деньги», 28th session)
         if tab == Some(Tab::Econ) {
-            super::super::set_page(ctx, Tab::Econ, 2);
+            super::super::set_page(ctx, Tab::Econ, super::super::panels::economy::MONEY);
         }
         for _ in 0..20 {
             t += 1.0 / 60.0;
