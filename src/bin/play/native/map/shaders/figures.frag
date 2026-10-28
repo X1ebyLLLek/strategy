@@ -15,7 +15,7 @@ out vec4 frag;
 const vec3 SUN = normalize(vec3(-0.45, -0.55, 0.70));
 void main() {
     float haze = smoothstep(1.15, 2.6, vDepth / uDist);
-    float vSun = mix(0.30, 1.0, clamp(textureLod(uLight, vAt, 0.0).r * 1.15, 0.0, 1.0));
+    float vSun = mix(0.52, 1.0, clamp(textureLod(uLight, vAt, 0.0).r * 1.15, 0.0, 1.0));
     if (uMode == 3) {
         float r = length(vPlate);
         float a = (1.0 - smoothstep(0.30, 1.0, r)) * 0.42 * (0.3 + 0.7 * vSun) * (1.0 - haze);
@@ -30,7 +30,7 @@ void main() {
               : k == 2 ? vec3(0.13, 0.10, 0.08)
               : k == 3 ? vec3(0.19, 0.20, 0.21)
               : k == 4 ? vec3(0.40, 0.25, 0.13)
-              : k == 5 ? vCol * vec3(0.78, 0.80, 0.78)
+              : k == 5 ? vCol * vec3(0.95, 0.97, 0.95)
               : k == 6 ? vec3(0.86, 0.84, 0.78)
               : k == 7 ? vec3(0.72, 0.54, 0.24)
               : k == 8 ? vec3(0.34, 0.20, 0.11)

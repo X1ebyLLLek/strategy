@@ -384,6 +384,11 @@ impl App {
         let open = ctx.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(true);
         let goal = goal(g);
         let list = reports(g, 5);
+        // (29th session: three reports at most till the player asks for the rest — five cards and the
+        // goal made a column of a third of the map's height over the front, and every card shouted)
+        let all_id = egui::Id::new("reports-all");
+        let all = ctx.data(|d| d.get_temp::<bool>(all_id)).unwrap_or(false);
+        let shown = if all { list.len() } else { list.len().min(3) };
         let w = 330.0;
         let screen = ctx.screen_rect();
         let x0 = screen.max.x - w - 12.0;
@@ -456,7 +461,7 @@ impl App {
                 }
             }
             // the reports
-            for (i, rp) in list.iter().enumerate() {
+            for (i, rp) in list.iter().enumerate().take(shown) {
                 let (r, resp) = ui.allocate_exact_size(vec2(w, 50.0), Sense::click());
                 let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
                 if i == 0 {
@@ -498,6 +503,20 @@ impl App {
                 };
                 if resp.tip(card).clicked() {
                     go = Some((rp.tab, rp.page, rp.focus));
+                }
+            }
+            if list.len() > 3 {
+                let (r, resp) = ui.allocate_exact_size(vec2(w, 24.0), Sense::click());
+                let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+                let mut v = chrome::Out::new();
+                ch.lay(&mut v, r, &ch.bar, 2.0);
+                v.push(egui::Shape::rect_filled(r, 2.0, Color32::from_black_alpha(if resp.hovered() { 70 } else { 120 })));
+                v.push(egui::Shape::rect_stroke(r, 2.0, Stroke::new(1.0, ch.trim.gamma_multiply(0.5))));
+                ui.painter().extend(v);
+                let what = if all { "скрыть остальные".to_string() } else { format!("ещё докладов: {}", list.len() - 3) };
+                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, what, FontId::new(12.5, FontFamily::Name("bold".into())), s.desk_ink);
+                if resp.clicked() {
+                    ctx.data_mut(|d| d.insert_temp(all_id, !all));
                 }
             }
             if goal.is_none() && list.is_empty() {

@@ -184,6 +184,7 @@ impl App {
         self.modes(ctx);
         self.picked_panel(ctx, &mut g);
         self.planbar(ctx, &mut g);
+        self.briefing(ctx, &mut g);
         egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
             if let Some(m) = self.map.as_mut() {
                 m.also = self.more.clone();

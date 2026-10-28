@@ -9,6 +9,7 @@
 //! (to look at the window without playing).
 
 mod armybar;
+mod briefing;
 mod charts;
 mod chrome;
 mod command;
@@ -190,6 +191,8 @@ struct App {
     /// How many lines of the news the player has seen (the newspaper's medallion is marked while
     /// hot news waits unread).
     news_seen: usize,
+    /// The war's briefing over the map unfolded (29th session).
+    brief_open: bool,
 }
 
 /// A mark on a sphere's medallion: its folder and how grave (from the reports, 28th session).
@@ -290,6 +293,7 @@ impl App {
             settings: Settings::default(),
             hist: Vec::new(),
             news_seen: 0,
+            brief_open: true,
         }
     }
 
