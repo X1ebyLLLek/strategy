@@ -330,7 +330,8 @@ pub fn run(shared: Arc<Mutex<Game>>, shot: Option<Shot>, start: bool) -> eframe:
         viewport: egui::ViewportBuilder::default().with_inner_size([size.0, size.1]).with_min_inner_size([1100.0, 640.0]).with_title(format!("{name} — стратегия")),
         // (the land in three dimensions: a depth buffer, smooth edges of the mountains)
         depth_buffer: 24,
-        multisampling: 4,
+        // (STRAT_NOMSAA=1: for a headless box, whose software GL has no multisampled visuals)
+        multisampling: if std::env::var_os("STRAT_NOMSAA").is_some() { 0 } else { 4 },
         // (pictures measure the frames as fast as they go, not at the screen's pace)
         vsync: shot.is_none(),
         ..Default::default()

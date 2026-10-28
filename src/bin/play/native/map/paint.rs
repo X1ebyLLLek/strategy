@@ -7,6 +7,18 @@ use super::*;
 /// and browns, the elected in blues and greens, the iron ones in reds, the church in gold.
 pub const REGIME_HUES: [[f32; 3]; 9] = [[150.0, 120.0, 86.0], [128.0, 72.0, 140.0], [168.0, 110.0, 160.0], [104.0, 120.0, 190.0], [70.0, 150.0, 140.0], [96.0, 170.0, 96.0], [176.0, 60.0, 48.0], [214.0, 70.0, 60.0], [214.0, 178.0, 70.0]];
 
+/// A country's colour as the map lays it on the land: held to a middle brightness and pulled a little
+/// toward grey, so that neighbours differ by hue and no country shouts (the raw colours — magenta,
+/// lime, orange side by side — hurt the eye, and the front on them was lost).
+pub fn muted(c: [f32; 3]) -> [f32; 3] {
+    let lum = |c: [f32; 3]| 0.30 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+    let l = lum(c);
+    let k = l.clamp(96.0, 150.0) / l.max(1.0);
+    let c = [c[0] * k, c[1] * k, c[2] * k];
+    let l = lum(c);
+    [c[0] * 0.70 + l * 0.30, c[1] * 0.70 + l * 0.30, c[2] * 0.70 + l * 0.30]
+}
+
 impl MapView {
     /// What the table of provinces is made from, as the world now is.
     fn paint_of(&self, g: &Game) -> Paint {
@@ -25,7 +37,7 @@ impl MapView {
             v[(v.len() * 97 / 100).min(v.len() - 1)].max(1e-9)
         };
         // (the land the past took: the country that lost it, the latest loss of the region)
-        let tints: Vec<[f32; 3]> = g.countries.iter().map(|c| [c.1[0] as f32, c.1[1] as f32, c.1[2] as f32]).collect();
+        let tints: Vec<[f32; 3]> = g.countries.iter().map(|c| muted([c.1[0] as f32, c.1[1] as f32, c.1[2] as f32])).collect();
         let lab = war.group_of(me);
         let mut lost: std::collections::HashMap<u32, (u32, u32)> = std::collections::HashMap::new();
         for &(st, c, years) in &g.lost_lands {
@@ -75,8 +87,10 @@ impl MapView {
                     let q = th.at.get(p).copied().unwrap_or(NO);
                     let k = if q != NO && war.owner[q as usize] == me { lab[q as usize] } else { usize::MAX };
                     (k != usize::MAX).then(|| {
+                        // (the groups' colours are bright for the strips and badges; laid over the whole land
+                        // they shouted — held to the same middle as the countries')
                         let c = HUES[k % HUES.len()];
-                        [c.r() as f32, c.g() as f32, c.b() as f32]
+                        muted([c.r() as f32, c.g() as f32, c.b() as f32])
                     })
                 }
                 _ => None,

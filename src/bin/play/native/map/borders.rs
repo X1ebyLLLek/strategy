@@ -146,7 +146,7 @@ impl MapView {
                         continue;
                     }
                     // Границы регионов: плотные, но мягкого земляного цвета, без прозрачности
-                    let dynamic_state_w = 1.1 + (self.k - 1.1).max(0.0).min(1.5) * 0.2;
+                    let dynamic_state_w = 1.5 + (self.k - 1.1).max(0.0).min(1.5) * 0.3;
                     Stroke::new(dynamic_state_w, Color32::from_rgb(50, 43, 35))
                 } else if prov_a > 0.01 {
                     // Делаем линии провинций тонкими и приглушенными по прозрачности (95.0 вместо 165.0),
@@ -156,11 +156,11 @@ impl MapView {
                     let line: Vec<Pos2> = pts.iter().map(|p| self.cam.project_abs(p[0] + dx, p[1], self.z(p[0], p[1])).0).collect();
                     painter.add(egui::Shape::line(
                         line.clone(),
-                        Stroke::new(guard, Color32::from_rgba_unmultiplied(18, 21, 18, (95.0 * prov_a) as u8)),
+                        Stroke::new(guard, Color32::from_rgba_unmultiplied(18, 21, 18, (130.0 * prov_a) as u8)),
                     ));
                     painter.add(egui::Shape::line(
                         line,
-                        Stroke::new(width, Color32::from_rgba_unmultiplied(190, 185, 170, (85.0 * prov_a) as u8)),
+                        Stroke::new(width, Color32::from_rgba_unmultiplied(205, 200, 184, (120.0 * prov_a) as u8)),
                     ));
                     continue;
                 } else {
@@ -237,14 +237,14 @@ impl MapView {
                     })
                     .collect()
             };
-            let (ours, theirs) = if *ours_left { (side(half), side(-half)) } else { (side(-half), side(half)) };
-            painter.add(egui::Shape::line(line.clone(), Stroke::new(4.0 * half + 1.0, Color32::from_black_alpha(110))));
-            painter.add(egui::Shape::line(theirs, Stroke::new(2.0 * half, Color32::from_rgb(196, 42, 32))));
+            let (ours, theirs) = if *ours_left { (side(0.7 * half), side(-0.8 * half)) } else { (side(-0.7 * half), side(0.8 * half)) };
+            painter.add(egui::Shape::line(line.clone(), Stroke::new(2.9 * half + 1.2, Color32::from_black_alpha(150))));
+            painter.add(egui::Shape::line(theirs, Stroke::new(1.5 * half, Color32::from_rgb(214, 52, 40))));
             match hue {
                 // (a group's stretch, not chosen: our side as any of ours — the armies' colours only
                 // for the chosen, else the front is a tangle of colours)
                 Some(_) if !*strong => {
-                    painter.add(egui::Shape::line(ours, Stroke::new(2.0 * half, Color32::from_rgb(70, 132, 56))));
+                    painter.add(egui::Shape::line(ours, Stroke::new(0.95 * half, Color32::from_rgb(110, 176, 86))));
                 }
                 Some(c) => {
                     let wide = if *ours_left { side(2.0 * half) } else { side(-2.0 * half) };
@@ -253,11 +253,11 @@ impl MapView {
                     painter.add(egui::Shape::line(wide, Stroke::new(3.0 * half, c.gamma_multiply(glow))));
                 }
                 None => {
-                    painter.add(egui::Shape::line(ours, Stroke::new(2.0 * half, Color32::from_rgb(92, 168, 64))));
+                    painter.add(egui::Shape::line(ours, Stroke::new(0.95 * half, Color32::from_rgb(110, 176, 86))));
                 }
             }
             // (light running along it: the front is alive)
-            painter.extend(egui::Shape::dashed_line_with_offset(line, Stroke::new(1.2, Color32::from_rgba_unmultiplied(255, 236, 170, 150)), &[6.0], &[18.0], (t * 14.0) % 24.0));
+            painter.extend(egui::Shape::dashed_line_with_offset(line, Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 236, 170, 70)), &[6.0], &[18.0], (t * 14.0) % 24.0));
         }
     }
 

@@ -355,6 +355,7 @@ impl MapView {
                     // Скрываем громоздкие полоски индивидуального XP/орги, если это плотный стек
                     bars: if is_huge_stack { None } else { (!s.fog).then_some((s.strength, s.org)) },
                     marks: s.marks,
+                    foe: s.side != me,
                 },
             );
             // (the chosen group's stacks: a ring of its colour round them, breathing — where its
@@ -454,7 +455,9 @@ impl MapView {
         };
         // (a few dozen points tall on the screen; far away they shrink away smoothly, as HOI4's
         // models give way to the counters)
-        let t = ((self.k - 0.5) / 0.35).clamp(0.0, 1.0);
+        // (the figures wait for the close view: from 2.6 up each province carries a counter, and a crowd of
+        // black figures under the counters hid the provinces and the front)
+        let t = ((self.k - 4.4) / 2.2).clamp(0.0, 1.0);
         // Meshes are normalised by height, not by their footprint.  A tank is almost twice as
         // long as a soldier is tall, so giving every mesh the same size made armour span several
         // provinces and hide both counters and borders.  Keep its on-screen presence, but scale
@@ -467,7 +470,7 @@ impl MapView {
             f::RIDER => 0.78,
             _ => 1.0,
         };
-        let size = 64.0 / self.k.max(0.5) * t * t * (3.0 - 2.0 * t) * footprint;
+        let size = 50.0 / self.k.max(0.5) * t * t * (3.0 - 2.0 * t) * footprint;
         super::figures::Figure { model, at, size, angle, colour, doing }
     }
 
