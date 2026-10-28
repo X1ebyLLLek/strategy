@@ -279,7 +279,8 @@ void main() {
         // darker and a little greener, as a painted map shows them from afar
         // (made once with the world's layers: `ground::layers`)
         float lumc = dot(col, vec3(0.3, 0.59, 0.11));
-        vec3 lush = mix(col, vec3(lumc * 0.78, lumc * 1.02, lumc * 0.62), 0.35) * 0.74;
+        // (30th session: the dark growth lighter and greener — under a country's tint it was grey-violet mud)
+        vec3 lush = mix(col, vec3(lumc * 0.72, lumc * 1.06, lumc * 0.58), 0.50) * 0.88;
         col = mix(col, lush, b.a * 0.75);
         vec4 dt = texture(uDetail, uv);
         vec4 ln = texture(uLines, uv);
@@ -500,6 +501,9 @@ void main() {
                     fc = mix(fc, fc * vec3(1.12, 1.04, 0.82), 0.5);
                 }
                 col = mix(col, fc * FOREST_GAIN, ck);
+                // (30th session: a forest has an edge — a dark rim where the canopy meets the open ground, so that it reads as
+                // a shape from afar, not as a stain)
+                col *= 1.0 - 0.20 * (4.0 * ck * (1.0 - ck)) * smoothstep(0.05, 0.9, uK);
             }
         }
         // the sun, and the sky's light from above (a little less in the folds; the crests catch
@@ -611,7 +615,9 @@ void main() {
             // each province a little lighter or darker than its neighbours, so that the land falls
             // into provinces even where no line is drawn
             tint *= 0.93 + 0.14 * hash(vec2(float(id), 17.0));
-            col = mix(col, tint * clamp(lum, 0.80, 1.25), uOverlay * on);
+            // (30th session: under a forest the country's colour is weaker — the forest keeps its green and the country
+            // its tint at the edge and in the open: it was a purple-grey mush with no forest in it)
+            col = mix(col, tint * clamp(lum, 0.80, 1.25), uOverlay * on * (1.0 - 0.30 * ck));
             // borders (far away; close up egui draws them smooth): the countries' dark, the
             // provinces' faint, the front red
             if (uBorders > 0.0) {

@@ -200,7 +200,11 @@ impl App {
                     ui.spacing_mut().item_spacing.y = 0.0;
                     let m = hud::medallion(ui, &ch, &s, icon, r, hue, on, ("sphere", icon));
                     let (cr, _) = ui.allocate_exact_size(egui::vec2(CELL, 12.0), egui::Sense::hover());
-                    ui.painter().text(egui::pos2(cr.center().x, cr.min.y), egui::Align2::CENTER_TOP, short.to_uppercase(), egui::FontId::new(10.5, egui::FontFamily::Name("head".into())), ink);
+                    // (the font shrinks to the cell: the other eras' letters are wider, and ЭКОНОМИКА ran into ЗАВОДЫ)
+                    let word = short.to_uppercase();
+                    let wide = ui.painter().layout_no_wrap(word.clone(), egui::FontId::new(10.5, egui::FontFamily::Name("head".into())), ink).size().x;
+                    let size = (10.5 * (CELL - 3.0) / wide.max(1.0)).min(10.5);
+                    ui.painter().text(egui::pos2(cr.center().x, cr.min.y), egui::Align2::CENTER_TOP, word, egui::FontId::new(size, egui::FontFamily::Name("head".into())), ink);
                     got = Some(m);
                 });
                 got.expect("the disc is drawn")

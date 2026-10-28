@@ -307,6 +307,18 @@ fn lay_card(ctx: &egui::Context, c: &Card, skin: &Skin, paper: Color32) -> Laid 
                     Tone::Good => good,
                     Tone::Bad => bad,
                 };
+                // (30th session: a value too long for the right-hand column — a sentence — goes under its name, the width of
+                // the card and set from the left: right-aligned in a column of 60% it was a ragged stripe of broken lines)
+                let natural_v = gal(v, body, bold.clone(), colour, f32::INFINITY).size().x;
+                if natural_v > inner * 0.6 {
+                    let kg = gal(k, small + 0.5, egui::FontFamily::Proportional, soft, inner);
+                    let vg = gal(v, body, bold.clone(), colour, inner);
+                    let kh = kg.size().y;
+                    pieces.push((egui::pos2(pad, y), kg));
+                    pieces.push((egui::pos2(pad, y + kh), vg.clone()));
+                    y += kh + vg.size().y + 4.0;
+                    continue;
+                }
                 let vg = gal(v, body, bold.clone(), colour, inner * 0.6);
                 let kg = gal(k, small + 0.5, egui::FontFamily::Proportional, soft, inner - vg.size().x - 16.0);
                 let h = vg.size().y.max(kg.size().y);
