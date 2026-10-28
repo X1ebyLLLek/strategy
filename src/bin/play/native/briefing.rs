@@ -47,8 +47,12 @@ impl App {
         } else {
             ("Что делать", "Щёлкните по стопке дивизий на карте, затем ПКМ по провинции — туда идти или атаковать.")
         };
+        // the chosen army: its general, and the way to change him and to the new divisions
+        let chosen_info = self.chosen.and_then(|k| war.command[me].as_ref().and_then(|gs| gs.get(k)).map(|gr| (k, gr.general.as_ref().map(|x| x.name.clone()))));
+        let mut open_army: Option<usize> = None;
         let open = self.brief_open;
         let mut toggle = false;
+        let mut open_guide = false;
         let hot = hungry * 2 > ours.max(1);
         egui::Area::new(egui::Id::new("briefing")).anchor(Align2::LEFT_TOP, [12.0, 76.0]).order(egui::Order::Middle).show(ctx, |ui| {
             let back = chrome::hold(ui);
@@ -78,9 +82,20 @@ impl App {
                     }
                     p.rect_stroke(rr.expand(1.0), 2.0, Stroke::new(2.0, if side == me { Color32::from_rgb(236, 230, 212) } else { Color32::from_rgb(214, 52, 40) }));
                 };
+                // (the «?» opens the guide)
+                let q = Rect::from_center_size(r.right_center() - vec2(12.0, 0.0), vec2(22.0, 22.0));
+                let qr = ui.interact(q, egui::Id::new("guide-q"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+                if qr.clicked() {
+                    open_guide = true;
+                    toggle = false;
+                }
+                let p = ui.painter();
+                p.circle_filled(q.center(), 10.0, if qr.hovered() { Color32::from_rgb(70, 62, 48) } else { Color32::from_rgb(34, 31, 26) });
+                p.circle_stroke(q.center(), 10.0, Stroke::new(1.3, ch.trim));
+                p.text(q.center(), Align2::CENTER_CENTER, "?", FontId::new(13.0, FontFamily::Name("bold".into())), s.desk_ink);
                 if !open {
-                    chip(p, r.right_center() - vec2(52.0, 0.0), me);
-                    chip(p, r.right_center() - vec2(14.0, 0.0), 1 - me);
+                    chip(p, r.right_center() - vec2(64.0, 0.0), me);
+                    chip(p, r.right_center() - vec2(30.0 + 8.0, 0.0) - vec2(0.0, 0.0) + vec2(-36.0 + 36.0, 0.0), 1 - me);
                     return;
                 }
                 ui.add_space(4.0);
@@ -108,6 +123,27 @@ impl App {
                 ui.add_space(5.0);
                 ui.label(RichText::new(hint_head).font(head).color(hud::lighten(ch.trim, 0.3)));
                 ui.add(egui::Label::new(RichText::new(hint).font(body.clone()).color(s.desk_ink)).wrap());
+                if let Some((k, gen)) = &chosen_info {
+                    ui.add_space(5.0);
+                    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
+                    ui.painter().line_segment([r.left_center(), r.right_center()], Stroke::new(1.0, ch.trim.gamma_multiply(0.6)));
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(crate::words::group_name(*k)).font(FontId::new(13.0, FontFamily::Name("head".into()))).color(hud::lighten(ch.trim, 0.3)));
+                    match gen {
+                        Some(n) => ui.label(RichText::new(format!("Генерал: {n}")).size(13.5).color(s.desk_ink)),
+                        None => ui.label(RichText::new("Без генерала: армию ведёт штаб, каждый сам по себе.").size(13.5).color(Color32::from_rgb(244, 140, 110))),
+                    };
+                    ui.horizontal(|ui| {
+                        if super::guide::chip(ui, &ch, if gen.is_some() { "Сменить генерала" } else { "Назначить генерала" }, false).clicked() {
+                            open_army = Some(0);
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        if super::guide::chip(ui, &ch, "Новые дивизии: шаблоны…", false).clicked() {
+                            open_army = Some(1);
+                        }
+                    });
+                }
                 if hot {
                     ui.add_space(3.0);
                     ui.add(egui::Label::new(RichText::new("Голодают: режим карты «Снабжение» покажет, где обрыв.").font(body).color(Color32::from_rgb(244, 140, 110))).wrap());
@@ -119,6 +155,13 @@ impl App {
         });
         if toggle {
             self.brief_open = !self.brief_open;
+        }
+        if open_guide {
+            self.guide_open = true;
+        }
+        if let Some(p) = open_army {
+            self.tab = Some(Tab::Army);
+            set_page(ctx, Tab::Army, p);
         }
     }
 }
