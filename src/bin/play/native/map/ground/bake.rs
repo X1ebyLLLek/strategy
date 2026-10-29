@@ -225,8 +225,8 @@ pub fn layers(world: &World, extra: &Extra) -> Layers {
         let rl: Vec<(&[[f32; 2]], u8)> = extra.rivers.iter().map(|(p, wd)| (&p[..], ((wd / 2.0) / RIVER_HW * 255.0).round().clamp(1.0, 255.0) as u8)).collect();
         // (the river's half-width goes into the detail's third channel)
         let mut hw = vec![255u8; w2 * h2 * 4];
-        super::super::ways::near(&mut hw, w, h, 2, 0, Some(2), &rl, RIVER_RANGE);
-        super::super::ways::near(&mut lines, w, h, 2, 0, None, &rl, RIVER_RANGE);
+        super::super::ways::near_by(&mut hw, w, h, 2, 0, Some(2), &rl, RIVER_RANGE, RIVER_HW / 255.0);
+        super::super::ways::near_by(&mut lines, w, h, 2, 0, None, &rl, RIVER_RANGE, RIVER_HW / 255.0);
         for (d, v) in detail.chunks_exact_mut(4).zip(hw.chunks_exact(4)) {
             d[2] = if v[0] == 255 && v[1] == 255 { 0 } else { v[2] };
         }
@@ -242,7 +242,8 @@ pub fn layers(world: &World, extra: &Extra) -> Layers {
             }
             let hw = px[2] as f32 / 255.0 * RIVER_HW;
             let r = (dc / (hw + 0.9)).powi(2);
-            (0.006 + 0.03 * hw) * (-r).exp()
+            // (a great river lies in a wide valley, not a deeper one)
+            (0.006 + 0.03 * hw.min(0.7)) * (-r).exp()
         })
         .collect();
     let plain = elev.clone();

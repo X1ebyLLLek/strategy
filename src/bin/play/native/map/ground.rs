@@ -429,6 +429,6 @@ pub struct Extra {
 
 /// World pixels the distances to the rivers and to the ways are kept to (`Layers::detail`,
 /// `Layers::ways`); the widest river's half-width.
-pub const RIVER_RANGE: f32 = 3.0;
+pub const RIVER_RANGE: f32 = 8.0;
 pub const WAY_RANGE: f32 = 2.0;
-pub const RIVER_HW: f32 = 1.28;
+pub const RIVER_HW: f32 = 6.0;

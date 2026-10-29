@@ -15,6 +15,13 @@ pub use crate::world::land::{MAIN, LOCAL, RAIL};
 /// line: its points and a byte of its own written into channel `attr` (if any) where it is the
 /// nearest.
 pub fn near(out: &mut [u8], w: usize, h: usize, scale: usize, ch: usize, attr: Option<usize>, lines: &[(&[[f32; 2]], u8)], range: f32) {
+    near_by(out, w, h, scale, ch, attr, lines, range, 0.0)
+}
+
+/// `near`, where among lines the winner at a texel is the one whose far side is nearest: the
+/// distance less `bias` times the line's byte (rivers: a brook's mouth beside a great river must
+/// not hide the great river's water — the byte is the half-width, `bias` its unit).
+pub fn near_by(out: &mut [u8], w: usize, h: usize, scale: usize, ch: usize, attr: Option<usize>, lines: &[(&[[f32; 2]], u8)], range: f32, bias: f32) {
     const T: usize = 64;
     let (tw, th) = (w * scale, h * scale);
     let (nx, ny) = (tw.div_ceil(T), th.div_ceil(T));
@@ -59,14 +66,14 @@ pub fn near(out: &mut [u8], w: usize, h: usize, scale: usize, ch: usize, attr: O
             }
         }
     }
-    let rows: Vec<(usize, Vec<(f32, f32, f32, u8)>)> = (0..ny)
+    let rows: Vec<(usize, Vec<(f32, f32, f32, f32, u8)>)> = (0..ny)
         .into_par_iter()
         .map(|ty| {
             let rh = T.min(th - ty * T);
             if (0..nx).all(|tx| tiles[ty * nx + tx].is_empty()) {
                 return (ty, Vec::new());
             }
-            let mut band = vec![(f32::MAX, 0.0f32, 0.0f32, 0u8); tw * rh];
+            let mut band = vec![(f32::MAX, f32::MAX, 0.0f32, 0.0f32, 0u8); tw * rh];
             for tx in 0..nx {
                 let segs = &tiles[ty * nx + tx];
                 if segs.is_empty() {
@@ -83,8 +90,9 @@ pub fn near(out: &mut [u8], w: usize, h: usize, scale: usize, ch: usize, attr: O
                             let t = if l2 > 0.0 { (((px - a[0]) * dx + (py - a[1]) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
                             let (ex, ey) = (a[0] + t * dx - px, a[1] + t * dy - py);
                             let d2 = ex * ex + ey * ey;
-                            if d2 < c.0 {
-                                *c = (d2, ex, ey, *at);
+                            let score = if bias > 0.0 { d2.sqrt() - bias * *at as f32 } else { d2 };
+                            if score < c.0 {
+                                *c = (score, d2, ex, ey, *at);
                             }
                         }
                     }
@@ -94,7 +102,7 @@ pub fn near(out: &mut [u8], w: usize, h: usize, scale: usize, ch: usize, attr: O
         })
         .collect();
     for (ty, band) in rows {
-        for (k, &(d2, ex, ey, what)) in band.iter().enumerate() {
+        for (k, &(_, d2, ex, ey, what)) in band.iter().enumerate() {
             if d2 >= range * range {
                 continue;
             }

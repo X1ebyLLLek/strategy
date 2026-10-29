@@ -96,6 +96,11 @@ impl App {
                     if c == "high" {
                         let p = th.provs.iter().copied().filter(|&p| !g.world.provinces[p].sea).max_by(|&a, &b| g.world.height[g.world.provinces[a].seed].total_cmp(&g.world.height[g.world.provinces[b].seed]))?;
                         Some(at(p))
+                    } else if c == "river" || c == "mouth" {
+                        // (the world's widest river: its middle, or the last point downstream)
+                        let (pts, _, _) = g.land.rivers.iter().max_by(|a, b| a.2.total_cmp(&b.2).then(a.0.len().cmp(&b.0.len())))?;
+                        let q = if c == "mouth" { *pts.last()? } else { pts[pts.len() / 2] };
+                        Some((q[0].rem_euclid(g.world.w as f32), q[1]))
                     } else if c == "forest" {
                         // (the largest forest province of the war)
                         let p = th.provs.iter().copied().filter(|&p| g.world.provinces[p].terrain == strategy::world::map::Terrain::Forest).max_by_key(|&p| g.world.provinces[p].area)?;

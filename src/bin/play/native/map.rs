@@ -36,7 +36,7 @@ mod ui;
 mod view;
 mod ways;
 pub use camera::Camera;
-pub use ground::RELIEF;
+pub use ground::{RELIEF, RIVER_HW, RIVER_RANGE};
 pub use divs::{doing, main_kind, stacks};
 pub use troops::{arrow as troops_arrow, badge, counter, sign, Counter, AGG, ATTACK, HUNGRY, MARCH, OWN, SHORT};
 pub use ways::step_of;
@@ -483,7 +483,7 @@ impl MapView {
             .collect();
         let mut scene = scene::Scene::new(ground.clone());
         // (kept for the self-check of the towns: the houses along the streets, and the streets)
-        let houses: Vec<[f32; 4]> = [objects::COTTAGE, objects::TOWNHOUSE, objects::BARN, objects::HIPHOUSE, objects::BLOCK].iter().flat_map(|&k| layout.built.builds[k].iter().copied()).collect();
+        let houses: Vec<[f32; 4]> = [objects::COTTAGE, objects::TOWNHOUSE, objects::BARN, objects::HIPHOUSE, objects::BLOCK, objects::ORDINARY_A, objects::ORDINARY_B, objects::OLDHOUSE, objects::COTTAGE_B, objects::FARM_A, objects::FARM_B, objects::BRICK, objects::PANEL].iter().flat_map(|&k| layout.built.builds[k].iter().copied()).collect();
         let streets: Vec<Vec<[f32; 2]>> = extra.ways.iter().filter(|l| l.kind != ways::RAIL).map(|l| l.pts.clone()).collect();
         let built = layout.built;
         // (each factory's two chimneys, turned as the video card turns the factory)

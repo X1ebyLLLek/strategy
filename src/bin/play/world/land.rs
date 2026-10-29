@@ -63,9 +63,19 @@ impl Land {
         let mut river_px = vec![false; world.w * world.h];
         for (pts, _, wd) in &rivers {
             if *wd >= 0.25 {
+                // (every pixel the water covers: a way along the river's bed is no road)
+                let r = (wd / 2.0).max(0.5);
+                let reach = r.ceil() as i64;
                 for p in pts {
-                    let (x, y) = ((p[0].floor() as i64).rem_euclid(world.w as i64) as usize, (p[1].max(0.0) as usize).min(world.h - 1));
-                    river_px[y * world.w + x] = true;
+                    for dy in -reach..=reach {
+                        for dx in -reach..=reach {
+                            if ((dx * dx + dy * dy) as f32).sqrt() > r {
+                                continue;
+                            }
+                            let (x, y) = ((p[0].floor() as i64 + dx).rem_euclid(world.w as i64) as usize, ((p[1].max(0.0) as i64 + dy).clamp(0, world.h as i64 - 1)) as usize);
+                            river_px[y * world.w + x] = true;
+                        }
+                    }
                 }
             }
         }
@@ -182,9 +192,9 @@ pub const RAIL: u8 = 2;
 
 /// Fewer points where the line runs straight (Douglas–Peucker: none farther than `eps` from the
 /// line kept).
-pub fn simplify(pts: &[[f32; 2]], eps: f32) -> Vec<[f32; 2]> {
+fn simplify_keep(pts: &[[f32; 2]], eps: f32) -> Vec<bool> {
     if pts.len() < 3 {
-        return pts.to_vec();
+        return vec![true; pts.len()];
     }
     let mut keep = vec![false; pts.len()];
     keep[0] = true;
@@ -207,6 +217,11 @@ pub fn simplify(pts: &[[f32; 2]], eps: f32) -> Vec<[f32; 2]> {
             stack.push((best.1, b));
         }
     }
+    keep
+}
+
+pub fn simplify(pts: &[[f32; 2]], eps: f32) -> Vec<[f32; 2]> {
+    let keep = simplify_keep(pts, eps);
     pts.iter().zip(&keep).filter(|(_, &k)| k).map(|(p, _)| *p).collect()
 }
 
@@ -249,8 +264,9 @@ fn cost(world: &World, i: usize, j: usize, river: &[bool], road: &[bool]) -> Opt
     };
     let slope = (world.height[j] - world.height[i]).abs();
     let mut c = ground + 60.0 * slope;
-    if river[j] && !river[i] {
-        c += 14.0;
+    if river[j] {
+        // (a bridge costs most where the water is first met, and something for every pixel of it)
+        c += if river[i] { 5.0 } else { 14.0 };
     }
     if road[j] {
         c *= 0.3;
@@ -468,8 +484,22 @@ fn villages_of(world: &World, towns: &[(usize, String, u8)], people: &[f32]) -> 
     land.into_iter().filter(|&p| people.get(p).copied().unwrap_or(0.0) > cut && world.provinces[p].terrain != Terrain::Mountains).collect()
 }
 
+/// A river's width in world pixels from the water that gathers in it, as a multiple of the
+/// least river's: brooks stay thin, the great rivers run many pixels wide.
+fn river_width(ratio: f32) -> f32 {
+    let l = ratio.max(1.0).ln();
+    if l <= 1.8 {
+        0.16 + 0.24 * l
+    } else {
+        0.592 + 5.4 * ((l - 1.8) / 2.3).min(1.25).powf(1.4)
+    }
+}
+
 /// The rivers as lines: each way of water from its source down to the sea, a lake or the river
-/// it joins, cut where it grows wider (a brook, then a stream, then a river), smoothed.
+/// it joins. Every point carries the river's width there, which grows downstream (a brook, a
+/// stream, a river, a great river) and flares into an estuary at the open sea; on the flat land
+/// the way wanders in bends that grow with the width; then the line is straightened and bent
+/// smooth, and cut into short pieces, each with the width of its middle.
 pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
     let w = world.w;
     let wf = w as f32;
@@ -477,34 +507,117 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
     let mut down: std::collections::HashMap<usize, (usize, f32)> = std::collections::HashMap::new();
     let mut has_up: std::collections::HashSet<usize> = std::collections::HashSet::new();
     let least = segs.iter().map(|s| s.2).fold(f32::MAX, f32::min).max(1.0);
+    if std::env::var("RIVERDBG").is_ok() {
+        let mut fl: Vec<f32> = segs.iter().map(|s| s.2).collect();
+        fl.sort_by(|a, b| a.total_cmp(b));
+        let q = |f: f32| fl[((fl.len() - 1) as f32 * f) as usize];
+        eprintln!("реки: клеток {}, наименьший сток {least}; 50% {:.0}, 90% {:.0}, 99% {:.0}, наибольший {:.0}", fl.len(), q(0.5), q(0.9), q(0.99), fl[fl.len() - 1]);
+    }
     for &(i, j, f) in &segs {
         down.insert(i, (j, f));
         has_up.insert(j);
     }
-    // width in world pixels, as the old picture drew them, in steps
-    let width = |f: f32| ((0.16 + 0.24 * (f / least).ln().max(0.0)).min(1.0) * 10.0).round() / 10.0;
-    let xy = |i: usize| [(i % w) as f32 + 0.5, (i / w) as f32 + 0.5];
+    // cells from each one down to the mouth (the cells come from the sea upstream), and whether
+    // the mouth is in the open sea
+    let mut to_sea: std::collections::HashMap<usize, (u32, bool)> = std::collections::HashMap::new();
+    for &(i, j, _) in &segs {
+        let d = to_sea.get(&j).map_or((0, world.terrain[j] == Terrain::Ocean), |&(d, open)| (d + 1, open));
+        to_sea.insert(i, d);
+    }
+    let noise = strategy::noise::Noise::new(0x71E5);
+    // a point of the way: where the river passes the cell and how wide it is there. A cell is
+    // always given the same point, so a brook ends exactly on the river it joins.
+    let width_at = |i: usize, f: f32| {
+        let mut wd = river_width(f / least);
+        if let Some(&(d, true)) = to_sea.get(&i) {
+            if d < 10 && wd > 0.8 {
+                let t = 1.0 - d as f32 / 10.0;
+                wd *= 1.0 + 0.9 * t * t;
+            }
+        }
+        wd
+    };
+    let place = |i: usize| ((i % w) as f32 + 0.5, (i / w) as f32 + 0.5);
+    let node = |i: usize, f: f32| -> [f32; 3] {
+        // the cell's middle, evened out with the next six downstream (a staircase of cells would
+        // show on the bank of a wide river); the same for a cell whichever river asks, and the
+        // seam of the map kept whole
+        let (x0, y0) = place(i);
+        let (mut sx, mut sy, mut n) = (x0, y0, 1.0f32);
+        let mut at = i;
+        for _ in 0..6 {
+            let Some(&(j, _)) = down.get(&at) else { break };
+            at = j;
+            let (mut px, py) = place(at);
+            if px - x0 > wf / 2.0 {
+                px -= wf;
+            } else if x0 - px > wf / 2.0 {
+                px += wf;
+            }
+            sx += px;
+            sy += py;
+            n += 1.0;
+        }
+        let (x, y) = (sx / n, sy / n);
+        let wd = width_at(i, f);
+        let d = to_sea.get(&i).map_or(0, |d| d.0);
+        let land = match world.terrain[i] {
+            Terrain::Hills => 0.5,
+            Terrain::Mountains => 0.15,
+            _ => 1.0,
+        };
+        let taper = (d as f32 / 6.0).min(1.0);
+        // the way's direction a few cells on downstream (the seam of the map kept whole)
+        let mut at = i;
+        for _ in 0..5 {
+            match down.get(&at) {
+                Some(&(j, _)) => at = j,
+                None => break,
+            }
+        }
+        let (ax, ay) = place(at);
+        let mut tx = ax - x;
+        if tx > wf / 2.0 {
+            tx -= wf;
+        } else if tx < -wf / 2.0 {
+            tx += wf;
+        }
+        let ty = ay - y;
+        let tl = tx.hypot(ty).max(1e-3);
+        let (nx, ny) = (-ty / tl, tx / tl);
+        // meanders on the flat land: a swing to either side, by the cells from the mouth (so a
+        // brook's end falls on the river it joins), its length and reach growing with the width
+        let phase = 2.5 * noise.get(x / 37.0, y / 37.0, 0.5);
+        let len = 7.0 * wd + 14.0;
+        let tau = std::f32::consts::TAU;
+        let swing = (tau * d as f32 / len + phase).sin() + 0.45 * (tau * d as f32 / (0.41 * len) + 1.7 + 2.0 * phase).sin();
+        let reach = (0.9 * wd + 0.15).min(4.2) * land * taper * 0.8;
+        // (and a small drift off the straight, whatever the way)
+        let lam = 8.0 + 5.0 * wd;
+        let amp = (0.2 * wd + 0.1).min(1.0) * land * taper * 1.6;
+        let dx = noise.get(x / lam, y / lam, 0.31) * amp;
+        let dy = noise.get(x / lam + 9.7, y / lam + 3.1, 0.77) * amp;
+        [x + nx * reach * swing + dx, y + ny * reach * swing + dy, wd]
+    };
     let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
     let mut out = Vec::new();
     let mut heads: Vec<usize> = segs.iter().map(|s| s.0).filter(|i| !has_up.contains(i)).collect();
     heads.sort_unstable();
     for h in heads {
         let mut i = h;
-        let mut pts = vec![xy(i)];
-        let mut cur = down.get(&i).map_or(0.0, |d| width(d.1));
+        let mut pts = vec![node(i, down[&i].1)];
         while let Some(&(j, f)) = down.get(&i) {
-            let wd = width(f);
-            let mut q = xy(j);
             let last = *pts.last().unwrap();
+            let mut q = match down.get(&j) {
+                Some(&(_, fj)) => node(j, fj),
+                // (the mouth: a cell of the sea or a lake, as wide as the river's last cell)
+                None => [(j % w) as f32 + 0.5, (j / w) as f32 + 0.5, width_at(i, f)],
+            };
             // (the map goes round: keep the line whole across the seam)
             if q[0] - last[0] > wf / 2.0 {
                 q[0] -= wf;
             } else if last[0] - q[0] > wf / 2.0 {
                 q[0] += wf;
-            }
-            if (wd - cur).abs() > 0.05 && pts.len() >= 2 {
-                out.push((std::mem::replace(&mut pts, vec![last]), cur));
-                cur = wd;
             }
             pts.push(q);
             if !seen.insert(j) || !down.contains_key(&j) {
@@ -513,19 +626,50 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
             i = j;
         }
         if pts.len() >= 2 {
-            out.push((pts, cur));
+            out.push(pts);
         }
     }
-    out.into_iter()
-        .map(|(pts, wd)| {
-            // the pixels' steps straightened (none farther than half a pixel from the way of
-            // the water), then bent smooth by three rounds of corner cutting (ends kept)
-            let sm = smooth(&simplify(&pts, 0.55), 3);
+    let mut lines = Vec::new();
+    for pts in out {
+        // the pixels' steps straightened (none farther than a quarter of a pixel from the way of the
+        // water), then bent smooth by two rounds of corner cutting (ends kept)
+        let flat: Vec<[f32; 2]> = pts.iter().map(|p| [p[0], p[1]]).collect();
+        let keep = simplify_keep(&flat, 0.25);
+        let kept: Vec<[f32; 3]> = pts.iter().zip(&keep).filter(|(_, &k)| k).map(|(p, _)| *p).collect();
+        let sm = smooth3(&kept, 2);
+        // (pieces of up to four steps, a point shared between neighbours)
+        let mut at = 0;
+        while at + 1 < sm.len() {
+            let to = (at + 4).min(sm.len() - 1);
+            let run = &sm[at..=to];
+            let wd = run.iter().map(|p| p[2]).sum::<f32>() / run.len() as f32;
+            let xy: Vec<[f32; 2]> = run.iter().map(|p| [p[0], p[1]]).collect();
             let mut bb = [f32::MAX, f32::MAX, f32::MIN, f32::MIN];
-            for q in &sm {
+            for q in &xy {
                 bb = [bb[0].min(q[0]), bb[1].min(q[1]), bb[2].max(q[0]), bb[3].max(q[1])];
             }
-            (sm, bb, wd)
-        })
-        .collect()
+            lines.push((xy, bb, wd));
+            at = to;
+        }
+    }
+    lines
+}
+
+/// Corners cut `rounds` times like `smooth`, carrying a third number (the width) along.
+fn smooth3(pts: &[[f32; 3]], rounds: usize) -> Vec<[f32; 3]> {
+    let mut sm = pts.to_vec();
+    if sm.len() < 3 {
+        return sm;
+    }
+    let mix = |a: [f32; 3], b: [f32; 3], t: f32| [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    for _ in 0..rounds {
+        let mut next = vec![sm[0]];
+        for k in 0..sm.len() - 1 {
+            next.push(mix(sm[k], sm[k + 1], 0.25));
+            next.push(mix(sm[k], sm[k + 1], 0.75));
+        }
+        next.push(*sm.last().unwrap());
+        sm = next;
+    }
+    sm
 }

@@ -374,17 +374,19 @@ void main() {
             col = mix(col, ground, town * 0.85);
         }
         // banks of the rivers: wet earth, and greener growth along them
-        float dc = lineDist(ln.rg, 3.0);
-        float rhw = dt.b * 1.28;
+        float dc = lineDist(ln.rg, 8.0);
+        float rhw = dt.b * 6.0;
         float pxr = max(px.x, px.y);
         float least = uK < 1.2 ? 0.30 : uK < 2.0 ? 0.14 : 0.0;
         float vis = rhw >= least ? max(rhw, 0.95 * pxr) : rhw;
-        float near_r = step(dc, 2.99);
+        float near_r = step(dc, 7.99);
+        // (33rd session: the great rivers are many pixels wide; their banks and flood plains widen with them)
+        float great = smoothstep(0.35, 1.8, rhw);
         float water = (1.0 - smoothstep(vis - 0.5 * pxr, vis + 0.5 * pxr, dc)) * near_r;
-        float bank = (1.0 - smoothstep(vis, vis + 0.30 + pxr, dc)) * (1.0 - water) * near_r;
-        float meadow = (1.0 - smoothstep(vis, vis + 1.6, dc)) * near_r;
+        float bank = (1.0 - smoothstep(vis, vis + 0.30 + 0.12 * rhw + pxr, dc)) * (1.0 - water) * near_r;
+        float meadow = (1.0 - smoothstep(vis, min(vis + 1.6 + 0.9 * rhw, 7.6), dc)) * near_r;
         float lumm = dot(col, vec3(0.3, 0.59, 0.11));
-        col = mix(col, vec3(lumm * 0.80, lumm * 1.05, lumm * 0.60), meadow * 0.30 * (1.0 - farm));
+        col = mix(col, vec3(lumm * 0.80, lumm * 1.05, lumm * 0.60), meadow * (0.30 + 0.22 * great) * (1.0 - farm) * (1.0 - smoothstep(0.55, 0.80, lumm)));
         col = mix(col, col * vec3(0.66, 0.62, 0.55), bank * 0.8);
         float pxc = max(px.x, px.y);
         // the land's slopes to the sun (the photographs' own small relief less on the rock: up
@@ -586,8 +588,9 @@ void main() {
         float diff = max(dot(n, SUN), 0.0) * mix(0.30, 1.0, lt.r);
         vec3 lightf = (vec3(1.06, 1.0, 0.90) * (0.82 * diff) + vec3(0.86, 0.91, 1.0) * (0.46 * (0.55 + 0.45 * n.z) * mix(1.0, lt.g, 0.70))) * clamp(1.0 + 0.30 * cav * (1.0 - basin), 0.70, 1.25);
         col *= lightf;
-        // the rivers: water in the land, darker as they grow, the sky and the sun in them, slow
-        // ripples close up, shallows at the edge
+        // the rivers: water in the land — deep in the middle, shallow and silty at the edges, the current in
+        // long streaks along the stream, sandbars in the wide reaches, ice along the shore in the cold, the
+        // sky and the sun in it (33rd session)
         if (water > 0.001) {
             float lodw = smoothstep(0.35, 0.06, pxr);
             vec3 wn = vec3(0.0, 0.0, 1.0);
@@ -595,13 +598,42 @@ void main() {
                 vec2 g = fbmd(vWorld * 2.0 + vec2(uTime * 0.25, uTime * 0.1), 0.5, 2).yz;
                 wn = normalize(vec3(-g * 0.9 * lodw, 1.0));
             }
-            // (30th session: lighter, bluer — a river must read as water from afar, not as a dark crack)
-            vec3 wc = mix(vec3(0.17, 0.40, 0.50), vec3(0.10, 0.27, 0.44), smoothstep(0.15, 0.9, rhw));
+            // across the river: 0 in the middle, 1 at the edge; the way along it from the step to the line
+            // (its sign fixed, so that the streaks do not break on the middle line)
+            float across = clamp(dc / max(vis, 1e-3), 0.0, 1.0);
+            float deep = 1.0 - across * across;
+            vec2 sd = (ln.rg * 255.0 - 128.0) / 127.0 * 8.0;
+            vec2 cd = sd / max(length(sd), 1e-3);
+            vec2 ad = vec2(-cd.y, cd.x);
+            if (ad.x + 0.37 * ad.y < 0.0) ad = -ad;
+            vec2 cr = vec2(-ad.y, ad.x);
+            float lodS = smoothstep(0.55, 0.10, pxr);
+            float cw = max(rhw, 0.5);
+            float streak = vnoise(vec2(dot(vWorld, ad) * 0.55, dot(vWorld, cr) * 2.6 / cw), 1e5) * 0.6
+                         + vnoise(vec2(dot(vWorld, ad) * 1.4 + 5.0, dot(vWorld, cr) * 6.5 / cw), 1e5) * 0.4;
+            vec3 wc = mix(vec3(0.17, 0.40, 0.50), vec3(0.11, 0.30, 0.43), smoothstep(0.15, 0.9, rhw));
+            // (the shallows at the edges: lighter and greener, silt in them)
+            float edge = 1.0 - smoothstep(0.0, 0.50, deep);
+            wc = mix(wc, vec3(0.26, 0.50, 0.54), edge * 0.50 * great);
+            wc = mix(wc, vec3(0.40, 0.47, 0.37), edge * edge * 0.30 * great);
+            wc *= 1.0 + (streak - 0.5) * 0.55 * great * lodS;
+            // sandbars: patches of pale sand in the shallows of the wide reaches
+            float bars = smoothstep(0.60, 0.70, vnoise(vWorld * 0.9, 1e5) * 0.75 + 0.45 * vnoise(vWorld * 2.3 + 11.0, 1e5) - 0.20 + 0.50 * across)
+                       * smoothstep(0.55, 0.85, across) * smoothstep(0.9, 1.7, rhw) * lodS;
+            wc = mix(wc, vec3(0.66, 0.60, 0.47) * (0.9 + 0.2 * grain), bars * 0.85);
             float fres = pow(1.0 - max(dot(wn, V), 0.0), 5.0);
             wc = mix(wc, vec3(0.42, 0.54, 0.66), fres * 0.35);
             vec3 Hh = normalize(V + SUN);
-            wc += vec3(1.0, 0.95, 0.85) * pow(max(dot(wn, Hh), 0.0), 80.0) * 0.45 * lodw;
-            wc = mix(wc, vec3(0.20, 0.30, 0.28), smoothstep(vis * 0.5, vis, dc) * 0.30);
+            // (the sun's glints sparser and softer on the wide waters: confetti, not sparks)
+            wc += vec3(1.0, 0.95, 0.85) * pow(max(dot(wn, Hh), 0.0), mix(80.0, 140.0, great)) * mix(0.45, 0.22, great) * lodw;
+            wc = mix(wc, vec3(0.20, 0.30, 0.28), smoothstep(vis * 0.5, vis, dc) * 0.30 * (1.0 - great));
+            // (a wet, bright rim where the water meets the bank)
+            float rim = (1.0 - smoothstep(0.0, 0.10 + 1.2 * pxr, vis - dc)) * great;
+            wc = mix(wc, vec3(0.62, 0.72, 0.74), rim * 0.22);
+            // (ice grows from the banks in the cold: the middle stays open water)
+            float riceCold = uSeason.x * smoothstep(0.16, 0.36, latc_of(vWorld) + 0.55 * h);
+            float ice = riceCold * smoothstep(0.35, 0.95, across + 0.35 * (vnoise(vWorld * 1.7, 1e5) - 0.5)) * (0.4 + 0.6 * great);
+            wc = mix(wc, vec3(0.78, 0.84, 0.90) * (0.92 + 0.12 * streak), ice * 0.85);
             col = mix(col, wc, water);
         }
         // the marshes' water (the photograph's dark pools): the sky in it as the view lowers, the sun's
