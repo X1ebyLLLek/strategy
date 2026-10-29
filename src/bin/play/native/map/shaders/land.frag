@@ -202,7 +202,7 @@ void main() {
         vec3 deep = vec3(0.05, 0.14, 0.29);
         col = mix(shallow, deep, smoothstep(0.0, 0.32, sqrt(depth)));
         float pxw = max(px.x, px.y);
-        float lod = smoothstep(0.85, 0.30, pxw);
+        float lod = smoothstep(0.50, 0.16, pxw);
         vec2 q = vWorld;
         float t = uTime;
         vec2 o1 = vec2(t * 0.9, t * 0.5);
@@ -230,7 +230,8 @@ void main() {
             n = normalize(n + vec3(-s, 0.0));
         }
         vec3 H = normalize(V + SUN);
-        float spec = pow(max(dot(n, H), 0.0), 60.0) * max(lod, 0.6 * lod2);
+        // (31st session: from afar the glints are broad and faint — sharp ones lay white shards on the open sea)
+        float spec = pow(max(dot(n, H), 0.0), mix(18.0, 60.0, lod)) * max(lod, 0.35 * lod2) * mix(0.55, 1.0, lod);
         float fres = pow(1.0 - max(dot(n, V), 0.0), 4.0);
         col = mix(col, vec3(0.42, 0.55, 0.68), fres * 0.22 * max(lod, lod2));
         col *= 1.0 + 0.18 * max(lod, lod2) * (dot(n, SUN) - SUN.z);

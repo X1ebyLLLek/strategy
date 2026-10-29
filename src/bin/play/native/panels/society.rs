@@ -127,31 +127,53 @@ pub fn society(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
             let parts = g.mood_parts(me, b);
             let laws = g.law_parts(me, b);
             let in_gov = coalition.contains(&b);
-            let row = ui.horizontal(|ui| {
-                let icons = chrome::icons(ui.ctx());
-                let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::hover());
-                super::super::look::icon(&icons, BLOC[b].icon, 20.0, bloc_col(b)).paint_at(ui, r);
-                let (nr, _) = ui.allocate_exact_size(vec2(134.0, 20.0), egui::Sense::hover());
-                let nameplate = ui.painter().text(nr.left_center(), egui::Align2::LEFT_CENTER, BLOC[b].name, egui::FontId::new(13.5, egui::FontFamily::Name("bold".into())), s.ink);
-                // (those in the government: a crown after the name)
-                if in_gov {
-                    let cr = egui::Rect::from_center_size(egui::pos2((nameplate.max.x + 9.0).min(nr.max.x - 7.0), nr.center().y), vec2(14.0, 14.0));
-                    super::super::look::icon(&icons, "crown", 14.0, s.accent).paint_at(ui, cr);
-                }
-                let (pr, _) = ui.allocate_exact_size(vec2(64.0, 20.0), egui::Sense::hover());
-                let bar = egui::Rect::from_min_max(pr.min + vec2(0.0, 5.0), egui::pos2(pr.max.x - 26.0, pr.max.y - 5.0));
-                ui.painter().rect_filled(bar, 2.0, Color32::from_black_alpha(40));
-                ui.painter().rect_filled(egui::Rect::from_min_size(bar.min, vec2(bar.width() * (p.clout[b] / 0.4).min(1.0), bar.height())), 2.0, bloc_col(b));
-                ui.painter().text(egui::pos2(pr.max.x, pr.center().y), egui::Align2::RIGHT_CENTER, charts::pct(p.clout[b]), egui::FontId::new(12.5, egui::FontFamily::Name("bold".into())), s.ink);
-                let w = (ui.available_width() - 34.0).max(60.0);
-                charts::mood(ui, w, p.mood[b]);
-                let fav = widgets::plate(ui, "+", 26.0, false, treasury >= cost);
-                if fav
-                    .tip(|| Card::new(format!("Уступки: {}", BLOC[b].name)).icon("coins").row("из казны", charts::num(cost)).row("в казне", charts::num(treasury)).text("Подачки, должности, заказы, льготы: настроение этой силы +35 (уходит за полтора-два года); остальные немного ревнуют (−3).").note(if treasury >= cost { "щёлкните — уступить" } else { "в казне не хватает денег" }))
-                    .clicked()
-                {
-                    act(g, &[("favour", b.to_string())]);
-                }
+            // (31st session: a card for each force — the stripe at the left in its colour, its name and the crown on top,
+            // below them two captioned bars side by side (the weight and the mood), the favour's button at the right)
+            let row = kit::framed(ui, Some(bloc_col(b)), false, |ui| {
+                ui.horizontal(|ui| {
+                    let icons = chrome::icons(ui.ctx());
+                    let (r, _) = ui.allocate_exact_size(vec2(34.0, 34.0), egui::Sense::hover());
+                    super::super::look::icon(&icons, BLOC[b].icon, 30.0, bloc_col(b)).paint_at(ui, r);
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        let full = ui.available_width() - 34.0;
+                        ui.horizontal(|ui| {
+                            kit::bold(ui, BLOC[b].name, 14.5, s.ink);
+                            if in_gov {
+                                let (cr, _) = ui.allocate_exact_size(vec2(16.0, 16.0), egui::Sense::hover());
+                                super::super::look::icon(&icons, "crown", 15.0, s.accent).paint_at(ui, cr);
+                                kit::words(ui, "в правительстве", 12.0, s.soft);
+                            }
+                        });
+                        let half = ((full - 10.0) / 2.0).max(60.0);
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 10.0;
+                            ui.vertical(|ui| {
+                                ui.spacing_mut().item_spacing.y = 1.0;
+                                kit::words(ui, "сила", 12.0, s.soft);
+                                let (pr, _) = ui.allocate_exact_size(vec2(half, 18.0), egui::Sense::hover());
+                                let bar = egui::Rect::from_min_max(pr.min + vec2(0.0, 4.0), egui::pos2(pr.max.x - 34.0, pr.max.y - 4.0));
+                                ui.painter().rect_filled(bar, 2.0, Color32::from_black_alpha(45));
+                                ui.painter().rect_filled(egui::Rect::from_min_size(bar.min, vec2(bar.width() * (p.clout[b] / 0.4).min(1.0), bar.height())), 2.0, bloc_col(b));
+                                ui.painter().text(egui::pos2(pr.max.x, pr.center().y), egui::Align2::RIGHT_CENTER, charts::pct(p.clout[b]), egui::FontId::new(12.5, egui::FontFamily::Name("bold".into())), s.ink);
+                            });
+                            ui.vertical(|ui| {
+                                ui.spacing_mut().item_spacing.y = 1.0;
+                                kit::words(ui, "настроение", 12.0, s.soft);
+                                charts::mood(ui, half, p.mood[b]);
+                            });
+                        });
+                    });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let fav = widgets::plate(ui, "+", 26.0, false, treasury >= cost);
+                        if fav
+                            .tip(|| Card::new(format!("Уступки: {}", BLOC[b].name)).icon("coins").row("из казны", charts::num(cost)).row("в казне", charts::num(treasury)).text("Подачки, должности, заказы, льготы: настроение этой силы +35 (уходит за полтора-два года); остальные немного ревнуют (−3).").note(if treasury >= cost { "щёлкните — уступить" } else { "в казне не хватает денег" }))
+                            .clicked()
+                        {
+                            act(g, &[("favour", b.to_string())]);
+                        }
+                    });
+                });
             });
             let mood_now = p.mood[b];
             row.response.tip(|| {
