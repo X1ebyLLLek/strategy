@@ -76,6 +76,7 @@ pub fn politics(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
         head(ui, s, "Война и мир");
         war_controls(ui, s, g);
         war_support(ui, s, g);
+        rival_sheet(ui, s, g);
         if g.state.grudge[me] {
             ui.label("Сосед держит земли, которые наша страна потеряла в прошлых войнах.");
         }
@@ -237,4 +238,52 @@ pub fn war_controls(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     if g.state.claim[1 - me].is_some() {
         ui.label(RichText::new(format!("Разведка: {} готовит войну против нас.", g.h.home(1 - me).name)).color(s.accent));
     }
+}
+
+/// The rival at a glance (33rd session: the page was one button and a white void): his flag and name, how his
+/// economy stands to ours, his government, his intentions, the lands in dispute.
+fn rival_sheet(ui: &mut egui::Ui, s: &Skin, g: &Game) {
+    use super::super::kit::{self, Stat};
+    let me = g.me;
+    let foe = 1 - me;
+    let rival = g.h.war.th.countries[foe];
+    let mine = g.h.war.th.countries[me];
+    head(ui, s, "Соперник");
+    let name = g.countries[rival].0.clone();
+    let w = ui.available_width();
+    let (row, _) = ui.allocate_exact_size(vec2(w, 46.0), egui::Sense::hover());
+    let ch = chrome::of(ui.ctx());
+    let icons = chrome::icons(ui.ctx());
+    let mut v = chrome::Out::new();
+    if let Some(ch) = &ch {
+        ch.plate(&mut v, row, s, false, false, true, false);
+        v.push(egui::Shape::rect_filled(egui::Rect::from_min_size(row.min, vec2(4.0, row.height())), 1.0, s.accent));
+    }
+    ui.painter().extend(v);
+    let fr = egui::Rect::from_min_size(row.min + vec2(12.0, 8.0), vec2(45.0, 30.0));
+    if let (Some(f), Some(ch)) = (super::super::flags::get(ui.ctx(), rival), &ch) {
+        super::super::flags::paint(ui.ctx(), ui.painter(), fr, &f, ch.trim, Some(&icons));
+    }
+    let x = fr.max.x + 10.0;
+    ui.painter().text(pos2(x, row.min.y + 6.0), egui::Align2::LEFT_TOP, name.to_uppercase(), egui::FontId::new(15.0, egui::FontFamily::Name("head".into())), s.ink);
+    let line = if g.h.at_war { "идёт война" } else { "главный соперник" };
+    ui.painter().text(pos2(x, row.min.y + 25.0), egui::Align2::LEFT_TOP, line, egui::FontId::proportional(13.5), s.accent);
+    let ours = g.h.world.nations[mine].gdp_real.max(1e-9);
+    let ratio = g.h.world.nations[rival].gdp_real / ours;
+    let shaky = crate::world::statecraft::SHAKY;
+    let (st_me, st_foe) = (g.state.stability[me], g.state.stability[foe]);
+    let dispute = if g.state.grudge[foe] { ("претендует на наши земли", kit::BAD) } else if g.state.grudge[me] { ("держит наши былые земли", kit::MIXED) } else { ("споров о земле нет", kit::GOOD) };
+    let intent = if g.state.claim[foe].is_some() { ("готовит войну против нас", kit::BAD) } else { ("мирен", kit::GOOD) };
+    let items = vec![
+        Stat::new("balance", "Хозяйство", format!("×{ratio:.2} к нашему"), if ratio > 1.25 { kit::BAD } else if ratio < 0.8 { kit::GOOD } else { kit::MIXED }),
+        Stat::new("crown", "Власть у них", g.stability_word(foe), if st_foe >= shaky { kit::GOOD } else { kit::BAD }),
+        Stat::new("binoculars", "Намерения", intent.0, intent.1),
+        Stat::new("flag", "Земли", dispute.0, dispute.1),
+    ];
+    let r = kit::stats(ui, &items, 2);
+    if let Some(resp) = r.into_iter().next() {
+        resp.tip(|| Card::new("Хозяйство соперника").icon("balance").row("против нашего", format!("×{ratio:.2}")).row("у нас власть", format!("{st_me:.2}")).row("у них власть", format!("{st_foe:.2}")).note("считается по реальному выпуску; сильное хозяйство — больше армии в долгой войне"));
+    }
+    ui.add_space(4.0);
+    say(ui, s, if g.h.at_war { "Слабость соперника — повод для наступления, но [supply]{снабжение} решает больше, чем число." } else { "Прежде чем обосновывать [claim]{цель войны}, сверьте хозяйство и власть соперника с нашими." });
 }

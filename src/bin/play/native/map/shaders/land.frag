@@ -249,6 +249,11 @@ void main() {
         vec4 sa = texture(uSplatA, uv);
         vec4 sb = texture(uSplatB, uv);
         float wk[8] = float[8](sa.r, sa.g, sa.b, sa.a, sb.r, sb.g, sb.b, sb.a);
+        // (MAPDBG 32: the kinds of ground as colours — red: plains and forest, green: hills, mountains, tundra, blue: desert, marsh, snow; with 64 added — red: tundra, green: hills, blue: mountains)
+        if ((uDbg & 32) != 0) {
+            frag = (uDbg & 64) != 0 ? vec4(wk[6], wk[2], wk[3], 1.0) : vec4(wk[0] + wk[1], wk[2] + wk[3] + wk[6], wk[4] + wk[5] + wk[7], 1.0);
+            return;
+        }
         vec2 t1 = vWorld / 16.0;
         vec2 t2 = vWorld / 64.0 + vec2(0.37, 0.61);
         vec3 c = vec3(0.0);
@@ -324,6 +329,18 @@ void main() {
                 float d1 = fbm(s2 + vec2(0.0, 0.35), 1.0 / 5.0, 3);
                 col *= 1.0 + 0.19 * clamp((d1 - d0) * 6.0, -1.0, 1.0) * fineD * des;
             }
+        }
+        // (33rd session: the tundra was a dark grey smear — its photograph has no light and dark to speak of. Now moss, heath and
+        // pale lichen in mottled patches, as the tundra is from above; the small patches give way to the large as the pixel grows)
+        float tun = smoothstep(0.25, 0.75, wk[6]);
+        if (tun > 0.01 && (uDbg & 2) == 0) {
+            float lt = dot(col, vec3(0.3, 0.59, 0.11));
+            float m1 = fbm(vWorld + vec2(13.0, 71.0), 1.0 / 5.0, 3);
+            float m2 = fbm(vWorld + vec2(88.0, 3.0), 1.0 / 18.0, 3);
+            float fineT = 1.0 - smoothstep(0.5, 2.2, max(px.x, px.y));
+            vec3 tc = mix(mix(vec3(0.40, 0.46, 0.27), vec3(0.47, 0.36, 0.26), smoothstep(0.42, 0.62, m2)), vec3(0.68, 0.69, 0.55), 0.75 * smoothstep(0.50, 0.72, m1) * fineT);
+            tc *= 0.86 + 0.40 * (m1 - 0.5) * fineT + 0.8 * (lt - 0.25);
+            col = mix(col, tc, tun * 0.72);
         }
         vec4 dt = texture(uDetail, uv);
         vec4 ln = texture(uLines, uv);
@@ -659,7 +676,7 @@ void main() {
         // the countries' colours over the land
         int id = idAt(vWorld);
         ivec2 me = who(id);
-        if (id > 0 && me.x >= 0) {
+        if (id > 0 && me.x >= 0 && (uDbg & 128) == 0) {
             vec4 p0 = pal(id, 0);
             vec4 p1 = pal(id, 1);
             vec3 tint = p0.a > 0.5 ? p0.rgb : vec3(0.59, 0.57, 0.53);
@@ -672,7 +689,8 @@ void main() {
             // (30th session: under a forest the country's colour is weaker — the forest keeps its green and the country
             // its tint at the edge and in the open: it was a purple-grey mush with no forest in it)
             // (32nd session: on snow the tint is stronger — the white ground carries it less)
-            col = mix(col, tint * clamp(lum, 0.80, 1.25), min(uOverlay * (1.0 + 0.38 * snowcov), 0.92) * on * (1.0 - 0.30 * ck));
+            float tk = min(uOverlay * (1.0 + 0.38 * snowcov), 0.92) * on * (1.0 - 0.30 * ck);
+            col = mix(col, tint * clamp(lum, 0.80, 1.25), tk);
             // borders (far away; close up egui draws them smooth): the countries' dark, the
             // provinces' faint, the front red
             if (uBorders > 0.0) {
