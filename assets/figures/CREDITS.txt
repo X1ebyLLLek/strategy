@@ -2,9 +2,9 @@
 
 - «SWAT» — Quaternius, CC0: https://poly.pizza/m/Btfn3G5Xv4
 - «Horse» — Quaternius, CC0: https://poly.pizza/m/qvTrSG9pZF
-- «Tank» — Quaternius, CC0: https://poly.pizza/m/cW3zvvkMOM
 - «Cannon» — poly.pizza author of model 1VfiCTmbc8_, CC-BY 3.0: https://poly.pizza/m/1VfiCTmbc8_
 - «Pickup Armored» — Quaternius, CC0: https://poly.pizza/m/RUwMItmU4B
 - «Truck Armored» — Quaternius, CC0: https://poly.pizza/m/VvX8nmoCN5
 
 Собрано tools/figures3d.py.
+- Танк — «T-12 Soviet light tank lowpoly», artie31, CC0: https://opengameart.org/content/t-12-soviet-light-tank-lowpoly (tools/figures_new.py)

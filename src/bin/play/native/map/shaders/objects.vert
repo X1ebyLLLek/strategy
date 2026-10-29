@@ -13,6 +13,8 @@ uniform float uEra;
 uniform float uTime;
 uniform vec3 uUp;
 uniform int uMode;
+// a building's own numbers: the walls' height, the whole height, half the width (a baked one's; the made ones' are TOP and BSHAPE)
+uniform vec3 uBuilt;
 out vec3 vN;
 out vec3 vLocal;
 out vec2 vCard;
@@ -59,10 +61,10 @@ void main() {
     int bk = int(uKind - 10.0 + 0.5);
     // (every other town house three storeys)
     float zs = !tree && bk == 1 && fract(bseed * 3.1) > 0.5 ? 1.32 : 1.0;
-    vTop = tree ? 0.0 : TOP[clamp(bk, 0, 7)] * zs;
+    vTop = tree ? 0.0 : (bk >= 8 ? uBuilt.x : TOP[clamp(bk, 0, 7)] * zs);
     vMN = aNrm;
     // (the wastes: a third of the houses roofless, their walls broken)
-    vRuin = !tree && bk < 6 && uEra > 0.5 && uEra < 1.5 && fract(bseed * 7.3) < 0.32 ? 1.0 : 0.0;
+    vRuin = !tree && (bk < 6 || bk >= 8) && uEra > 0.5 && uEra < 1.5 && fract(bseed * 7.3) < 0.32 ? 1.0 : 0.0;
     vPart = aPart.x;
     vAo = aPart.y;
     vLocal = vec3(aPos.xy, aPos.z * zs);
@@ -86,7 +88,7 @@ void main() {
     if (uMode == 3) {
         // a shadow: an oval on the land, away from the sun, as long as the thing is tall
         vec2 dir = -normalize(SUN.xy);
-        vec2 sh = tree ? SHAPE[int(uKind + 0.5)] : BSHAPE[clamp(bk, 0, 7)] * vec2(zs, 1.0);
+        vec2 sh = tree ? SHAPE[int(uKind + 0.5)] : (bk >= 8 ? uBuilt.yz : BSHAPE[clamp(bk, 0, 7)] * vec2(zs, 1.0));
         float hgt = sh.x * stretch * size;
         float half_len = 0.42 * hgt + sh.y * size;
         vec2 mid = aInst.xy + dir * (0.48 * hgt);

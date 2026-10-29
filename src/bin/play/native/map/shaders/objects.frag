@@ -156,6 +156,40 @@ void main() {
         frag = vec4(col, 1.0);
         return;
     }
+    if (vPart > 99.5) {
+        // a baked building (a free 3D model, one colour a triangle: `tools/buildings_bake.py`): its colour in the
+        // two numbers of the vertex, graded to the era and the season, lit as the made houses are
+        float pk = vPart - 100.0;
+        float cr = floor(pk / 256.0);
+        float cg = pk - cr * 256.0;
+        float cb = floor(vAo);
+        float bao = clamp(vAo - cb, 0.0, 1.0);
+        vec3 bc = vec3(cr, cg, cb) / 255.0;
+        bool bwastes = uEra > 0.5 && uEra < 1.5;
+        bool bold = uEra > 1.5;
+        float bl = dot(bc, vec3(0.3, 0.59, 0.11));
+        if (bwastes) bc = mix(bc, vec3(bl * 1.02, bl * 0.94, bl * 0.82), 0.5) * 0.88;
+        if (bold) bc = mix(bc, bc * vec3(1.10, 1.03, 0.84), 0.45);
+        vec3 bmn = normalize(vMN);
+        vec3 bL = vLocal;
+        if (vRuin > 0.5) {
+            // (the wastes: a ruin — the walls broken off unevenly, the roof gone, burnt black at the top)
+            float uu = abs(bmn.x) > abs(bmn.y) ? bL.y : bL.x;
+            float cut = vTop * (0.55 + 0.45 * fract(sin(floor(uu * 28.0) * 12.9898 + vSeed * 7.0) * 43758.5453));
+            if (bL.z > cut && bL.z > 0.06) discard;
+            bc *= mix(1.0, 0.40, smoothstep(vTop * 0.3, vTop, bL.z));
+        }
+        float bcold = abs(vAt.y - 0.5) * 2.0 + 0.55 * vAt.z;
+        bc = mix(bc, vec3(0.88, 0.90, 0.94), uSeason.x * smoothstep(0.16, 0.36, bcold) * smoothstep(0.35, 0.75, bmn.z) * 0.85);
+        // (a house a little its own shade, from where it stands)
+        bc *= 0.93 + 0.14 * vSeed;
+        float bdiff = max(dot(n, SUN), 0.0);
+        col = bc * (sunc * 0.95 * bdiff * vSun + skyc * 0.70 * (0.62 + 0.38 * n.z) * bao * mix(0.8, 1.0, vSun) + vec3(0.06, 0.055, 0.045) * (1.0 - n.z));
+        col = pow(clamp(col, 0.0, 1.0), vec3(0.80));
+        col = mix(col, vec3(0.64, 0.72, 0.80), haze * 0.55);
+        frag = vec4(col, 1.0);
+        return;
+    }
     // a building: walls and roof of the era's materials — photographs (`materials`) laid along the
     // walls and up the slopes, their relief turned with the building, each house its own place on
     // the photograph and its own shade; windows by storeys in frames, a door in the front, a plinth

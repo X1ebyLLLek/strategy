@@ -15,6 +15,7 @@
 use eframe::glow::{self, HasContext};
 use strategy::world::map::{Terrain, World};
 
+mod baked;
 mod models;
 
 use models::{barn, birch, broad, bush, card, church, cottage, factory, flats, hiphouse, mill, pine, shade, spruce, townhouse};
@@ -153,7 +154,24 @@ pub const CHURCH: usize = 4;
 pub const BLOCK: usize = 5;
 pub const FACTORY: usize = 6;
 pub const MILL: usize = 7;
-pub const BUILDS: usize = 8;
+// (32nd session: the houses of the towns now come from free 3D models, baked — `baked.rs`; these are their kinds, after
+// the eight made ones; `baked::variant` says which stands where a made one was meant)
+pub const ORDINARY_A: usize = 8;
+pub const ORDINARY_B: usize = 9;
+pub const OLDHOUSE: usize = 10;
+pub const COTTAGE_B: usize = 11;
+pub const FARM_A: usize = 12;
+pub const FARM_B: usize = 13;
+pub const BRICK: usize = 14;
+pub const PANEL: usize = 15;
+pub const CHURCH_B: usize = 16;
+pub const BUILDS: usize = 17;
+
+pub use baked::{footprint as baked_footprint, variant as baked_variant};
+
+/// What the shaders need of a kind of building besides its triangles: the walls' height, the whole height and half the
+/// width (for the shadow). The made kinds' are the vertex shader's `TOP` and `BSHAPE`.
+const MADE: [[f32; 3]; 8] = [[0.19, 0.40, 0.24], [0.34, 0.60, 0.25], [0.15, 0.40, 0.30], [0.30, 0.55, 0.30], [0.32, 0.95, 0.24], [0.64, 0.70, 0.36], [0.30, 0.50, 0.46], [0.70, 0.80, 0.22]];
 
 /// What stands in the towns: each kind of building as (x, y, size, its turn — 0..1 of a full
 /// turn: the model's −y side, its front with the door, to the street).
@@ -224,8 +242,9 @@ pub struct Gpu {
     trees: Vec<Mesh>,
     cards: Vec<Mesh>,
     shades: Vec<Mesh>,
-    /// Each kind of building, and its shadow.
+    /// Each kind of building, and its shadow; and each kind's `uBuilt` (the walls' height, the whole height, half the width).
     builds: Vec<Mesh>,
+    built: Vec<[f32; 3]>,
     build_shades: Vec<Mesh>,
     /// The trees' pictures (none if the card could not draw them: the cards are left out).
     atlas: Option<glow::Texture>,
@@ -298,8 +317,23 @@ pub unsafe fn make(gl: &glow::Context) -> Result<Gpu, String> {
     }
     let mut builds = Vec::new();
     let mut build_shades = Vec::new();
-    for m in [cottage(), townhouse(), barn(), hiphouse(), church(), flats(), factory(), mill()] {
-        let b = mesh(gl, &m)?;
+    let mut built: Vec<[f32; 3]> = MADE.to_vec();
+    let mut models: Vec<Model> = vec![cottage(), townhouse(), barn(), hiphouse(), church(), flats(), factory(), mill()];
+    for k in 8..BUILDS {
+        match baked::load(k) {
+            Some(b) => {
+                built.push([b.top, b.height, (b.hx + b.hy) / 2.0]);
+                models.push(b.model);
+            }
+            None => {
+                // (a baked file that cannot be read: a made house stands there)
+                built.push(MADE[1]);
+                models.push(townhouse());
+            }
+        }
+    }
+    for m in &models {
+        let b = mesh(gl, m)?;
         build_shades.push(mesh_on(gl, &shade(), b.inst)?);
         builds.push(b);
     }
@@ -320,7 +354,7 @@ pub unsafe fn make(gl: &glow::Context) -> Result<Gpu, String> {
         gl.generate_mipmap(glow::TEXTURE_2D_ARRAY);
         gl.bind_texture(glow::TEXTURE_2D_ARRAY, None);
     }
-    let mut g = Gpu { program, trees, cards, shades, builds, build_shades, atlas: None, mats, tiles: Default::default(), tiles_x: 0, tiles_y: 0 };
+    let mut g = Gpu { program, trees, cards, shades, builds, built, build_shades, atlas: None, mats, tiles: Default::default(), tiles_x: 0, tiles_y: 0 };
     match bake(gl, &g) {
         Ok(t) => g.atlas = Some(t),
         Err(e) => eprintln!("карта: картинки дальних деревьев не нарисовать: {e}"),
@@ -576,6 +610,7 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View) {
             gl.uniform_1_f32(u("uGrow").as_ref(), v.houses);
             for k in 0..BUILDS {
                 gl.uniform_1_f32(u("uKind").as_ref(), BUILT + k as f32);
+                gl.uniform_3_f32_slice(u("uBuilt").as_ref(), &g.built[k]);
                 all(&g.build_shades[k]);
             }
         }
@@ -605,6 +640,7 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View) {
             gl.uniform_1_f32(u("uGrow").as_ref(), v.houses);
             for k in 0..BUILDS {
                 gl.uniform_1_f32(u("uKind").as_ref(), BUILT + k as f32);
+                gl.uniform_3_f32_slice(u("uBuilt").as_ref(), &g.built[k]);
                 all(&g.builds[k]);
             }
         }

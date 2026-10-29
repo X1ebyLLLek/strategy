@@ -1,0 +1,11 @@
+Здания городов на карте — из свободных моделей OpenGameArt (запечены в треугольники одного цвета: tools/buildings_bake.py):
+
+- «Ordinary House» — Drummyfish, CC0: https://opengameart.org/content/ordinary-house  (ordinary_a, ordinary_b)
+- «Brick building» — altncaglar (Sketchfab), на OpenGameArt от brylie, CC-BY 4.0: https://opengameart.org/content/brick-building  (brick)
+- «Low Poly Medieval Farm House» и «…2» — T Allen Studios, CC-BY 4.0: https://opengameart.org/content/medieval-farm-house , https://opengameart.org/content/medieval-farm-house-2  (farm_a, farm_b)
+- «Small old house» — theogoh (на OpenGameArt от Vinrax), CC-BY 3.0: https://opengameart.org/content/small-old-house  (oldhouse)
+- «Simple Cottage» — JamesWhite, CC0: https://opengameart.org/content/simple-cottage  (cottage)
+- «Soviet Panel Apartment House 3D» — Spring Spring, CC0: https://opengameart.org/content/soviet-panel-apartment-house-3d  (panel)
+- «Medieval Church» — Daniel Andersson (на OpenGameArt от hreikin), CC0: https://opengameart.org/content/medieval-church  (church)
+
+Собрано tools/buildings_bake.py (+ tools/meshbake.py); у моделей изменены цвета, масштаб и поворот.

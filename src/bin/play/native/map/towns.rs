@@ -43,6 +43,9 @@ const BIG: f32 = 1.3;
 
 /// A building's footprint: its half-length along the street, half-depth, and the gap it keeps.
 fn footprint(kind: usize) -> (f32, f32) {
+    if let Some(f) = objects::baked_footprint(kind) {
+        return f;
+    }
     match kind {
         objects::COTTAGE => (0.24, 0.17),
         objects::TOWNHOUSE => (0.21, 0.19),
@@ -221,7 +224,8 @@ pub fn lay(towns: &[(f32, f32, u8)], ways: &[Line], rivers: &[(Vec<[f32; 2]>, f3
             for (k, kind) in [objects::CHURCH, objects::HIPHOUSE].into_iter().enumerate().take(if size >= 2 { 2 } else { 1 }) {
                 for _ in 0..12 {
                     let a = rnd() * std::f32::consts::TAU + k as f32 * std::f32::consts::PI;
-                    let (hx, hy) = footprint(kind);
+                    let vk = objects::baked_variant(kind, era, rnd());
+                    let (hx, hy) = footprint(vk);
                     let d = square + hy + 0.08;
                     let p = [cx + d * a.cos(), cy + d * a.sin()];
                     let size_k = BIG * if kind == objects::CHURCH { 1.15 } else { 1.35 };
@@ -231,7 +235,7 @@ pub fn lay(towns: &[(f32, f32, u8)], ways: &[Line], rivers: &[(Vec<[f32; 2]>, f3
                         // (a church along the radius, its tower — the +x end — to the square; a
                         // hall's front — its −y side — to the square)
                         let face = if kind == objects::CHURCH { a + std::f32::consts::PI } else { a - std::f32::consts::FRAC_PI_2 };
-                        out.built.builds[kind].push([p[0], p[1], size_k, face / std::f32::consts::TAU]);
+                        out.built.builds[vk].push([p[0], p[1], size_k, face / std::f32::consts::TAU]);
                         break;
                     }
                 }
@@ -274,7 +278,7 @@ pub fn lay(towns: &[(f32, f32, u8)], ways: &[Line], rivers: &[(Vec<[f32; 2]>, f3
                         if rnd() > (1.0 - d.powf(2.2)) * if core { 1.0 } else { 0.95 } {
                             continue;
                         }
-                        let kind = if era < 0.5 && core && size == 3 && rnd() < 0.35 {
+                        let kind = if era < 1.5 && core && size == 3 && rnd() < 0.35 {
                             objects::BLOCK
                         } else if core || (size >= 2 && d < 0.6 && rnd() < 0.45) {
                             objects::TOWNHOUSE
@@ -290,6 +294,8 @@ pub fn lay(towns: &[(f32, f32, u8)], ways: &[Line], rivers: &[(Vec<[f32; 2]>, f3
                             objects::TOWNHOUSE => 1.05 + 0.2 * rnd(),
                             _ => 0.95 + 0.3 * rnd(),
                         };
+                        // (32nd session: the baked houses stand where the made ones were meant)
+                        let kind = objects::baked_variant(kind, era, rnd());
                         let (hx, hy) = footprint(kind);
                         let off = 0.13 + hy * sz + 0.04;
                         let rows = 1 + (core || (size >= 2 && d < 0.6)) as usize;
@@ -347,6 +353,7 @@ pub fn lay(towns: &[(f32, f32, u8)], ways: &[Line], rivers: &[(Vec<[f32; 2]>, f3
             let r = radius * (1.0 + 0.45 * rnd());
             let a = rnd() * std::f32::consts::TAU;
             let p = [cx + r * a.cos(), cy + r * a.sin()];
+            let kind = objects::baked_variant(kind, era, rnd());
             let (hx, hy) = footprint(kind);
             let sz = 1.1 + 0.3 * rnd();
             let rr = hx.max(hy) * sz;
