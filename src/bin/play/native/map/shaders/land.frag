@@ -374,17 +374,17 @@ void main() {
             col = mix(col, ground, town * 0.85);
         }
         // banks of the rivers: wet earth, and greener growth along them
-        float dc = lineDist(ln.rg, 8.0);
-        float rhw = dt.b * 6.0;
+        float dc = lineDist(ln.rg, 6.0);
+        float rhw = dt.b * 4.0;
         float pxr = max(px.x, px.y);
         float least = uK < 1.2 ? 0.30 : uK < 2.0 ? 0.14 : 0.0;
         float vis = rhw >= least ? max(rhw, 0.95 * pxr) : rhw;
-        float near_r = step(dc, 7.99);
+        float near_r = step(dc, 5.99);
         // (33rd session: the great rivers are many pixels wide; their banks and flood plains widen with them)
         float great = smoothstep(0.35, 1.8, rhw);
         float water = (1.0 - smoothstep(vis - 0.5 * pxr, vis + 0.5 * pxr, dc)) * near_r;
         float bank = (1.0 - smoothstep(vis, vis + 0.30 + 0.12 * rhw + pxr, dc)) * (1.0 - water) * near_r;
-        float meadow = (1.0 - smoothstep(vis, min(vis + 1.6 + 0.9 * rhw, 7.6), dc)) * near_r;
+        float meadow = (1.0 - smoothstep(vis, min(vis + 1.6 + 0.9 * rhw, 5.6), dc)) * near_r;
         float lumm = dot(col, vec3(0.3, 0.59, 0.11));
         col = mix(col, vec3(lumm * 0.80, lumm * 1.05, lumm * 0.60), meadow * (0.30 + 0.22 * great) * (1.0 - farm) * (1.0 - smoothstep(0.55, 0.80, lumm)));
         col = mix(col, col * vec3(0.66, 0.62, 0.55), bank * 0.8);
@@ -602,7 +602,7 @@ void main() {
             // (its sign fixed, so that the streaks do not break on the middle line)
             float across = clamp(dc / max(vis, 1e-3), 0.0, 1.0);
             float deep = 1.0 - across * across;
-            vec2 sd = (ln.rg * 255.0 - 128.0) / 127.0 * 8.0;
+            vec2 sd = (ln.rg * 255.0 - 128.0) / 127.0 * 6.0;
             vec2 cd = sd / max(length(sd), 1e-3);
             vec2 ad = vec2(-cd.y, cd.x);
             if (ad.x + 0.37 * ad.y < 0.0) ad = -ad;

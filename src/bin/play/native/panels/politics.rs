@@ -65,10 +65,26 @@ pub fn politics(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
     let me = g.me;
     let foe = 1 - me;
     if page == 0 {
-        let line = format!("[stability]Правительство {}. У соседа — {}.", g.stability_word(me), g.stability_word(foe));
+        use super::super::kit::{self, Stat};
         let (st, st2, tension) = (g.state.stability[me], g.state.stability[foe], g.state.tension);
-        ui.scope(|ui| say(ui, s, &line)).response.tip(|| Card::new("Правительство").icon("crown").row("устойчивость", format!("{st:.2}")).row("у соседа", format!("{st2:.2}")));
-        ui.label(format!("В мире {}.", g.tension_word())).tip(|| Card::new("Напряжённость").icon("alarm").row("в мире", format!("{tension:.2}")).note("растёт, когда кто-то готовит войну"));
+        let shaky = crate::world::statecraft::SHAKY;
+        let tone = |x: f32| if x >= shaky { kit::GOOD } else { kit::BAD };
+        let items = vec![
+            Stat::new("crown", "Наша власть", g.stability_word(me), tone(st)),
+            Stat::new("crown", "Власть соседа", g.stability_word(foe), tone(st2)),
+            Stat::new("alarm", "В мире", g.tension_word(), if tension < 0.35 { kit::GOOD } else if tension < 0.65 { kit::MIXED } else { kit::BAD }),
+        ];
+        let r = kit::stats(ui, &items, 3);
+        let mut r = r.into_iter();
+        if let Some(x) = r.next() {
+            x.tip(|| Card::new("Правительство").icon("crown").row("устойчивость", format!("{st:.2}")).row("у соседа", format!("{st2:.2}")).note("слабое правительство не смеет затевать войну"));
+        }
+        if let Some(x) = r.next() {
+            x.tip(|| Card::new("Правительство соседа").icon("crown").row("устойчивость", format!("{st2:.2}")).row("у нас", format!("{st:.2}")));
+        }
+        if let Some(x) = r.next() {
+            x.tip(|| Card::new("Напряжённость").icon("alarm").row("в мире", format!("{tension:.2}")).note("растёт, когда кто-то готовит войну"));
+        }
         neighbours(ui, s, g);
         super::diplomacy::diplomacy(ui, s, g);
     }
@@ -141,7 +157,7 @@ fn neighbours(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         } else if is_rival {
             "главный соперник"
         } else if grudge {
-            "держит наши былые земли"
+            "держит наши земли"
         } else if past_wars > 0 {
             "воевали прежде"
         } else {
@@ -167,9 +183,15 @@ fn neighbours(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         // (29th session: the words stop where the gauge begins — «держит наши былые земли» ran under it)
         let mut job = egui::text::LayoutJob::simple_singleline(stand.to_string(), egui::FontId::proportional(13.5), if is_rival { s.accent } else { s.soft });
         // (32nd session: the gauge moved under the button, so the words have the row's width — «держит наши былые земли» no longer cut)
-        job.wrap = egui::text::TextWrapping::truncate_at_width((row.max.x - 104.0 - x).max(40.0));
+        job.wrap = egui::text::TextWrapping::truncate_at_width((row.max.x - 158.0 - x).max(40.0));
         let sg = ui.painter().layout_job(job);
         ui.painter().galley(pos2(x, row.min.y + 25.0), sg, s.soft);
+        // (what their government thinks of us: the figure on a badge of its tone, as in the world's list)
+        let opinion = g.diplo.of(c, g.country(me));
+        let bx = row.max.x - if blocked.is_none() && !is_rival { 98.0 + 52.0 } else { 58.0 };
+        let badge = egui::Rect::from_min_size(pos2(bx, row.min.y + 5.0), vec2(48.0, 22.0));
+        ui.painter().rect_filled(badge, 3.0, super::super::hud::lerp(super::diplomacy::tone(opinion), Color32::BLACK, 0.3));
+        ui.painter().text(badge.center(), egui::Align2::CENTER_CENTER, format!("{:+.0}", opinion * 100.0), egui::FontId::new(13.5, egui::FontFamily::Name("bold".into())), Color32::WHITE);
         // (their economy against ours: five pips, ours in the middle)
         let mut v = chrome::Out::new();
         let lvl = (2.5 * ratio).clamp(0.2, 5.0);

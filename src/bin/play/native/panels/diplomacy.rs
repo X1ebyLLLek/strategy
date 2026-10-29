@@ -24,7 +24,7 @@ pub fn pact_icon(k: Kind) -> &'static str {
 }
 
 /// The tone of an opinion.
-fn tone(x: f32) -> Color32 {
+pub(super) fn tone(x: f32) -> Color32 {
     if x >= 0.3 {
         kit::GOOD
     } else if x <= -0.3 {

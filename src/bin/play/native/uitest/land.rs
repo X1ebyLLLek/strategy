@@ -264,7 +264,7 @@ pub(super) fn lines(shared: &Arc<Mutex<Game>>, app: &mut App, say: &mut dyn FnMu
     };
     let river_hw = |x: f32, y: f32| {
         let k = (((y * 2.0) as usize).min(h2 - 1) * w2 + ((x * 2.0).floor() as i64).rem_euclid(w2 as i64) as usize) * 4;
-        (detail[k + 2] as f32 / 255.0 * super::super::map::RIVER_HW * 0.8).max(0.06)
+        (detail[k + 2] as f32 / 255.0 * super::super::map::RIVER_HW * 0.9).max(0.14)
     };
     for (pts, _, _) in g.land.rivers.iter() {
         look("реки", pts, lines_t, 0, super::super::map::RIVER_RANGE, &river_hw, &mut checked);

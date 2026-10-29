@@ -491,7 +491,7 @@ fn river_width(ratio: f32) -> f32 {
     if l <= 1.8 {
         0.16 + 0.24 * l
     } else {
-        0.592 + 5.4 * ((l - 1.8) / 2.3).min(1.25).powf(1.4)
+        0.592 + 4.0 * ((l - 1.8) / 2.3).min(1.25).powf(1.4)
     }
 }
 
@@ -534,7 +534,7 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
         if let Some(&(d, true)) = to_sea.get(&i) {
             if d < 10 && wd > 0.8 {
                 let t = 1.0 - d as f32 / 10.0;
-                wd *= 1.0 + 0.9 * t * t;
+                wd *= 1.0 + 0.6 * t * t;
             }
         }
         wd

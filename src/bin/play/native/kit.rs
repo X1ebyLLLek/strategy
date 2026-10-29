@@ -478,7 +478,7 @@ pub fn versus(ui: &mut Ui, a: &Side, b: &Side, rows: &[VsRow], dark: bool) -> Re
         let p = ui.painter();
         p.text(pos2(x0, y + 1.0), egui::Align2::LEFT_TOP, &row.a_text, fa, if lead_a { ink } else { soft });
         p.text(pos2(x1, y + 1.0), egui::Align2::RIGHT_TOP, &row.b_text, fb, if lead_b { ink } else { soft });
-        p.text(pos2(r.center().x, y + 3.0), egui::Align2::CENTER_TOP, row.label.to_uppercase(), FontId::new(11.5, FontFamily::Name("head".into())), soft);
+        p.text(pos2(r.center().x, y + 3.0), egui::Align2::CENTER_TOP, row.label.to_uppercase(), FontId::new(12.0, FontFamily::Name("head".into())), soft);
         let bar = Rect::from_min_max(pos2(x0, y + 20.0), pos2(x1, y + 31.0));
         let mut v = Out::new();
         v.push(Shape::rect_filled(bar, 2.0, Color32::from_black_alpha(if dark { 130 } else { 90 })));
