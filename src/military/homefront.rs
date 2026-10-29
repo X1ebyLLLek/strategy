@@ -123,7 +123,10 @@ pub fn order_parts(pack: &Pack, n: &Nation, c: &Country, use_: f32, cap: f32) ->
     let money = n.army_money();
     let p = &n.price;
     let need = needs(pack, &c.army.count, &c.norm, use_);
-    let mut want: Vec<f32> = (0..nk).map(|i| ((1.0 + STORE) * need[i] - n.arsenal[i]).max(0.0) * p[i]).collect();
+    // (a war reserve: the stores kept stocked for `reserve` months of the army at its fiercest too)
+    let hold = if c.reserve > 0.0 { needs(pack, &c.army.count, &c.norm, 1.0) } else { vec![0.0; nk] };
+    let goal = |i: usize| (1.0 + STORE) * need[i] + c.reserve * hold[i].max(need[i]);
+    let mut want: Vec<f32> = (0..nk).map(|i| (goal(i) - n.arsenal[i]).max(0.0) * p[i]).collect();
     let supply: f32 = want.iter().sum();
     let mut equip = 0.0f32;
     if supply < money {
@@ -145,7 +148,7 @@ pub fn order_parts(pack: &Pack, n: &Nation, c: &Country, use_: f32, cap: f32) ->
         // what lies in store beyond the troops' supply is not bought again (steel piled up
         // unused while arms, which every kind needs too, were short)
         for i in 0..nk {
-            let spare = (n.arsenal[i] - (1.0 + STORE) * need[i]).max(0.0) * p[i];
+            let spare = (n.arsenal[i] - goal(i)).max(0.0) * p[i];
             want[i] += (equip_money[i] - spare).max(0.0);
         }
     }
@@ -154,6 +157,24 @@ pub fn order_parts(pack: &Pack, n: &Nation, c: &Country, use_: f32, cap: f32) ->
         want.iter_mut().for_each(|w| *w /= all);
     }
     (want, supply.min(money), equip)
+}
+
+/// How many more months of fighting the stores of supply (`n.arsenal`) cover for `army` once this month's is taken
+/// (`use_` of a month of fighting): by their worth at starting prices; unbounded when the army needs none.
+pub fn cover(pack: &Pack, n: &Nation, army: &[f32], norm: &[f32], use_: f32) -> f32 {
+    let need = needs(pack, army, norm, use_);
+    let (mut have, mut all) = (0.0f32, 0.0f32);
+    for (i, &q) in need.iter().enumerate() {
+        if q > 0.0 {
+            have += n.arsenal[i].min(10.0 * q) * pack.goods[i].price;
+            all += q * pack.goods[i].price;
+        }
+    }
+    if all > 0.0 {
+        have / all
+    } else {
+        f32::INFINITY
+    }
 }
 
 /// The troops of `army` take their month's supply (`use_` of a month of fighting) from the
@@ -268,6 +289,8 @@ pub struct Homefront {
     pub peace_months: u32,
     /// Share of their supply each side's troops got last month.
     pub fed: [f32; 2],
+    /// How many months of the troops' supply the stores still hold after this month's (`cover`).
+    pub cover: [f32; 2],
     /// Men killed on each side (millions), and units each made, since the war began.
     pub dead: [f32; 2],
     pub made: [Vec<f32>; 2],
@@ -328,6 +351,7 @@ impl Homefront {
             at_war: false,
             peace_months: 0,
             fed: [1.0; 2],
+            cover: [f32::INFINITY; 2],
             dead: [0.0; 2],
             made: [vec![0.0; nu], vec![0.0; nu]],
             last_made: [vec![0.0; nu], vec![0.0; nu]],
@@ -465,7 +489,13 @@ impl Homefront {
         for s in 0..2 {
             let n = &mut self.world.nations[self.at[s]];
             let c = &self.war.sides[s];
+            if std::env::var("SUPDBG").is_ok() {
+                let need = needs(pack, &c.army.count, &c.norm, uses[s]);
+                let line: Vec<String> = (0..need.len()).filter(|&i| need[i] > 0.0).map(|i| format!("{} нужно {:.2} склад {:.2}", pack.goods[i].name, need[i], n.arsenal[i])).collect();
+                eprintln!("СНАБ сторона {s} месяц {} армия {:.0} использование {:.2} деньги армии {:.2}: {}", self.war.month, c.army.count.iter().sum::<f32>(), uses[s], n.army_money(), line.join("; "));
+            }
             self.fed[s] = feed(pack, n, &c.army.count, &c.norm, uses[s]);
+            self.cover[s] = cover(pack, n, &c.army.count, &c.norm, uses[s]);
             made[s] = equip(pack, n, &c.shares_made(), &c.norm);
             self.last_made[s] = made[s].clone();
         }
@@ -582,6 +612,7 @@ impl Homefront {
         let made = self.economy(pack, self.war_use);
         for s in 0..2 {
             self.war.stores[s] = self.fed[s];
+            self.war.cover[s] = self.cover[s];
         }
         let before = [self.war.sides[0].army.count.clone(), self.war.sides[1].army.count.clone()];
         for s in 0..2 {

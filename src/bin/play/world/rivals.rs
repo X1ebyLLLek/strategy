@@ -152,6 +152,11 @@ impl Game {
         camp.most_battalions = crate::game::MOST_BATTALIONS;
         camp.line_first = true;
         camp.most_per_front = crate::game::MOST_PER_FRONT * crate::prov_scale();
+        camp.feed_least = crate::game::FEED_LEAST;
+        camp.cover_least = crate::game::COVER_LEAST;
+        for side in camp.sides.iter_mut() {
+            side.reserve = crate::game::RESERVE_MONTHS;
+        }
         self.h.war = camp;
         // its own people at the head of its economy and laboratories; its government's course is
         // its own (reviewed at once)

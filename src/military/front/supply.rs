@@ -5,7 +5,7 @@ use super::*;
 
 impl Campaign {
     /// Steps from side `s`'s capital through its own provinces (NO where cut off).
-    pub(crate) fn reach(&self, s: usize) -> Vec<u32> {
+    pub fn reach(&self, s: usize) -> Vec<u32> {
         let mut d = vec![NO; self.owner.len()];
         let cap = self.th.capital[s];
         if self.owner[cap] != s {

@@ -74,6 +74,9 @@ pub struct Statecraft {
     pub queue: Vec<usize>,
     /// The lines of supply laid and being laid (railways, roads), in the order begun.
     pub works: Vec<Works>,
+    /// Whether the player's staff builds the depots and lays the lines of supply for his front itself, as a bot's does
+    /// (34th session: a staff has quartermasters; the player may take the work into his own hands).
+    pub staff_logistics: bool,
 }
 
 impl Game {
@@ -109,6 +112,16 @@ impl Game {
                 true
             }
         });
+        // (a depot the enemy took is lost — its stores burned or carried off; it does not come back with the province)
+        for s in 0..2 {
+            let owner = &self.h.war.owner;
+            let before = self.h.war.hubs[s].len();
+            self.h.war.hubs[s].retain(|&h| h >= owner.len() || owner[h] == s);
+            if s == me && self.h.war.hubs[s].len() < before {
+                let lost = before - self.h.war.hubs[s].len();
+                self.news.push(Note::new(now, if lost == 1 { "склад снабжения потерян: провинцию взял враг" } else { "склады снабжения потеряны: провинции взял враг" }, true, "army"));
+            }
+        }
         for (s, q) in done {
             if self.h.war.owner[q] == s && !self.h.war.hubs[s].contains(&q) {
                 self.h.war.hubs[s].push(q);
@@ -148,14 +161,14 @@ impl Game {
         // the bots build depots for their fronts in a war, and lay lines of supply to them
         if self.h.at_war && now % 6 == 0 {
             for s in 0..2 {
-                if s != me || self.auto.is_some() {
+                if s != me || self.auto.is_some() || self.state.staff_logistics {
                     self.bot_depot(s);
                 }
             }
         }
         if self.h.at_war && now % 3 == 1 {
             for s in 0..2 {
-                if s != me || self.auto.is_some() {
+                if s != me || self.auto.is_some() || self.state.staff_logistics {
                     self.bot_line(s);
                 }
             }
@@ -292,6 +305,19 @@ impl Game {
         self.state.aggressor = None;
     }
 
+    /// What a depot at province `q` costs side `s` and how many months it takes: the further from the nearest head of its
+    /// supply (the capital, another depot, a province on a line) the dearer and slower — the stores must be hauled there.
+    pub fn hub_terms(&self, s: usize, q: usize) -> (f32, u32) {
+        let w = &self.h.war;
+        let g = |p: usize| w.grade.get(p).copied().unwrap_or(1.0);
+        let heads: Vec<usize> = (0..w.owner.len()).filter(|&p| w.owner[p] == s && (p == w.th.capital[s] || w.hubs[s].contains(&p) || g(p) < 1.0)).collect();
+        let d = w.distance_from_all(&heads);
+        // (in true distance: a province of the game's map is narrower than the usual one)
+        let far = if d[q] == strategy::military::front::NO { 12.0 } else { d[q] as f32 * w.scale };
+        let money = self.h.home(s).army_money().max(0.01);
+        (HUB_COST * money * (1.0 + 0.12 * far), HUB_MONTHS + (far / 3.0) as u32)
+    }
+
     /// The player builds a depot of supply in province `q` of the theatre (his own, reached from
     /// his capital), if the treasury pays for it.
     pub fn build_depot(&mut self, q: usize) -> bool {
@@ -300,15 +326,20 @@ impl Game {
         if q >= self.h.war.owner.len() || self.h.war.owner[q] != me || self.h.war.hubs[me].contains(&q) || self.state.building.iter().any(|b| b.0 == me && b.1 == q) {
             return false;
         }
+        // (a depot is fed by the line to the capital: cut off from it, it would stand empty)
+        if self.h.war.reach(me)[q] == strategy::military::front::NO {
+            self.news.push(Note::new(now, "склад не заложен: до этой провинции не дойти от столицы по своей земле", true, "army"));
+            return false;
+        }
+        let (cost, months) = self.hub_terms(me, q);
         let n = self.h.home_mut(me);
-        let cost = HUB_COST * n.army_money().max(0.01);
         if n.treasury < cost {
             self.news.push(Note::new(now, "на склад снабжения не хватает денег в казне", true, "army"));
             return false;
         }
         n.treasury -= cost;
-        self.state.building.push((me, q, now + HUB_MONTHS));
-        self.news.push(Note::new(now, "заложен склад снабжения", false, "army").with_tip(format!("стоит {cost:.2}, готов через {HUB_MONTHS} мес.")));
+        self.state.building.push((me, q, now + months));
+        self.news.push(Note::new(now, "заложен склад снабжения", false, "army").with_tip(format!("стоит {cost:.2}, готов через {months} мес.")));
         true
     }
 
@@ -450,12 +481,18 @@ impl Game {
         if w.hubs[s].iter().any(|&h| d[h] <= 2) || self.state.building.iter().any(|b| b.0 == s) {
             return;
         }
+        if self.h.war.reach(s)[q] == strategy::military::front::NO {
+            return;
+        }
+        let (cost, months) = self.hub_terms(s, q);
         let n = self.h.home_mut(s);
-        let cost = HUB_COST * n.army_money().max(0.01);
         if n.treasury >= cost {
             n.treasury -= cost;
             let now = self.month();
-            self.state.building.push((s, q, now + HUB_MONTHS));
+            self.state.building.push((s, q, now + months));
+            if s == self.me {
+                self.news.push(Note::new(now, "штаб заложил склад снабжения у фронта", false, "army").with_tip(format!("стоит {cost:.2}, готов через {months} мес.")));
+            }
         }
     }
 

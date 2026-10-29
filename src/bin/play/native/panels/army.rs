@@ -579,9 +579,24 @@ fn supply(ui: &mut egui::Ui, s: &Skin, g: &mut Game, build: &mut super::super::m
                 items.push(Stat::new("hazard", "Без снабжения", format!("{hungry} из {all} дивизий"), if hungry == 0 { kit::GOOD } else if hungry * 4 < all { kit::MIXED } else { kit::BAD }));
             }
         }
+        // (the stores of ammunition and fuel, in months of the fighting: what a war runs on, and what new divisions wait for)
+        let cover = g.h.cover[me];
+        if cover.is_finite() {
+            let tone = if cover >= 2.0 { kit::GOOD } else if cover >= 1.0 { kit::MIXED } else { kit::BAD };
+            items.push(Stat::new("bullets", "Запас боеприпасов", if cover >= 9.5 { "на год и больше".to_string() } else { format!("на {:.1} мес. боёв", cover) }, tone));
+        }
         items.push(Stat::new("supply", "Склады", if have == 0 { "нет".to_string() } else { have.to_string() }, if have == 0 { kit::PLAIN } else { kit::GOOD }));
         items.push(Stat::new("wire", "Линии к фронту", if busy > 0 { format!("{laid} + строится {busy}") } else if laid == 0 { "нет".to_string() } else { laid.to_string() }, if laid + busy == 0 { kit::PLAIN } else { kit::GOOD }));
         kit::stats(ui, &items, 2);
+    }
+    // who builds the depots and lays the lines: the staff's quartermasters, or the player
+    {
+        let mine = g.state.staff_logistics;
+        say(ui, s, "[supply]Склады и линии к фронту:");
+        if let Some(i) = widgets::switch(ui, &["Строю сам", "Штаб строит сам"], mine as usize) {
+            act(g, &[("logistics", if i == 1 { "1" } else { "0" }.into())]);
+        }
+        ui.label(RichText::new(if mine { "Штаб закладывает склад у самого плохо снабжаемого участка фронта и тянет к нему линию, пока в казне хватает денег." } else { "Склады и линии — по вашему слову: щёлкните по своей провинции." }).size(13.0).color(s.soft));
     }
     head(ui, s, "Склады снабжения");
     ui.label(match have {
@@ -591,7 +606,8 @@ fn supply(ui: &mut egui::Ui, s: &Skin, g: &mut Game, build: &mut super::super::m
     });
     let w = ui.available_width();
     let depot = *build == super::super::map::Build::Depot;
-    if widgets::plate(ui, if depot { "Щёлкните по своей провинции… (отмена)" } else { "Построить склад…" }, w, depot, true).tip(|| Card::new("Склад снабжения").icon("crate").text("Снабжение пойдёт и от склада, если до него можно дойти от столицы.").row("складов", have.to_string())).clicked() {
+    let near_cost = g.hub_terms(me, g.h.war.th.capital[me]);
+    if widgets::plate(ui, if depot { "Щёлкните по своей провинции… (отмена)" } else { "Построить склад…" }, w, depot, true).tip(|| Card::new("Склад снабжения").icon("crate").text("Снабжение пойдёт и от склада, если до него можно дойти от столицы по своей земле. Чем дальше от столицы, линий и других складов — тем дороже и дольше: запасы надо довезти. Захваченный врагом склад пропадает.").row("складов", have.to_string()).row("рядом со столицей", format!("{:.2} · {} мес.", near_cost.0, near_cost.1))).clicked() {
         *build = if depot { super::super::map::Build::None } else { super::super::map::Build::Depot };
     }
     // the lines of supply: a railway (in the ages of steam) or a road through one's own land

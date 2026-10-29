@@ -472,6 +472,9 @@ impl Game {
         if let Some(q) = get("hub").and_then(|v| v.parse::<usize>().ok()).and_then(|p| self.h.war.th.at.get(p).copied()).filter(|&q| q != front::NO) {
             self.build_depot(q as usize);
         }
+        if let Some(v) = get("logistics") {
+            self.state.staff_logistics = v == "1";
+        }
         if get("queue_set").is_some() {
             self.state.queue = (0..self.pack.sectors.len()).filter(|k| get(&format!("q{k}")).is_some()).collect();
             if self.state.queue.is_empty() {

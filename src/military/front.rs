@@ -423,6 +423,10 @@ pub struct Campaign {
     /// its staff's budget makes them), and the share of its troops' supply its stores give.
     pub made: [Option<Vec<f32>>; 2],
     pub stores: [f32; 2],
+    /// Months of the troops' supply the stores still hold after this month's (unbounded without an economy), and the
+    /// least a side must be left with by raising a division (`cover_least`; 0 unless set).
+    pub cover: [f32; 2],
+    pub cover_least: f32,
     /// How each side leads its troops: None — its staff over the whole front, as one; Some — by
     /// groups of armies on sectors of the front.
     pub command: [Option<Vec<Group>>; 2],
@@ -444,6 +448,9 @@ pub struct Campaign {
     /// The most divisions a side keeps for each province of its front: what its factories make
     /// beyond them waits in its stores and refills the divisions it has (unbounded unless set).
     pub most_per_front: f32,
+    /// The share of its troops' supply the stores must have given last month for a side to raise new divisions (a staff
+    /// does not raise what it cannot feed: the army grows to what the economy can supply, no further; 0 unless set).
+    pub feed_least: f32,
     /// Whether an army takes no more divisions than a general leads well (`ARMY`), however many the
     /// side has (the rest stay in the staff's reserve): false — a side forming no more than
     /// `most_groups` armies swells them to hold all its divisions (the old rule).
@@ -548,6 +555,8 @@ impl Campaign {
             dug: [vec![0.0; n], vec![0.0; n]],
             made: [None, None],
             stores: [1.0; 2],
+            cover: [f32::INFINITY; 2],
+            cover_least: 0.0,
             command: [None, None],
             staff_led: [false; 2],
             most_groups: usize::MAX,
@@ -556,6 +565,7 @@ impl Campaign {
             line_first: false,
             most_per_front: f32::INFINITY,
             fixed_armies: false,
+            feed_least: 0.0,
             establish: [f32::INFINITY; 2],
             scale: 1.0,
             deep: [vec![false; n], vec![false; n]],

@@ -203,6 +203,10 @@ impl Campaign {
         if wants.iter().sum::<f32>() <= 0.0 {
             return;
         }
+        // (a side whose stores did not feed the troops it has last month raises no more: the army grows to what can be supplied)
+        if self.stores[s] < self.feed_least {
+            return;
+        }
         // (behind the line: recruits gathered on the front cannot drill)
         let at = self.camp(s);
         // (or where the player told them to gather, while it is his)
@@ -210,12 +214,20 @@ impl Campaign {
         let to = c.muster_group[s].filter(|&g| self.command[s].as_ref().is_some_and(|gs| g < gs.len()));
         // (no more divisions than the front has room for: the rest stays in the stores)
         let most = (self.most_per_front.min(self.establish[s]) * self.front(s).len().max(1) as f32).ceil() as usize;
+        let n0 = c.divs.iter().filter(|d| d.side == s).count() as f32;
         for _ in 0..500 {
             if c.divs.iter().filter(|d| d.side == s).count() >= most {
                 break;
             }
             let built: Vec<f32> = (0..c.shapes[s].len()).map(|k| c.divs.iter().filter(|d| d.side == s && d.shape == k).count() as f32).collect();
             let Some(k) = (0..wants.len()).filter(|&k| wants[k] > 0.0).min_by(|&a, &b| (built[a] / wants[a]).total_cmp(&(built[b] / wants[b])).then(a.cmp(&b))) else { break };
+            // (nor one more than the stores of supply carry: each new division thins the cover of the whole army)
+            if self.cover_least > 0.0 && n0 > 0.0 {
+                let n = c.divs.iter().filter(|d| d.side == s).count() as f32;
+                if self.cover[s] * n0 / (n + 1.0) < self.cover_least {
+                    break;
+                }
+            }
             let sh = &c.shapes[s][k];
             let full = sh.units.clone();
             // (its companies are paid for from the same stores: a share more of each)

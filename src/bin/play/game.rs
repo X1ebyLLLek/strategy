@@ -33,6 +33,15 @@ pub const MOST_BATTALIONS: f32 = 40.0;
 /// The most divisions a side of the game keeps for a province of its front (`Campaign::most_per_
 /// front`): an army beyond that keeps its equipment in stores, for refilling.
 pub const MOST_PER_FRONT: f32 = 4.0;
+/// The share of its troops' supply the stores must have given last month for a side to raise new divisions
+/// (`Campaign::feed_least`, 34th session): an army that starved last month grows no further.
+pub const FEED_LEAST: f32 = 0.75;
+/// The months of the troops' supply the stores must still hold after a division is raised (`Campaign::cover_least`):
+/// a mobilisation does not outrun the stores — each new division thins the cover of the whole army.
+pub const COVER_LEAST: f32 = 0.6;
+/// The war reserve of supply the ministry lays up in peace, in months of the army at its fiercest (`Country::reserve`):
+/// a war begins with stores for a couple of months of fighting, not with the stores of a peace.
+pub const RESERVE_MONTHS: f32 = 6.0;
 
 mod apply;
 mod war;
@@ -379,6 +388,11 @@ impl Game {
         h.war.most_battalions = MOST_BATTALIONS;
         h.war.line_first = true;
         h.war.most_per_front = MOST_PER_FRONT * crate::prov_scale();
+        h.war.feed_least = FEED_LEAST;
+        h.war.cover_least = COVER_LEAST;
+        for side in h.war.sides.iter_mut() {
+            side.reserve = RESERVE_MONTHS;
+        }
         let mut g = Game {
             pack: Arc::new(pack),
             world: Arc::new(world),

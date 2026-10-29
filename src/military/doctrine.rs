@@ -174,6 +174,9 @@ pub struct Country {
     /// Kinds of units the country cannot field: it does not know the technique that makes them
     /// (`progress::Know::locked`). Empty: none.
     pub locked: Vec<bool>,
+    /// Months of full-intensity fighting the stores of supply are kept stocked for, beyond this month's and the next's
+    /// (a war reserve laid up in peace, so that a war does not begin with empty stores; 0 — none, the old way).
+    pub reserve: f32,
 }
 
 pub mod norm;
@@ -260,6 +263,7 @@ impl Country {
             parts,
             prio: Vec::new(),
             locked: Vec::new(),
+            reserve: 0.0,
         }
     }
 
