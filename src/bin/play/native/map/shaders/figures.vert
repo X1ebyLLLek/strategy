@@ -98,7 +98,10 @@ void main() {
     gl_Position = uMvp * vec4(at, 1.0);
     if (uMode == 5) {
         // the outline's shell: out along the normal by a screen point or so (the world's size of a point grows with the distance)
-        at += normalize(n) * gl_Position.w * 0.0012;
+        // (33rd session: along the face's normal the shell tore at the hard edges — the outline ran in dashes; now out from the body's
+        // middle by position, so that corners shared by faces move together)
+        vec3 rel = vec3(p.xy, p.z - 0.5);
+        at += normalize(rel + vec3(1e-4)) * gl_Position.w * 0.0012;
         gl_Position = uMvp * vec4(at, 1.0);
     }
     vDepth = gl_Position.w;
