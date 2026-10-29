@@ -10,16 +10,22 @@ use crate::country::fiscal::Choice;
 
 /// The icon and name that head a row.
 fn head(ui: &mut egui::Ui, s: &Skin, icon: &str, name: &str) {
-    let icons = chrome::icons(ui.ctx());
-    let (ir, _) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::hover());
-    super::super::look::icon(&icons, icon, 20.0, s.ink).paint_at(ui, ir);
+    // (33rd session: the icon in a socket of metal and trim, as on the cards; it was a bare glyph beside a word)
+    let (ir, _) = ui.allocate_exact_size(vec2(28.0, 28.0), egui::Sense::hover());
+    if ui.is_rect_visible(ir) {
+        kit::socket(ui, ir.center(), 13.0, icon, s.accent, 0.22);
+    }
     kit::bold(ui, name.to_string(), 14.5, s.ink);
 }
 
-/// The hairline between rows.
+/// The rule between rows: trim fading out to the right, a diamond at its head.
 pub(super) fn rule(ui: &mut egui::Ui, s: &Skin) {
-    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 7.0), egui::Sense::hover());
-    ui.painter().line_segment([egui::pos2(r.min.x, r.center().y), egui::pos2(r.max.x, r.center().y)], egui::Stroke::new(0.8, s.soft.gamma_multiply(0.3)));
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 9.0), egui::Sense::hover());
+    let mut v = chrome::Out::new();
+    let trim = chrome::of(ui.ctx()).map_or(s.edge, |c| c.trim);
+    super::super::hud::fade_rule(&mut v, r.min.x + 8.0, r.max.x, r.center().y, trim.gamma_multiply(0.8), 1.2);
+    super::super::hud::diamond(&mut v, egui::pos2(r.min.x + 3.0, r.center().y), 2.6, trim);
+    ui.painter().extend(v);
 }
 
 /// A number moved by − and +: its figure between the plates; −1, 0 or +1 for the plate pressed, and

@@ -147,24 +147,22 @@ fn market(ui: &mut egui::Ui, s: &Skin, g: &Game) {
         let from_abroad = import / (import + made).max(1e-9);
         let resp = ui.interact(r, ui.id().with(("good", k)), egui::Sense::hover());
         let p = ui.painter();
-        // (the tile: paper raised off the page, a band of how dear along its foot)
+        // (the tile: a leaf of paper with a socket for the good's icon, a band of how dear along its foot)
         if let Some(ch) = &ch {
             let mut v = chrome::Out::new();
-            ch.lay(&mut v, r, &ch.paper, 2.0);
-            ch.gloss(&mut v, r, Color32::from_white_alpha(if resp.hovered() { 70 } else { 45 }), Color32::from_black_alpha(30));
-            ch.bevel(&mut v, r, true, 1.2);
-            v.push(egui::Shape::rect_stroke(r, 2.0, egui::Stroke::new(1.0, Color32::from_black_alpha(110))));
+            super::super::kit::leaf_at(&mut v, ch, s, r, None, resp.hovered());
             p.extend(v);
         }
         let ir = egui::Rect::from_min_size(r.min + vec2(6.0, 6.0), vec2(26.0, 26.0));
-        super::super::look::icon(&icons, &good.icon, 26.0, s.ink).paint_at(ui, ir);
+        super::super::kit::socket(ui, egui::pos2(r.min.x + 20.0, r.min.y + 24.0), 14.0, &good.icon, s.accent, 0.2);
+        let _ = &icons;
         let mut job = egui::text::LayoutJob::simple_singleline(good.name.clone(), egui::FontId::new(13.5, egui::FontFamily::Name("bold".into())), s.ink);
-        job.wrap = egui::text::TextWrapping::truncate_at_width(w - 40.0);
+        job.wrap = egui::text::TextWrapping::truncate_at_width(w - 50.0);
         let gal = p.layout_job(job);
-        p.galley(egui::pos2(ir.max.x + 5.0, r.min.y + 6.0), gal, s.ink);
+        p.galley(egui::pos2(ir.max.x + 10.0, r.min.y + 6.0), gal, s.ink);
         // how dear: cheap (green) … usual (the notch) … dear (red), on a log scale ×¼ … ×4
         let x = ((dear.max(1e-3).ln() / 4f32.ln()).clamp(-1.0, 1.0) + 1.0) / 2.0;
-        let bar = egui::Rect::from_min_size(egui::pos2(ir.max.x + 5.0, r.min.y + 28.0), vec2(w - 46.0, 5.0));
+        let bar = egui::Rect::from_min_size(egui::pos2(ir.max.x + 10.0, r.min.y + 28.0), vec2(w - 56.0, 5.0));
         p.rect_filled(bar.expand(1.0), 1.5, Color32::from_black_alpha(80));
         let col = if dear > 1.3 { Color32::from_rgb(196, 70, 52) } else if dear < 0.77 { Color32::from_rgb(86, 150, 70) } else { Color32::from_rgb(200, 168, 80) };
         let mid = bar.min.x + bar.width() / 2.0;
@@ -173,7 +171,7 @@ fn market(ui: &mut egui::Ui, s: &Skin, g: &Game) {
         p.line_segment([egui::pos2(mid, bar.min.y - 2.0), egui::pos2(mid, bar.max.y + 2.0)], egui::Stroke::new(1.0, s.ink.gamma_multiply(0.7)));
         // the word, the arrow of the last months, the mark of goods from abroad
         let word = if dear > 2.0 { "очень дорого" } else if dear > 1.3 { "дорого" } else if dear < 0.5 { "очень дёшево" } else if dear < 0.77 { "дёшево" } else { "как обычно" };
-        p.text(egui::pos2(ir.max.x + 5.0, r.max.y - 11.0), egui::Align2::LEFT_CENTER, word, egui::FontId::new(12.0, egui::FontFamily::Proportional), s.soft);
+        p.text(egui::pos2(ir.max.x + 10.0, r.max.y - 11.0), egui::Align2::LEFT_CENTER, word, egui::FontId::new(12.0, egui::FontFamily::Proportional), s.soft);
         if (rising - 1.0).abs() > 0.04 {
             let mut v = chrome::Out::new();
             super::super::hud::arrow(&mut v, egui::pos2(r.max.x - 10.0, r.min.y + 13.0), rising > 1.0, if rising > 1.0 { Color32::from_rgb(196, 70, 52) } else { Color32::from_rgb(86, 150, 70) });

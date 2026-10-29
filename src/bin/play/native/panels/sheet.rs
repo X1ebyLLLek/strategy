@@ -69,10 +69,15 @@ fn line_marked(ui: &mut egui::Ui, s: &Skin, name: &str, note: &str, money: f32, 
 fn total(ui: &mut egui::Ui, s: &Skin, name: &str, money: f32, colour: Color32) {
     let w = ui.available_width().min(ui.clip_rect().max.x - ui.cursor().min.x - 2.0);
     let (r, _) = ui.allocate_exact_size(vec2(w, 26.0), egui::Sense::hover());
+    // (33rd session: a plaque with cut corners, the colour glowing from its left, a rule of trim under it)
+    let mut v = chrome::Out::new();
+    hud::plaque(&mut v, r, 6.0, colour.gamma_multiply(0.14), egui::Stroke::new(1.0, colour.gamma_multiply(0.55)), 0);
+    hud::glow(&mut v, egui::Rect::from_min_max(r.min + vec2(6.0, 1.0), egui::pos2(r.min.x + r.width() * 0.6, r.max.y - 1.0)), colour.gamma_multiply(0.30));
+    v.push(egui::Shape::rect_filled(egui::Rect::from_min_size(r.min + vec2(0.0, 5.0), vec2(4.0, r.height() - 5.0)), 0.0, colour));
+    ui.painter().extend(v);
     let p = ui.painter();
-    p.rect_filled(r, 2.0, colour.gamma_multiply(0.16));
     let g = p.layout_no_wrap(name.to_uppercase(), egui::FontId::new(14.5, egui::FontFamily::Name("head".into())), s.ink);
-    p.galley(egui::pos2(r.min.x + 8.0, r.center().y - g.size().y / 2.0), g, s.ink);
+    p.galley(egui::pos2(r.min.x + 12.0, r.center().y - g.size().y / 2.0), g, s.ink);
     let g = p.layout_no_wrap(num(money), egui::FontId::new(15.5, egui::FontFamily::Name("bold".into())), s.ink);
     p.galley(egui::pos2(r.max.x - 104.0 - 6.0 - g.size().x, r.center().y - g.size().y / 2.0), g, s.ink);
 }
