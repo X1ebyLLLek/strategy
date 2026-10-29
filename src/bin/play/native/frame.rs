@@ -255,6 +255,8 @@ impl App {
                     if let Some(m) = self.map.as_mut() {
                         m.picked.clear();
                     }
+                } else if techtree::is_open(ctx) {
+                    techtree::set_open(ctx, false);
                 } else if open {
                     self.tab = None;
                     if let Some(m) = self.map.as_mut() {
@@ -326,17 +328,24 @@ impl App {
                 Tab::Ledger => ("Сводка", "chart", Color32::from_rgb(160, 210, 170), "бюджет, графики, причины, прогноз"),
                 Tab::Battle(_) => ("Бой", "clash", Color32::from_rgb(226, 128, 104), "отчёт о бое"),
             };
-            let (hr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 58.0), egui::Sense::hover());
+            let (hr, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 64.0), egui::Sense::hover());
             let mut v = chrome::Out::new();
             hud::plate(&mut v, hr, &ch, 3.0);
+            // (33rd session: the banner a masthead — the sphere's colour glowing from the seal, its mark large and faint at the
+            // right, a rule of the colour along its foot; it was a plain dark plate with a small seal)
+            hud::glow(&mut v, egui::Rect::from_min_max(hr.min + egui::vec2(4.0, 4.0), egui::pos2(hr.min.x + hr.width() * 0.75, hr.max.y - 4.0)), hue.gamma_multiply(0.30));
+            hud::fade_rule(&mut v, hr.min.x + 8.0, hr.max.x - 8.0, hr.max.y - 6.0, hue.gamma_multiply(0.9), 2.4);
             ui.painter().extend(v);
-            hud::seal(ui, &ch, egui::pos2(hr.min.x + 30.0, hr.center().y), 21.0, icon, hue);
-            let tg = ui.painter().layout_no_wrap(title.to_uppercase(), egui::FontId::new(24.0, egui::FontFamily::Name("head".into())), s.desk_ink);
+            let icons_all = chrome::icons(ctx);
+            super::look::icon(&icons_all, icon, 78.0, hue.gamma_multiply(0.16)).paint_at(ui, egui::Rect::from_center_size(egui::pos2(hr.max.x - 74.0, hr.center().y - 2.0), egui::vec2(78.0, 78.0)).intersect(hr.shrink(3.0)));
+            hud::seal(ui, &ch, egui::pos2(hr.min.x + 33.0, hr.center().y - 1.0), 24.0, icon, hue);
+            let tg = ui.painter().layout_no_wrap(title.to_uppercase(), egui::FontId::new(27.0, egui::FontFamily::Name("head".into())), s.desk_ink);
             let sub = format!("{} · {line}", g.h.home(g.me).name);
             let sg = ui.painter().layout_no_wrap(sub, egui::FontId::proportional(13.0), s.desk_ink.gamma_multiply(0.85));
-            let x = hr.min.x + 60.0;
-            let y0 = hr.center().y - (tg.size().y + sg.size().y - 2.0) / 2.0;
+            let x = hr.min.x + 68.0;
+            let y0 = hr.center().y - (tg.size().y + sg.size().y - 2.0) / 2.0 - 2.0;
             let th = tg.size().y;
+            ui.painter().galley(egui::pos2(x + 1.2, y0 + 1.5), tg.clone(), Color32::from_black_alpha(200));
             ui.painter().galley(egui::pos2(x, y0), tg, s.desk_ink);
             ui.painter().galley(egui::pos2(x, y0 + th - 2.0), sg, s.desk_ink);
             let close_at = egui::Rect::from_center_size(egui::pos2(hr.max.x - 24.0, hr.center().y), egui::vec2(30.0, 28.0));
@@ -349,7 +358,7 @@ impl App {
             let pages = panels::pages(tab);
             let mut page = page_of(ctx, tab).min(pages.len().max(1) - 1);
             if !pages.is_empty() {
-                if let Some(k) = widgets::switch(ui, pages, page) {
+                if let Some(k) = widgets::tabs(ui, pages, page) {
                     page = k;
                     set_page(ctx, tab, k);
                 }
@@ -389,6 +398,12 @@ impl App {
         }
         if tab == Tab::Army && self.tab == Some(Tab::Army) && k >= 1.0 {
             designer::window(ctx, FOLDER + 12.0, &s, g, &self.icons, &mut self.edit);
+        }
+        // (the tree of science beside its folder; it closes with the folder)
+        if tab == Tab::Science && self.tab == Some(Tab::Science) && k >= 1.0 {
+            techtree::window(ctx, FOLDER + 12.0, &s, g);
+        } else if self.tab != Some(Tab::Science) {
+            techtree::set_open(ctx, false);
         }
     }
 

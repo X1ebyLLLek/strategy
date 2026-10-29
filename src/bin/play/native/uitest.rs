@@ -51,6 +51,8 @@ fn texts_of(shapes: &[epaint::ClippedShape], hidden: bool) -> Vec<Text> {
                 }
             }
             Shape::Rect(r) if r.fill.a() > 200 => boxes.push((r.rect.intersect(clip), r.fill)),
+            // (33rd session: plaques with cut corners are filled polygons — their bounds are the box under the words)
+            Shape::Path(p) if p.fill.a() > 200 && p.points.len() >= 3 => boxes.push((Rect::from_points(&p.points).intersect(clip), p.fill)),
             Shape::Text(t) => {
                 let rect = t.galley.rect.translate(t.pos.to_vec2());
                 // (a text mostly cut off — a name of the map under a panel — is not seen)

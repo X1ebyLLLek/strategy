@@ -23,11 +23,27 @@ pub fn report(pack: &Pack, first: u64, seeds: u64) {
     let t0 = std::time::Instant::now();
     for seed in first..first + seeds {
         let world = map::generate(&crate::map_params(seed)).0;
-        let mut pol = countries::generate(&world, seed, 30, pack);
+        let mut pol = countries::generate(&world, seed, strategy::world::countries::COUNTRIES, pack);
         let before: Vec<u32> = pol.states.iter().map(|s| s.country).collect();
         let mut was: Vec<usize> = pol.countries.iter().map(|c| c.states.len()).filter(|&k| k > 0).collect();
         was.sort();
         println!("мир {seed}: областей у страны до прошлого — меньше всех {}, середина {}, больше всех {} (всего {})", was[0], was[was.len() / 2], was[was.len() - 1], was.iter().sum::<usize>());
+        {
+            // (33rd session: the shape of the countries' sizes by land and by people, to see whether a world's countries are
+            // like the real ones: many small, few great, the greatest by land poor in people)
+            let land: Vec<f32> = pol.countries.iter().map(|c| pol.provinces_of_n(c).sum::<usize>() as f32).collect();
+            let mut by_land: Vec<f32> = land.iter().copied().filter(|&x| x > 0.0).collect();
+            by_land.sort_by(|a, b| b.total_cmp(a));
+            let mut by_pop: Vec<f32> = (0..pol.countries.len()).map(|c| pol.pop(c)).filter(|&x| x > 0.0).collect();
+            by_pop.sort_by(|a, b| b.total_cmp(a));
+            let share = |v: &[f32], k: usize| 100.0 * v.iter().take(k).sum::<f32>() / v.iter().sum::<f32>().max(1e-9);
+            let tiny = was.iter().filter(|&&k| k <= 2).count();
+            println!(
+                "  мир {seed}: стран {}; по земле: первая {:.0}%, три {:.0}%, десять {:.0}%, середина {:.1}%; по людям: первая {:.0}%, три {:.0}%, десять {:.0}%, середина {:.1}%; в одну-две области: {}",
+                by_land.len(), share(&by_land, 1), share(&by_land, 3), share(&by_land, 10), share(&by_land, by_land.len() / 2 + 1) - share(&by_land, by_land.len() / 2),
+                share(&by_pop, 1), share(&by_pop, 3), share(&by_pop, 10), share(&by_pop, by_pop.len() / 2 + 1) - share(&by_pop, by_pop.len() / 2), tiny
+            );
+        }
         let h = History::of(pack, &world, &mut pol, seed);
         moved += pol.states.iter().zip(&before).filter(|(s, &b)| s.country != b).count();
         if std::env::var("DBGWARS").is_ok() {

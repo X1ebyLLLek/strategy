@@ -25,6 +25,7 @@ mod map;
 mod panels;
 mod reports;
 mod screens;
+mod techtree;
 mod terms;
 mod top;
 mod uitest;

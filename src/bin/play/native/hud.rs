@@ -208,3 +208,67 @@ pub fn badge(ctx: &egui::Context, c: Pos2, col: Color32) {
     p.text(c + vec2(0.0, 0.5), egui::Align2::CENTER_CENTER, "!", egui::FontId::new(12.0, egui::FontFamily::Name("bold".into())), Color32::WHITE);
 }
 
+
+/// The corners of a rectangle with two of its corners cut (top left and bottom right) by `c`: the
+/// shape of a plaque in the 33rd session's dress (a plain box was a spreadsheet's cell).
+pub fn chamfer(r: Rect, c: f32) -> Vec<Pos2> {
+    vec![pos2(r.min.x + c, r.min.y), pos2(r.max.x, r.min.y), pos2(r.max.x, r.max.y - c), pos2(r.max.x - c, r.max.y), pos2(r.min.x, r.max.y), pos2(r.min.x, r.min.y + c)]
+}
+
+/// A plaque cut at two corners: a shadow, a fill (flat colour, or a texture laid over by `then`), a line of edge colour.
+pub fn plaque(v: &mut Out, r: Rect, c: f32, fill: Color32, edge: Stroke, shadow: u8) {
+    if shadow > 0 {
+        let s = Shape::convex_polygon(chamfer(r.translate(vec2(0.0, 2.0)).expand(1.0), c), Color32::from_black_alpha(shadow), Stroke::NONE);
+        v.push(s);
+    }
+    v.push(Shape::convex_polygon(chamfer(r, c), fill, edge));
+}
+
+/// A bracket at a corner: two short strokes meeting at the corner (`dx`, `dy` — which way the strokes go: +1 / −1), with a diamond at the corner.
+pub fn bracket(v: &mut Out, at: Pos2, dx: f32, dy: f32, len: f32, col: Color32) {
+    v.push(Shape::line_segment([at, at + vec2(dx * len, 0.0)], Stroke::new(2.0, col)));
+    v.push(Shape::line_segment([at, at + vec2(0.0, dy * len)], Stroke::new(2.0, col)));
+    v.push(Shape::line_segment([at + vec2(dx * 4.0, dy * 4.0), at + vec2(dx * (len * 0.55), dy * 4.0)], Stroke::new(0.8, col.gamma_multiply(0.7))));
+    v.push(Shape::line_segment([at + vec2(dx * 4.0, dy * 4.0), at + vec2(dx * 4.0, dy * (len * 0.55))], Stroke::new(0.8, col.gamma_multiply(0.7))));
+    diamond(v, at, 2.6, col);
+}
+
+/// A rule that fades out to the right (or the left), from `col` to nothing.
+pub fn fade_rule(v: &mut Out, x0: f32, x1: f32, y: f32, col: Color32, w: f32) {
+    let mut m = epaint::Mesh::default();
+    let clear = Color32::from_rgba_unmultiplied(col.r(), col.g(), col.b(), 0);
+    m.colored_vertex(pos2(x0, y - w / 2.0), col);
+    m.colored_vertex(pos2(x1, y - w / 2.0), clear);
+    m.colored_vertex(pos2(x1, y + w / 2.0), clear);
+    m.colored_vertex(pos2(x0, y + w / 2.0), col);
+    m.add_triangle(0, 1, 2);
+    m.add_triangle(0, 2, 3);
+    v.push(Shape::mesh(m));
+}
+
+/// A glow: a colour at the left edge of `r` fading to nothing at its right.
+pub fn glow(v: &mut Out, r: Rect, col: Color32) {
+    let clear = Color32::from_rgba_unmultiplied(col.r(), col.g(), col.b(), 0);
+    let mut m = epaint::Mesh::default();
+    m.colored_vertex(r.left_top(), col);
+    m.colored_vertex(r.right_top(), clear);
+    m.colored_vertex(r.right_bottom(), clear);
+    m.colored_vertex(r.left_bottom(), col);
+    m.add_triangle(0, 1, 2);
+    m.add_triangle(0, 2, 3);
+    v.push(Shape::mesh(m));
+}
+
+/// A material laid over a convex polygon (a fan of triangles with the picture's coordinates by position), tinted.
+pub fn lay_poly(v: &mut Out, pts: &[Pos2], m: &super::chrome::Mat, tint: Color32) {
+    // (the material's mean colour beneath, as a plain polygon: the ground the eye and the window's self-checks take under the words)
+    v.push(Shape::convex_polygon(pts.to_vec(), m.mean, Stroke::NONE));
+    let mut mesh = epaint::Mesh::with_texture(m.tex.id());
+    for p in pts {
+        mesh.vertices.push(epaint::Vertex { pos: *p, uv: pos2(p.x / m.tile, p.y / m.tile), color: tint });
+    }
+    for i in 1..pts.len().saturating_sub(1) as u32 {
+        mesh.add_triangle(0, i, i + 1);
+    }
+    v.push(Shape::mesh(mesh));
+}

@@ -6,7 +6,7 @@
 //! country's features — a square of colour by how good the feature is, framed in trim, its icon,
 //! its strength along its foot, an arrow while it grows or fades.
 
-use eframe::egui::{self, epaint, pos2, vec2, Color32, FontFamily, FontId, Rect, Response, Sense, Shape, Stroke, Ui};
+use eframe::egui::{self, epaint, pos2, vec2, Color32, FontFamily, FontId, Pos2, Rect, Response, Sense, Shape, Stroke, Ui};
 
 use super::chrome::{self, Card, Out, Tip};
 use super::hud;
@@ -18,54 +18,40 @@ pub const BAD: Color32 = Color32::from_rgb(176, 58, 42);
 pub const MIXED: Color32 = Color32::from_rgb(190, 142, 52);
 pub const PLAIN: Color32 = Color32::from_rgb(92, 104, 112);
 
-/// A ribbon heading a part of a folder: dark metal across the folder, trim above and below, an
-/// icon in a round socket at its head, the words in the era's heading letters, a pennant's tail at
-/// its end.
+/// A heading of a part of a folder (33rd session: it was a bar of dark metal with a pennant's tail, one after another down
+/// the page like the header cells of a table; now a chapter heading on the paper): a tinted band that fades out to the
+/// right, trim above and a rule below, a seal at its head, the words in the era's heading letters in ink, a brass tab
+/// at the left edge and a diamond at the end of the rule.
 pub fn ribbon(ui: &mut Ui, text: &str, icon: Option<&str>) {
     let (ch, s) = chrome::dress(ui);
-    ui.add_space(10.0);
+    ui.add_space(12.0);
     let w = ui.available_width();
-    let (r, _) = ui.allocate_exact_size(vec2(w, 28.0), Sense::hover());
+    let (r, _) = ui.allocate_exact_size(vec2(w, 32.0), Sense::hover());
     if !ui.is_rect_visible(r) {
         ui.add_space(4.0);
         return;
     }
-    let body = Rect::from_min_max(r.min + vec2(if icon.is_some() { 12.0 } else { 0.0 }, 2.0), r.max - vec2(0.0, 2.0));
-    let tail = 12.0;
+    let band = Rect::from_min_max(r.min + vec2(0.0, 2.0), r.max - vec2(0.0, 2.0));
     let mut v = Out::new();
-    // (its points: the band's corners, the pennant's tail cut into its right end)
-    let p = [body.left_top(), pos2(body.max.x, body.min.y), pos2(body.max.x - tail, body.center().y), pos2(body.max.x, body.max.y), body.left_bottom()];
-    let band = Rect::from_min_max(body.min, pos2(body.max.x - tail, body.max.y));
-    v.push(Shape::rect_filled(band.translate(vec2(0.0, 2.5)), 0.0, Color32::from_black_alpha(70)));
-    // (the band: the bar's metal, darkened, with a sheen)
-    ch.lay(&mut v, band, &ch.bar, 0.0);
-    v.push(Shape::rect_filled(band, 0.0, hud::darken(s.desk, 0.1).gamma_multiply(0.82)));
-    hud::gloss(&mut v, band, Color32::from_white_alpha(22), Color32::from_black_alpha(60));
-    // (the tail: two triangles of the same dark metal)
-    let (top, bot) = (hud::lighten(s.desk, 0.05), hud::darken(s.desk, 0.3));
-    let mut m = epaint::Mesh::default();
-    m.colored_vertex(band.right_top(), top);
-    m.colored_vertex(p[1], top);
-    m.colored_vertex(p[2], hud::lerp(top, bot, 0.5));
-    m.colored_vertex(p[3], bot);
-    m.colored_vertex(band.right_bottom(), bot);
-    m.add_triangle(0, 1, 2);
-    m.add_triangle(2, 3, 4);
-    v.push(Shape::mesh(m));
-    v.push(Shape::line_segment([p[0], p[1]], Stroke::new(1.4, ch.trim)));
-    v.push(Shape::line_segment([p[4], p[3]], Stroke::new(1.4, hud::darken(ch.trim, 0.2))));
-    v.push(Shape::line_segment([p[1], p[2]], Stroke::new(1.2, ch.trim)));
-    v.push(Shape::line_segment([p[2], p[3]], Stroke::new(1.2, hud::darken(ch.trim, 0.2))));
+    // (the band: the paper's edge colour, strong at the left, gone at the right)
+    hud::glow(&mut v, band, s.edge.gamma_multiply(0.62));
+    hud::fade_rule(&mut v, band.min.x, band.max.x, band.min.y, ch.trim, 1.4);
+    hud::fade_rule(&mut v, band.min.x, band.max.x - 6.0, band.max.y, hud::darken(ch.trim, 0.2), 1.4);
+    // (a brass tab at the left edge)
+    let tab = Rect::from_min_max(band.min, pos2(band.min.x + 4.5, band.max.y));
+    v.push(Shape::rect_filled(tab, 0.0, ch.trim));
+    hud::gloss(&mut v, tab, Color32::from_white_alpha(70), Color32::from_black_alpha(70));
+    hud::diamond(&mut v, pos2(band.max.x - 4.0, band.max.y), 3.2, ch.trim);
     ui.painter().extend(v);
-    let mut x = body.min.x + 10.0;
+    let mut x = band.min.x + 14.0;
     if let Some(icon) = icon {
-        hud::seal(ui, &ch, pos2(r.min.x + 13.0, r.center().y), 13.0, icon, ch.trim);
-        x = r.min.x + 34.0;
+        hud::seal(ui, &ch, pos2(band.min.x + 25.0, r.center().y), 12.5, icon, ch.trim);
+        x = band.min.x + 46.0;
     }
-    let gal = ui.painter().layout_no_wrap(text.to_uppercase(), FontId::new(15.0, FontFamily::Name("head".into())), s.desk_ink);
+    let gal = ui.painter().layout_no_wrap(text.to_uppercase(), FontId::new(17.0, FontFamily::Name("head".into())), s.ink);
     let y = r.center().y - gal.size().y / 2.0;
-    ui.painter().galley(pos2(x + 1.0, y + 1.0), gal.clone(), Color32::from_black_alpha(200));
-    ui.painter().galley(pos2(x, y), gal, s.desk_ink);
+    ui.painter().galley(pos2(x + 0.8, y + 0.8), gal.clone(), Color32::from_white_alpha(70));
+    ui.painter().galley(pos2(x, y), gal, s.ink);
     ui.add_space(5.0);
 }
 
@@ -74,27 +60,51 @@ pub fn ribbon(ui: &mut Ui, text: &str, icon: Option<&str>) {
 pub fn framed<R>(ui: &mut Ui, edge: Option<Color32>, lit: bool, add: impl FnOnce(&mut Ui) -> R) -> egui::InnerResponse<R> {
     let (ch, s) = chrome::dress(ui);
     let back = chrome::hold(ui);
-    let left = if edge.is_some() { 12.0 } else { 9.0 };
-    let inner = egui::Frame::none().inner_margin(egui::Margin { left, right: 9.0, top: 7.0, bottom: 7.0 }).show(ui, |ui| {
+    let left = if edge.is_some() { 14.0 } else { 10.0 };
+    let inner = egui::Frame::none().inner_margin(egui::Margin { left, right: 10.0, top: 8.0, bottom: 8.0 }).show(ui, |ui| {
         ui.set_width(ui.available_width());
         add(ui)
     });
     let r = inner.response.rect;
     let mut v = Out::new();
-    v.push(epaint::Shadow { offset: vec2(0.0, 2.0), blur: 6.0, spread: 0.0, color: Color32::from_black_alpha(70) }.as_shape(r, 2.0).into());
-    ch.lay(&mut v, r, &ch.paper, 2.0);
-    ch.gloss(&mut v, r, Color32::from_white_alpha(if lit { 70 } else { 44 }), Color32::from_black_alpha(26));
-    ch.bevel(&mut v, r, true, 1.2);
-    v.push(Shape::rect_stroke(r, 2.0, Stroke::new(1.0, Color32::from_black_alpha(100))));
-    if let Some(c) = edge {
-        let band = Rect::from_min_size(r.min + vec2(1.0, 1.0), vec2(5.0, r.height() - 2.0));
-        v.push(Shape::rect_filled(band, 1.0, c));
-        hud::gloss(&mut v, band, Color32::from_white_alpha(60), Color32::from_black_alpha(60));
-    }
-    let _ = s;
+    leaf_at(&mut v, &ch, &s, r, edge, lit);
     chrome::under(ui, back, v);
-    ui.add_space(4.0);
+    ui.add_space(5.0);
     egui::InnerResponse { inner: inner.inner, response: ui.interact(r, ui.id().with(("framed", r.min.x as i32, r.min.y as i32)), Sense::hover()) }
+}
+
+/// The leaf of paper of a card into `r` (33rd session: a flat leaf, lighter than the sheet, a fine edge and a lit top line, two
+/// corners cut, a diamond of trim at the other two; it was a glossy bevelled box, a cell of a table): a band of `edge` down its
+/// left side, `lit` — a little brighter.
+pub fn leaf_at(v: &mut Out, ch: &chrome::Chrome, s: &Skin, r: Rect, edge: Option<Color32>, lit: bool) {
+    v.push(epaint::Shadow { offset: vec2(0.0, 2.0), blur: 7.0, spread: 0.0, color: Color32::from_black_alpha(52) }.as_shape(r, 2.0).into());
+    let pts = hud::chamfer(r, 7.0);
+    hud::lay_poly(v, &pts, &ch.paper, Color32::WHITE);
+    hud::plaque(v, r, 7.0, Color32::from_white_alpha(if lit { 92 } else { 58 }), Stroke::NONE, 0);
+    v.push(Shape::line_segment([pos2(r.min.x + 8.0, r.min.y + 1.0), pos2(r.max.x - 2.0, r.min.y + 1.0)], Stroke::new(1.0, Color32::from_white_alpha(120))));
+    v.push(Shape::closed_line(pts, Stroke::new(1.0, s.edge.gamma_multiply(0.95))));
+    hud::diamond(v, pos2(r.max.x - 2.0, r.min.y + 2.0), 2.4, ch.trim);
+    hud::diamond(v, pos2(r.min.x + 2.0, r.max.y - 2.0), 2.4, ch.trim);
+    if let Some(c) = edge {
+        let band = Rect::from_min_size(r.min + vec2(1.0, 8.0), vec2(5.0, r.height() - 9.0));
+        v.push(Shape::rect_filled(band, 1.0, c));
+        hud::gloss(v, band, Color32::from_white_alpha(60), Color32::from_black_alpha(60));
+    }
+}
+
+/// An icon in a round socket of dark metal ringed with trim (the colour `tone` warming the disc), at `c`, `r` across: the mark of a
+/// card's head.
+pub fn socket(ui: &Ui, c: Pos2, r: f32, icon: &str, tone: Color32, warm: f32) {
+    let (ch, _) = chrome::dress(ui);
+    let icons = chrome::icons(ui.ctx());
+    let mut v = Out::new();
+    v.push(Shape::circle_filled(c + vec2(0.0, 1.5), r + 0.5, Color32::from_black_alpha(110)));
+    hud::ring(&mut v, c, r, (r * 0.17).max(2.0), ch.trim);
+    hud::disc(&mut v, c, r - (r * 0.17).max(2.0) + 0.5, hud::lerp(Color32::from_rgb(58, 54, 46), tone, warm), Color32::from_rgb(16, 14, 12));
+    ui.painter().extend(v);
+    let s = r * 1.15;
+    super::look::icon(&icons, icon, s, Color32::from_black_alpha(190)).paint_at(ui, Rect::from_center_size(c + vec2(1.0, 1.2), vec2(s, s)));
+    super::look::icon(&icons, icon, s, hud::lighten(ch.trim, 0.3)).paint_at(ui, Rect::from_center_size(c, vec2(s, s)));
 }
 
 /// A glossy gauge into `r`: a groove sunk into the paper, the fill to `frac` in `col` (lighter at
@@ -165,7 +175,7 @@ pub fn stats(ui: &mut Ui, items: &[Stat], cols: usize) -> Vec<Response> {
     // (fewer to a row when a heading or a word would not fit its tile: down to two)
     let fits = |cols: usize| {
         let w = ((ui.available_width() - gap * (cols as f32 - 1.0)) / cols as f32).floor();
-        let tw = w - 38.0;
+        let tw = w - 46.0;
         items.iter().all(|it| {
             let t = ui.painter().layout_no_wrap(it.title.to_uppercase(), FontId::new(12.0, FontFamily::Name("head".into())), s.desk_ink).size().x;
             let v = ui.painter().layout_no_wrap(it.value.clone(), FontId::new(14.5, FontFamily::Name("bold".into())), s.desk_ink).size().x;
@@ -181,7 +191,7 @@ pub fn stats(ui: &mut Ui, items: &[Stat], cols: usize) -> Vec<Response> {
         cols -= 1;
     }
     let w = ((ui.available_width() - gap * (cols as f32 - 1.0)) / cols as f32).floor();
-    let h = 44.0;
+    let h = 48.0;
     let rows = items.len().div_ceil(cols);
     let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), rows as f32 * (h + gap) - gap), Sense::hover());
     let mut out = Vec::new();
@@ -189,31 +199,38 @@ pub fn stats(ui: &mut Ui, items: &[Stat], cols: usize) -> Vec<Response> {
         let r = Rect::from_min_size(area.min + vec2((i % cols) as f32 * (w + gap), (i / cols) as f32 * (h + gap)), vec2(w, h));
         let resp = ui.interact(r, ui.id().with(("stat", i, it.title.as_str())), Sense::hover());
         let mut v = Out::new();
-        v.push(epaint::Shadow { offset: vec2(0.0, 2.0), blur: 5.0, spread: 0.0, color: Color32::from_black_alpha(90) }.as_shape(r, 2.0).into());
-        ch.lay(&mut v, r, &ch.bar, 2.0);
-        v.push(Shape::rect_filled(r, 2.0, Color32::from_black_alpha(if resp.hovered() { 70 } else { 105 })));
-        hud::gloss(&mut v, r, Color32::from_white_alpha(22), Color32::from_black_alpha(60));
-        ch.bevel(&mut v, r, true, 1.2);
-        v.push(Shape::rect_stroke(r, 2.0, Stroke::new(1.0, ch.trim.gamma_multiply(0.75))));
-        let foot = Rect::from_min_max(pos2(r.min.x + 2.0, r.max.y - 4.0), pos2(r.max.x - 2.0, r.max.y - 2.0));
-        v.push(Shape::rect_filled(foot, 0.5, it.tone));
+        // (33rd session: a plaque with two cut corners, the tone glowing from its left edge, its icon in a round socket set into
+        // the plaque's edge, a rule of the tone at its foot — they were identical dark slabs, a grid of cells)
+        let pts = hud::chamfer(r, 8.0);
+        v.push(epaint::Shadow { offset: vec2(0.0, 2.0), blur: 6.0, spread: 0.0, color: Color32::from_black_alpha(95) }.as_shape(r, 3.0).into());
+        hud::lay_poly(&mut v, &pts, &ch.bar, Color32::WHITE);
+        hud::plaque(&mut v, r, 8.0, Color32::from_black_alpha(if resp.hovered() { 96 } else { 128 }), Stroke::NONE, 0);
+        hud::glow(&mut v, Rect::from_min_max(r.min + vec2(9.0, 2.0), pos2(r.min.x + r.width() * 0.8, r.max.y - 2.0)), it.tone.gamma_multiply(if resp.hovered() { 0.55 } else { 0.38 }));
+        hud::gloss(&mut v, r.shrink(1.0), Color32::from_white_alpha(18), Color32::from_black_alpha(40));
+        v.push(Shape::closed_line(pts, Stroke::new(1.2, ch.trim.gamma_multiply(0.85))));
+        let sock = pos2(r.min.x + 22.0, r.center().y - 1.0);
+        v.push(Shape::circle_filled(sock + vec2(0.0, 1.5), 16.0, Color32::from_black_alpha(120)));
+        hud::ring(&mut v, sock, 15.5, 2.6, ch.trim);
+        hud::disc(&mut v, sock, 13.0, hud::lerp(Color32::from_rgb(58, 54, 46), it.tone, 0.35), Color32::from_rgb(16, 14, 12));
+        let (fx0, fx1) = (r.min.x + 42.0, r.max.x - 10.0);
+        hud::fade_rule(&mut v, fx0, fx1, r.max.y - 5.0, hud::lighten(it.tone, 0.1), 2.6);
         ui.painter().extend(v);
-        let ir = Rect::from_center_size(pos2(r.min.x + 18.0, r.center().y - 1.0), vec2(22.0, 22.0));
-        super::look::icon(&icons, &it.icon, 22.0, Color32::from_black_alpha(200)).paint_at(ui, ir.translate(vec2(1.0, 1.5)));
-        super::look::icon(&icons, &it.icon, 22.0, ch.trim).paint_at(ui, ir);
-        let x = r.min.x + 34.0;
-        let tw = w - 38.0;
+        let ir = Rect::from_center_size(sock, vec2(18.0, 18.0));
+        super::look::icon(&icons, &it.icon, 18.0, Color32::from_black_alpha(200)).paint_at(ui, ir.translate(vec2(1.0, 1.2)));
+        super::look::icon(&icons, &it.icon, 18.0, hud::lighten(ch.trim, 0.25)).paint_at(ui, ir);
+        let x = r.min.x + 42.0;
+        let tw = w - 46.0;
         let mut job = egui::text::LayoutJob::simple_singleline(it.title.to_uppercase(), FontId::new(12.0, FontFamily::Name("head".into())), s.desk_ink.gamma_multiply(0.78));
         job.wrap = egui::text::TextWrapping::truncate_at_width(tw);
         let g1 = ui.painter().layout_job(job);
-        ui.painter().galley(pos2(x, r.min.y + 5.0), g1, s.desk_ink);
+        ui.painter().galley(pos2(x, r.min.y + 6.0), g1, s.desk_ink);
         let val_col = hud::lerp(s.desk_ink, hud::lighten(it.tone, 0.35), 0.45);
         match &it.num {
             // (the number large; the word after it small and softer, if it fits)
             Some(n) => {
                 let gn = ui.painter().layout_no_wrap(n.clone(), FontId::new(16.0, FontFamily::Name("bold".into())), val_col);
                 let nw = gn.size().x;
-                ui.painter().galley(pos2(x, r.min.y + 18.5), gn, val_col);
+                ui.painter().galley(pos2(x, r.min.y + 20.0), gn, val_col);
                 // (the word after the number only whole: a word cut short — «пол…» — says nothing, and
                 // the card of the tile has it)
                 let room = tw - nw - 6.0;
@@ -222,7 +239,7 @@ pub fn stats(ui: &mut Ui, items: &[Stat], cols: usize) -> Vec<Response> {
                 if room > 24.0 && !it.value.is_empty() {
                     let gw = ui.painter().layout_no_wrap(it.value.clone(), FontId::new(12.5, FontFamily::Proportional), s.desk_ink.gamma_multiply(0.8));
                     if gw.size().x <= room {
-                        ui.painter().galley(pos2(x + nw + 6.0, r.min.y + 21.5), gw, s.desk_ink);
+                        ui.painter().galley(pos2(x + nw + 6.0, r.min.y + 23.0), gw, s.desk_ink);
                     }
                 }
             }
@@ -230,7 +247,7 @@ pub fn stats(ui: &mut Ui, items: &[Stat], cols: usize) -> Vec<Response> {
                 let mut job = egui::text::LayoutJob::simple_singleline(it.value.clone(), FontId::new(14.5, FontFamily::Name("bold".into())), val_col);
                 job.wrap = egui::text::TextWrapping::truncate_at_width(tw);
                 let g2 = ui.painter().layout_job(job);
-                ui.painter().galley(pos2(x, r.min.y + 20.0), g2, val_col);
+                ui.painter().galley(pos2(x, r.min.y + 21.5), g2, val_col);
             }
         }
         out.push(resp);

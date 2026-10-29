@@ -283,7 +283,7 @@ impl Game {
     /// if none is comparable), else the pair the map makes and the player's side of it.
     pub fn new_as(pack: Pack, seed: u64, me: usize, country: Option<usize>) -> Game {
         let world = map::generate(&crate::map_params(seed)).0;
-        let mut pol: Politics = countries::generate(&world, seed, 30, &pack);
+        let mut pol: Politics = countries::generate(&world, seed, strategy::world::countries::COUNTRIES, &pack);
         // the world's past: a hundred years of wars moved its borders (the pair that would have
         // played before it, if no other pair is left after it)
         let first = pick(&world, &pol).expect("на карте нет пары соседей сравнимой силы");

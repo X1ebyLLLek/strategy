@@ -350,6 +350,6 @@ pub fn fresh_seed(pack: &Pack) -> u64 {
 /// Whether map `seed` has two neighbours to play.
 fn pick_map(pack: &Pack, seed: u64) -> Option<(usize, usize)> {
     let world = map::generate(&map_params(seed)).0;
-    let pol = countries::generate(&world, seed, 30, &pack);
+    let pol = countries::generate(&world, seed, strategy::world::countries::COUNTRIES, &pack);
     pick(&world, &pol)
 }

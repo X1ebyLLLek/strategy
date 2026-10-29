@@ -61,6 +61,16 @@ pub(super) fn techs(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             r.tip(|| t());
         }
         kit::gauge(ui, ui.available_width(), 8.0, next, Color32::from_rgb(110, 150, 90)).tip(|| Card::new("До следующей стадии").icon("sprout").row("готово", format!("{:.0}%", next * 100.0)));
+        // (33rd session: the tree of science in a window of its own)
+        ui.add_space(6.0);
+        let (ch, sk) = chrome::dress(ui);
+        let ic = chrome::icons(ui.ctx());
+        let is_open = super::super::techtree::is_open(ui.ctx());
+        let w = ui.available_width();
+        let b = chrome::press(ui, &ch, &sk, chrome::Press { text: "Древо науки", icon: Some(super::super::look::icon(&ic, "compass", 24.0, if is_open { sk.on_accent() } else { sk.ink })), size: vec2(w, 40.0), font: 16.0, on: is_open, ..chrome::Press::default() });
+        if b.tip(|| Card::new("Древо науки").icon("science").text("Все техники эпохи по ярусам: что на чём стоит, что страна знает, над чем работает и что уже есть у соседа.").note("Esc закрывает")).clicked() {
+            super::super::techtree::set_open(ui.ctx(), !is_open);
+        }
     }
     // kinds it cannot field
     let locked: Vec<String> = know.locked(&pack).iter().enumerate().filter(|x| *x.1).map(|(u, _)| pack.units[u].name.clone()).collect();
@@ -75,9 +85,23 @@ pub(super) fn techs(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         Some(t) => {
             let cost = Know::cost(&pack, t, seen(t)).max(0.05);
             let done = (know.progress[t] / cost).min(1.0);
-            kit::words(ui, format!("Учёные работают над: {}", pack.techs[t].name), 15.0, s.ink);
             let tip = g.tech_tip(t);
-            kit::gauge(ui, ui.available_width(), 10.0, done, Color32::from_rgb(70, 110, 160)).tip(|| Card::new(pack.techs[t].name.clone()).icon(pack.techs[t].icon.clone()).text(pack.techs[t].about.clone()).row("готово", format!("{:.0}%", done * 100.0)).row("осталось", years_word((cost - know.progress[t]).max(0.0) / rate.max(1e-3))).text(tip.clone()));
+            let tech = &pack.techs[t];
+            let when = years_word((cost - know.progress[t]).max(0.0) / rate.max(1e-3));
+            let resp = kit::framed(ui, Some(s.accent), true, |ui| {
+                ui.horizontal(|ui| {
+                    let (sr, _) = ui.allocate_exact_size(vec2(50.0, 50.0), egui::Sense::hover());
+                    kit::socket(ui, sr.center(), 24.0, &tech.icon, Color32::from_rgb(70, 110, 160), 0.5);
+                    ui.vertical(|ui| {
+                        kit::words(ui, "СЕЙЧАС ИЗУЧАЕТСЯ", 12.0, s.soft);
+                        kit::bold(ui, tech.name.clone(), 16.0, s.ink);
+                        kit::words(ui, format!("{} · {}", tech.sphere.word(), when), 12.5, s.soft);
+                    });
+                });
+                ui.add_space(3.0);
+                kit::gauge(ui, ui.available_width(), 10.0, done, Color32::from_rgb(70, 110, 160));
+            });
+            resp.response.tip(|| Card::new(tech.name.clone()).icon(tech.icon.clone()).text(tech.about.clone()).row("готово", format!("{:.0}%", done * 100.0)).row("осталось", when).text(tip.clone()));
         }
         None => {
             kit::words(ui, if led { "Учёные не выбрали главного дела — выберите, над чем работать." } else { "Глава науки выберет, над чем работать." }, 14.0, s.soft);
@@ -101,7 +125,7 @@ pub(super) fn techs(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         let when = years_word((cost - know.progress[t]).max(0.0) / rate.max(1e-3));
         let full = ui.available_width();
         let button_w = 104.0;
-        let name_w = (full - 12.0 - 34.0 - button_w - 10.0).max(80.0);
+        let name_w = (full - 12.0 - 44.0 - button_w - 10.0).max(80.0);
         let mut job = egui::text::LayoutJob::simple(tech.name.clone(), egui::FontId::new(14.5, egui::FontFamily::Name("bold".into())), if on { s.accent } else { s.ink }, name_w);
         job.wrap.max_rows = 2;
         let name_gal = ui.painter().layout_job(job);
@@ -114,14 +138,17 @@ pub(super) fn techs(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             Sphere::Science => Color32::from_rgb(70, 110, 160),
             Sphere::State => kit::PLAIN,
         };
-        let p = ui.painter();
-        p.rect_filled(row, 4.0, if on { s.accent.gamma_multiply(0.14) } else { s.paper2.gamma_multiply(0.55) });
-        p.rect_stroke(row, 4.0, egui::Stroke::new(if on { 1.5 } else { 1.0 }, if on { s.accent } else { s.edge.gamma_multiply(0.6) }));
-        // (a stripe in the sphere's colour at the left: economy, military, science, state)
-        p.rect_filled(egui::Rect::from_min_size(row.min + vec2(1.0, 4.0), vec2(3.5, h - 8.0)), 1.5, tone.gamma_multiply(0.9));
-        let ir = egui::Rect::from_center_size(egui::pos2(row.min.x + 22.0, row.center().y), vec2(24.0, 24.0));
-        super::super::look::icon(&icons, &tech.icon, 24.0, if on { s.accent } else { s.ink }).paint_at(ui, ir);
-        let tx = row.min.x + 40.0;
+        {
+            let (ch, sk) = chrome::dress(ui);
+            let mut v = chrome::Out::new();
+            kit::leaf_at(&mut v, &ch, &sk, row, Some(tone), on);
+            if on {
+                v.push(egui::Shape::closed_line(super::super::hud::chamfer(row, 7.0), egui::Stroke::new(1.6, s.accent)));
+            }
+            ui.painter().extend(v);
+        }
+        kit::socket(ui, egui::pos2(row.min.x + 28.0, row.center().y), 15.0, &tech.icon, tone, 0.4);
+        let tx = row.min.x + 50.0;
         let name_h = name_gal.rect.height();
         let top = row.center().y - (name_h + sub_gal.rect.height() + 2.0) / 2.0;
         ui.painter().galley(egui::pos2(tx, top), name_gal, s.ink);
@@ -172,22 +199,20 @@ pub(super) fn techs(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     // what it knows
     kit::words(ui, "СТРАНА ЗНАЕТ", 12.0, s.soft);
     let known: Vec<usize> = (0..pack.techs.len()).filter(|&t| know.known[t]).collect();
-    let cols = 6usize;
-    let side = 34.0;
+    let side = 38.0;
+    let cols = (((ui.available_width() + 5.0) / (side + 5.0)).floor() as usize).max(1);
     let rows = known.len().div_ceil(cols);
-    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), rows as f32 * (side + 4.0)), egui::Sense::hover());
+    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), rows as f32 * (side + 5.0)), egui::Sense::hover());
     for (i, &t) in known.iter().enumerate() {
-        let r = egui::Rect::from_min_size(area.min + vec2((i % cols) as f32 * (side + 4.0), (i / cols) as f32 * (side + 4.0)), vec2(side, side));
+        let r = egui::Rect::from_min_size(area.min + vec2((i % cols) as f32 * (side + 5.0), (i / cols) as f32 * (side + 5.0)), vec2(side, side));
         let resp = ui.interact(r, ui.id().with(("known", t)), egui::Sense::hover());
         let tone = match pack.techs[t].sphere {
             Sphere::Military => kit::BAD,
             Sphere::Economy => kit::MIXED,
             Sphere::Science => Color32::from_rgb(70, 110, 160),
-            Sphere::State => kit::PLAIN,
+            Sphere::State => Color32::from_rgb(120, 100, 150),
         };
-        ui.painter().rect_filled(r, 3.0, tone.gamma_multiply(0.85));
-        ui.painter().rect_stroke(r, 3.0, egui::Stroke::new(1.0, Color32::from_black_alpha(140)));
-        super::super::look::icon(&icons, &pack.techs[t].icon, 22.0, Color32::WHITE).paint_at(ui, r.shrink(6.0));
+        kit::socket(ui, r.center(), side / 2.0 - 1.0, &pack.techs[t].icon, tone, if resp.hovered() { 0.8 } else { 0.55 });
         let when = know.when[t];
         let by = know.by[t].map(|id| g.folk.get(id).name.clone());
         let tip = g.tech_tip(t);

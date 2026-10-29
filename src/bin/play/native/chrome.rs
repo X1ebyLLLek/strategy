@@ -111,8 +111,9 @@ impl Chrome {
         self.lay(p, inner, &self.paper, 1.0);
         self.bevel(p, inner, false, 1.5);
         // (the shade inside the edges: as if the sheet lay a little below the frame)
-        let s = 10.0f32.min(inner.width() / 4.0).min(inner.height() / 4.0);
-        let dark = Color32::from_black_alpha(34);
+        // (33rd session: the shade deeper and wider — the sheet is an old page, darker at its edges, not a flat card)
+        let s = 22.0f32.min(inner.width() / 4.0).min(inner.height() / 4.0);
+        let dark = Color32::from_black_alpha(52);
         let clear = Color32::TRANSPARENT;
         let mut strip = |a: Rect, from_top: bool, from_left: bool, vertical: bool| {
             let mut m = epaint::Mesh::default();
@@ -136,24 +137,44 @@ impl Chrome {
         strip(Rect::from_min_max(pos2(inner.min.x, inner.max.y - s), inner.max), false, true, true);
         strip(Rect::from_min_size(inner.min, vec2(s, inner.height())), true, true, false);
         strip(Rect::from_min_max(pos2(inner.max.x - s, inner.min.y), inner.max), true, false, false);
-        p.push(Shape::rect_stroke(inner.shrink(4.0), 1.0, Stroke::new(1.0, self.trim.gamma_multiply(0.75))));
+        // (33rd session: a double rule — trim outside, ink inside — and brackets with a diamond at the four corners, instead of one line)
+        let line = inner.shrink(4.5);
+        p.push(Shape::rect_stroke(line, 0.0, Stroke::new(1.2, self.trim.gamma_multiply(0.85))));
+        p.push(Shape::rect_stroke(line.shrink(3.0), 0.0, Stroke::new(0.7, Color32::from_black_alpha(90))));
+        let (len, col) = (18.0, self.trim);
+        super::hud::bracket(p, line.left_top(), 1.0, 1.0, len, col);
+        super::hud::bracket(p, line.right_top(), -1.0, 1.0, len, col);
+        super::hud::bracket(p, line.left_bottom(), 1.0, -1.0, len, col);
+        super::hud::bracket(p, line.right_bottom(), -1.0, -1.0, len, col);
     }
 
     /// A plate for a button: on a bar (dark) or on paper (light); chosen — the accent; under the
     /// hand — a little lighter.
     pub fn plate(&self, p: &mut Out, r: Rect, skin: &Skin, dark: bool, on: bool, hot: bool, down: bool) {
-        if on {
-            p.push(Shape::rect_filled(r, 2.0, skin.accent));
-            self.gloss(p, r, Color32::from_white_alpha(40), Color32::from_black_alpha(50));
-        } else if dark {
+        if dark && !on {
             self.lay(p, r, &self.bar, 2.0);
             self.gloss(p, r, Color32::from_white_alpha(if hot { 40 } else { 24 }), Color32::from_black_alpha(70));
-        } else {
-            self.lay(p, r, &self.paper, 2.0);
-            self.gloss(p, r, Color32::from_white_alpha(if hot { 60 } else { 30 }), Color32::from_black_alpha(36));
+            self.bevel(p, r, !down, 1.5);
+            p.push(Shape::rect_stroke(r, 2.0, Stroke::new(1.0, if hot { self.trim } else { Color32::from_black_alpha(150) })));
+            return;
         }
-        self.bevel(p, r, !down, 1.5);
-        p.push(Shape::rect_stroke(r, 2.0, Stroke::new(1.0, if on || hot { self.trim } else { Color32::from_black_alpha(150) })));
+        // (33rd session: a button on paper is a label with two cut corners, a lit top line and a fine edge — it was a
+        // bevelled grey box; the chosen one is the accent, with a line of trim)
+        let c = 4.0f32.min(r.height() / 3.0);
+        let pts = super::hud::chamfer(r, c);
+        if !down {
+            p.push(epaint::Shadow { offset: vec2(0.0, 1.5), blur: 3.0, spread: 0.0, color: Color32::from_black_alpha(if hot { 90 } else { 60 }) }.as_shape(r, 2.0).into());
+        }
+        if on {
+            p.push(Shape::convex_polygon(pts.clone(), skin.accent, Stroke::NONE));
+            self.gloss(p, r.shrink(1.0), Color32::from_white_alpha(46), Color32::from_black_alpha(54));
+            p.push(Shape::closed_line(pts, Stroke::new(1.3, self.trim)));
+        } else {
+            super::hud::lay_poly(p, &pts, &self.paper, Color32::WHITE);
+            self.gloss(p, r.shrink(1.0), Color32::from_white_alpha(if hot { 120 } else { 80 }), Color32::from_black_alpha(if down { 60 } else { 26 }));
+            p.push(Shape::line_segment([pos2(r.min.x + c + 1.0, r.min.y + 1.0), pos2(r.max.x - 2.0, r.min.y + 1.0)], Stroke::new(1.0, Color32::from_white_alpha(140))));
+            p.push(Shape::closed_line(pts, Stroke::new(1.0, if hot { skin.accent } else { skin.edge })));
+        }
     }
 
     /// The map's edges darkened, as under a lamp.

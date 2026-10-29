@@ -43,24 +43,30 @@ pub fn science(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             let strong = focus > even * 1.5;
             let resp = ui.interact(r, ui.id().with(("sphere", j)), if led { egui::Sense::click() } else { egui::Sense::hover() });
             let resp = if led { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
-            let p = ui.painter();
             if let Some(ch) = &ch {
                 let mut v = chrome::Out::new();
-                ch.lay(&mut v, r, &ch.paper, 2.0);
-                ch.gloss(&mut v, r, Color32::from_white_alpha(if resp.hovered() { 70 } else { 45 }), Color32::from_black_alpha(30));
-                ch.bevel(&mut v, r, !strong, 1.2);
-                v.push(egui::Shape::rect_stroke(r, 2.0, egui::Stroke::new(if strong { 2.0 } else { 1.0 }, if strong { ch.trim } else { Color32::from_black_alpha(110) })));
-                p.extend(v);
+                super::super::kit::leaf_at(&mut v, ch, s, r, if strong { Some(s.accent) } else { None }, resp.hovered());
+                if strong {
+                    v.push(egui::Shape::closed_line(super::super::hud::chamfer(r, 7.0), egui::Stroke::new(1.8, ch.trim)));
+                }
+                ui.painter().extend(v);
             }
-            let ir = egui::Rect::from_min_size(r.min + vec2(7.0, 8.0), vec2(30.0, 30.0));
-            super::super::look::icon(&icons, &icon, 30.0, if strong { s.accent } else { s.ink }).paint_at(ui, ir);
-            let mut job = egui::text::LayoutJob::simple_singleline(name.clone(), egui::FontId::new(14.0, egui::FontFamily::Name("bold".into())), s.ink);
-            job.wrap = egui::text::TextWrapping::truncate_at_width(w - 50.0);
+            let ir = egui::Rect::from_min_size(r.min + vec2(7.0, 9.0), vec2(30.0, 30.0));
+            super::super::kit::socket(ui, egui::pos2(r.min.x + 25.0, r.min.y + 27.0), 15.5, &icon, s.accent, if strong { 0.55 } else { 0.2 });
+            let p = ui.painter();
+            // (33rd session: the name a size smaller before it is cut — «противотанков…»)
+            let avail = w - 59.0;
+            let mut fs = 14.0;
+            while fs > 12.0 && p.layout_no_wrap(name.clone(), egui::FontId::new(fs, egui::FontFamily::Name("bold".into())), s.ink).size().x > avail {
+                fs -= 0.5;
+            }
+            let mut job = egui::text::LayoutJob::simple_singleline(name.clone(), egui::FontId::new(fs, egui::FontFamily::Name("bold".into())), s.ink);
+            job.wrap = egui::text::TextWrapping::truncate_at_width(avail);
             let gal = p.layout_job(job);
-            p.galley(egui::pos2(ir.max.x + 7.0, r.min.y + 7.0), gal, s.ink);
+            p.galley(egui::pos2(ir.max.x + 14.0, r.min.y + 8.0), gal, s.ink);
             // the strength it gets: five pips against the strongest sphere
             let mut v = chrome::Out::new();
-            super::super::hud::pips(&mut v, egui::pos2(ir.max.x + 7.0, r.min.y + 31.0), 5, focus / top * 5.0, s.accent, 11.0, 5.0);
+            super::super::hud::pips(&mut v, egui::pos2(ir.max.x + 14.0, r.min.y + 31.0), 5, focus / top * 5.0, s.accent, 11.0, 5.0);
             p.extend(v);
             // the way to the next design
             let bar = egui::Rect::from_min_size(egui::pos2(r.min.x + 7.0, r.max.y - 22.0), vec2(w - 14.0, 6.0));

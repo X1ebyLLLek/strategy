@@ -282,6 +282,75 @@ pub fn switch(ui: &mut Ui, options: &[&str], chosen: usize) -> Option<usize> {
     out
 }
 
+/// The pages of a folder as the tabs of a ledger (33rd session: they were a row of flat white boxes, a spreadsheet's sheets):
+/// each a plate cut at its top corners, the chosen one raised, in the colour of the page and open into it, a bar of the
+/// accent along its top; the rest sunk a little, darker, under a rule of trim. The tab clicked, if another.
+pub fn tabs(ui: &mut Ui, options: &[&str], chosen: usize) -> Option<usize> {
+    let (ch, s) = chrome::dress(ui);
+    let room = ui.available_width() - 2.0;
+    let widest = |font: f32| options.iter().map(|o| ui.painter().layout_no_wrap(o.to_string(), FontId::new(font, FontFamily::Name("head".into())), s.ink).size().x).fold(0.0f32, f32::max);
+    let n = options.len().max(1);
+    let (font, per_row) = if widest(15.0) + 16.0 <= room / n as f32 {
+        (15.0, n)
+    } else if widest(13.0) + 12.0 <= room / n as f32 {
+        (13.0, n)
+    } else {
+        (14.0, n.div_ceil(2))
+    };
+    let mut out = None;
+    for row in options.chunks(per_row).enumerate() {
+        let w = (room / row.1.len() as f32).floor();
+        let (area, _) = ui.allocate_exact_size(vec2(room, 35.0), Sense::hover());
+        let base = area.max.y - 1.0;
+        let mut v = Out::new();
+        // (the rule the tabs stand on)
+        v.push(Shape::line_segment([pos2(area.min.x, base), pos2(area.max.x, base)], Stroke::new(1.4, ch.trim)));
+        v.push(Shape::line_segment([pos2(area.min.x, base + 1.4), pos2(area.max.x, base + 1.4)], Stroke::new(0.8, Color32::from_black_alpha(70))));
+        ui.painter().extend(v);
+        let mut raised = None;
+        for (j, name) in row.1.iter().enumerate() {
+            let k = row.0 * per_row + j;
+            let x0 = area.min.x + j as f32 * w;
+            let on = k == chosen;
+            let t = Rect::from_min_max(pos2(x0 + 1.0, area.min.y + if on { 0.0 } else { 4.0 }), pos2(x0 + w - 1.0, base));
+            let resp = ui.interact(t, ui.id().with(("tab", k)), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
+            if resp.clicked() && !on {
+                out = Some(k);
+            }
+            if on {
+                raised = Some((t, name, resp.hovered()));
+                continue;
+            }
+            let cut = 6.0;
+            let pts = vec![pos2(t.min.x, t.max.y), pos2(t.min.x, t.min.y + cut), pos2(t.min.x + cut, t.min.y), pos2(t.max.x - cut, t.min.y), pos2(t.max.x, t.min.y + cut), pos2(t.max.x, t.max.y)];
+            let mut v = Out::new();
+            super::hud::lay_poly(&mut v, &pts, &ch.paper, Color32::from_gray(if resp.hovered() { 205 } else { 168 }));
+            v.push(Shape::line(pts, Stroke::new(1.0, s.edge)));
+            v.push(Shape::line_segment([pos2(t.min.x + cut, t.min.y + 1.0), pos2(t.max.x - cut, t.min.y + 1.0)], Stroke::new(1.0, Color32::from_white_alpha(70))));
+            ui.painter().extend(v);
+            let g = ui.painter().layout_no_wrap(name.to_string(), FontId::new(font, FontFamily::Name("head".into())), if resp.hovered() { s.ink } else { s.soft });
+            ui.painter().galley(pos2(t.center().x - g.size().x / 2.0, t.center().y - g.size().y / 2.0 + 1.0), g, s.ink);
+        }
+        // (the chosen tab last: over its neighbours and over the rule, one piece with the page)
+        if let Some((t, name, hot)) = raised {
+            let cut = 6.0;
+            let pts = vec![pos2(t.min.x - 1.0, base + 2.0), pos2(t.min.x - 1.0, t.min.y + cut), pos2(t.min.x - 1.0 + cut, t.min.y), pos2(t.max.x + 1.0 - cut, t.min.y), pos2(t.max.x + 1.0, t.min.y + cut), pos2(t.max.x + 1.0, base + 2.0)];
+            let mut v = Out::new();
+            v.push(epaint_shadow(t));
+            super::hud::lay_poly(&mut v, &pts, &ch.paper, Color32::WHITE);
+            super::hud::plaque(&mut v, Rect::from_min_max(pts[2], pts[5]), 0.0, Color32::from_white_alpha(if hot { 90 } else { 60 }), Stroke::NONE, 0);
+            v.push(Shape::line(pts.clone(), Stroke::new(1.4, ch.trim)));
+            // (the bar of the accent along its top, and the paper laid over the rule under it)
+            v.push(Shape::rect_filled(Rect::from_min_max(pos2(t.min.x + cut, t.min.y + 1.0), pos2(t.max.x - cut, t.min.y + 4.0)), 1.0, s.accent));
+            v.push(Shape::rect_filled(Rect::from_min_max(pos2(t.min.x, base - 0.5), pos2(t.max.x, base + 2.5)), 0.0, ch.paper.mean));
+            ui.painter().extend(v);
+            let g = ui.painter().layout_no_wrap(name.to_string(), FontId::new(font, FontFamily::Name("head".into())), s.accent);
+            ui.painter().galley(pos2(t.center().x - g.size().x / 2.0, t.center().y - g.size().y / 2.0 + 2.0), g, s.accent);
+        }
+    }
+    out
+}
+
 /// A small plate-button on paper.
 pub fn small(ui: &mut Ui, text: &str) -> Response {
     let (ch, s) = chrome::dress(ui);

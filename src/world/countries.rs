@@ -308,9 +308,23 @@ fn make_states(world: &World, prov: &mut [ProvInfo], rng: &mut Rng) -> Vec<State
     states
 }
 
-/// Countries: seeds spread over landmasses by their people, each with its own vigour; a vigorous
-/// country grows faster, so empires and small states appear side by side. Countries are born where
-/// people live (a state's chance by its people), and grow out over the empty land around them.
+/// How many countries a world of the game's size holds (the checks of the core keep their own, on a
+/// smaller map). The real world has a couple of hundred, and the world before the machines hundreds more:
+/// a country of a few provinces is the usual, a country of a hundred the rare.
+pub const COUNTRIES: usize = 72;
+
+/// Countries: seeds spread over landmasses by their people, each with its own vigour; they grow out
+/// over the province graph by what the land asks for (33rd session; before, 30 countries grew as even
+/// patches, ten of them held three quarters of the land, and the median country a fiftieth):
+/// - **settled land resists, empty land does not**: a dense valley is taken slowly, a steppe, a desert
+///   or a tundra at once — so the core lands break into many small countries, and the great ones by land
+///   are the thin ones (Russia, Canada, the Sahara's states), as in the world;
+/// - **barriers**: mountains hold a country back (Switzerland, the Caucasus, the Balkans: a cradle
+///   there is likelier too), open plains let it run on (Rus, the Chinese plain);
+/// - **a country that has grown tires**: its growth costs more the more it holds against what its vigour
+///   would carry, so no one swallows a continent for being lucky with its seed;
+/// - **islands** with some people of their own are countries of their own, small islands go to the
+///   nearest.
 /// (Seeded by land alone, a third of the countries were deserts and tundras of a few hundred
 /// thousand people.)
 fn make_countries(world: &World, prov: &[ProvInfo], states: &mut [State], n_countries: usize, rng: &mut Rng) -> Vec<Country> {
@@ -351,11 +365,36 @@ fn make_countries(world: &World, prov: &[ProvInfo], states: &mut [State], n_coun
     let all_pop: f32 = mass_pop.iter().sum::<f32>().max(1e-6);
     let per_country = all_pop / n_countries.max(1) as f32;
     let mut quota: Vec<usize> = (0..mass_size.len())
-        .map(|m| if mass_size[m] >= 3 && mass_pop[m] >= 0.2 * per_country { ((mass_pop[m] / per_country).round() as usize).max(1).min(mass_size[m]) } else { 0 })
+        .map(|m| if mass_pop[m] >= 0.4 * per_country { ((mass_pop[m] / per_country).round() as usize).max(1).min(mass_size[m]) } else { 0 })
         .collect();
 
-    // (a state's chance to be a country's cradle by its people: the order of a weighted draw)
-    let mut keyed: Vec<(f32, usize)> = live.iter().map(|&s| (rng.f32().max(1e-12).ln() / (states[s].pop.max(0.0) + 1e-3 * per_country).powf(0.8), s)).collect();
+    // what each state is like: the share of its land in mountains, in open plains, on the sea; its weight (people, and
+    // a little for the land itself: a country of empty land still has something to be tired of)
+    let share = |s: usize, f: &dyn Fn(Terrain) -> bool| {
+        let st = &states[s];
+        let all: f32 = st.provinces.iter().map(|&p| world.provinces[p as usize].area as f32).sum::<f32>().max(1.0);
+        st.provinces.iter().filter(|&&p| f(world.provinces[p as usize].terrain)).map(|&p| world.provinces[p as usize].area as f32).sum::<f32>() / all
+    };
+    let mountains: Vec<f32> = (0..ns).map(|s| share(s, &|t| t == Terrain::Mountains)).collect();
+    let rugged: Vec<f32> = (0..ns).map(|s| mountains[s] + 0.4 * share(s, &|t| t == Terrain::Hills)).collect();
+    let open: Vec<f32> = (0..ns).map(|s| share(s, &|t| t == Terrain::Plains)).collect();
+    let coast: Vec<bool> = (0..ns).map(|s| states[s].provinces.iter().any(|&p| world.provinces[p as usize].neighbors.iter().any(|&q| world.provinces[q as usize].sea))).collect();
+    let mean_pop = live.iter().map(|&s| states[s].pop).sum::<f32>() / live.len() as f32;
+    let area_of = |s: usize| states[s].provinces.iter().map(|&p| world.provinces[p as usize].area as f32).sum::<f32>();
+    let mean_area = live.iter().map(|&s| area_of(s)).sum::<f32>() / live.len() as f32;
+    let popw: Vec<f32> = (0..ns).map(|s| states[s].pop / mean_pop.max(1e-6)).collect();
+    let weight: Vec<f32> = (0..ns).map(|s| states[s].pop + 0.12 * mean_pop * area_of(s) / mean_area.max(1.0)).collect();
+    let total_weight: f32 = live.iter().map(|&s| weight[s]).sum();
+
+    // (a state's chance to be a country's cradle by its people, likelier in the highlands and on the coast: the
+    // order of a weighted draw)
+    let mut keyed: Vec<(f32, usize)> = live
+        .iter()
+        .map(|&s| {
+            let w = (states[s].pop.max(0.0) + 1e-3 * per_country).powf(0.8) * (1.0 + 1.2 * rugged[s]) * if coast[s] { 1.3 } else { 1.0 };
+            (rng.f32().max(1e-12).ln() / w, s)
+        })
+        .collect();
     keyed.sort_by(|a, b| b.0.total_cmp(&a.0));
     let order: Vec<usize> = keyed.into_iter().map(|x| x.1).collect();
     let mut blocked = vec![false; ns];
@@ -372,18 +411,15 @@ fn make_countries(world: &World, prov: &[ProvInfo], states: &mut [State], n_coun
             blocked[t as usize] = true;
         }
     }
-    let vigour: Vec<f32> = seeds.iter().map(|_| (0.6 * rng.normal()).exp()).collect();
+    // (the vigour: a heavy tail — a few great, many small; a cradle in a populous place has more of it)
+    let vigour: Vec<f32> = seeds.iter().map(|&s| ((0.85 * rng.normal()).exp() * (0.7 + 0.3 * popw[s].clamp(0.3, 3.0).sqrt())).clamp(0.35, 3.0)).collect();
+    // (what a country can hold before it tires: by its vigour, against the world's weight spread over the countries)
+    let cap: Vec<f32> = vigour.iter().map(|&v| 2.0 * total_weight / seeds.len().max(1) as f32 * v.powf(1.5)).collect();
 
-    let mountain_share = |s: usize| {
-        let st = &states[s];
-        st.provinces
-            .iter()
-            .filter(|&&p| world.provinces[p as usize].terrain == Terrain::Mountains)
-            .count() as f32
-            / st.provinces.len().max(1) as f32
-    };
     let mut owner = vec![NONE; ns];
     let mut dist = vec![f32::INFINITY; ns];
+    let mut held = vec![0.0f32; seeds.len()];
+    let mut done = vec![false; ns];
     let mut heap = BinaryHeap::new();
     for (c, &s) in seeds.iter().enumerate() {
         owner[s] = c as u32;
@@ -392,16 +428,22 @@ fn make_countries(world: &World, prov: &[ProvInfo], states: &mut [State], n_coun
     }
     while let Some(Reverse((cb, s))) = heap.pop() {
         let (s, d) = (s as usize, f32::from_bits(cb));
-        if d > dist[s] {
+        if d > dist[s] || done[s] {
             continue;
         }
+        done[s] = true;
         let c = owner[s] as usize;
+        held[c] += weight[s];
+        let tired = 1.0 + (held[c] / cap[c]).powi(2);
         for &t in &states[s].neighbors {
             let t = t as usize;
-            if states[t].waste {
+            if states[t].waste || done[t] {
                 continue;
             }
-            let nd = d + (1.0 + 3.0 * mountain_share(t)) / vigour[c];
+            let resist = 0.45 + 0.9 * popw[t].min(6.0).sqrt();
+            let barrier = 1.0 + 2.5 * mountains[t] + 0.8 * rugged[t];
+            let run = 1.0 - 0.25 * open[t];
+            let nd = d + resist * barrier * run * tired / vigour[c];
             if nd < dist[t] {
                 dist[t] = nd;
                 owner[t] = c as u32;
@@ -504,6 +546,11 @@ impl Politics {
             }
         }
         r
+    }
+
+    /// The number of provinces of each state of a country (its size by land).
+    pub fn provinces_of_n<'a>(&'a self, c: &'a Country) -> impl Iterator<Item = usize> + 'a {
+        c.states.iter().map(move |&s| self.states[s as usize].provinces.len())
     }
 
     pub fn provinces_of(&self, c: usize) -> impl Iterator<Item = usize> + '_ {
