@@ -135,6 +135,11 @@ pub fn rivers(world: &World) -> Vec<(usize, usize, f32)> {
 /// The rivers, and (`through_pits`) their ways across the filled pits too — whole lines from
 /// source to sea, for a map that draws them as lines.
 pub fn rivers_with(world: &World, through_pits: bool) -> Vec<(usize, usize, f32)> {
+    rivers_min(world, through_pits, RIVER)
+}
+
+/// `rivers_with` for rivers that gather at least `least` water (brooks too, for a map that draws them).
+pub fn rivers_min(world: &World, through_pits: bool, least: f32) -> Vec<(usize, usize, f32)> {
     use std::cmp::Reverse;
     use std::collections::BinaryHeap;
     let (w, h) = (world.w, world.h);
@@ -188,6 +193,6 @@ pub fn rivers_with(world: &World, through_pits: bool) -> Vec<(usize, usize, f32)
             flow[p] += flow[i];
         }
     }
-    order.into_iter().filter(|&i| flow[i] >= RIVER && parent[i] != usize::MAX && (through_pits || level[i] - ht[i] < 1e-4)).map(|i| (i, parent[i], flow[i])).collect()
+    order.into_iter().filter(|&i| flow[i] >= least && parent[i] != usize::MAX && (through_pits || level[i] - ht[i] < 1e-4)).map(|i| (i, parent[i], flow[i])).collect()
 }
 

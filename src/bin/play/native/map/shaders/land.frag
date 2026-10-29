@@ -696,7 +696,8 @@ void main() {
         if (uHypso > 0.01) {
             float lum = dot(lightf, vec3(0.33));
             vec3 hc = hypsoColour(h) * clamp(lum, 0.45, 1.25);
-            col = mix(col, hc, 0.62 * uHypso);
+            // (33rd session: the rivers keep their water in the atlas colours: the great ones read as rivers on the relief)
+            col = mix(col, hc, 0.62 * uHypso * (1.0 - 0.80 * water));
             float e = h / 0.045;
             float fw = max(fwidth(e), 1e-4);
             float iso = 1.0 - smoothstep(0.5, 1.5, abs(fract(e + 0.5) - 0.5) / fw);
@@ -721,7 +722,8 @@ void main() {
             // (30th session: under a forest the country's colour is weaker — the forest keeps its green and the country
             // its tint at the edge and in the open: it was a purple-grey mush with no forest in it)
             // (32nd session: on snow the tint is stronger — the white ground carries it less)
-            float tk = min(uOverlay * (1.0 + 0.38 * snowcov), 0.92) * on * (1.0 - 0.30 * ck);
+            // (33rd session: and the rivers keep their water under the country's colour — a great river is the map's own line)
+            float tk = min(uOverlay * (1.0 + 0.38 * snowcov), 0.92) * on * (1.0 - 0.30 * ck) * (1.0 - 0.70 * water);
             col = mix(col, tint * clamp(lum, 0.80, 1.25), tk);
             // borders (far away; close up egui draws them smooth): the countries' dark, the
             // provinces' faint, the front red

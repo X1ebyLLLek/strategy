@@ -503,10 +503,12 @@ fn river_width(ratio: f32) -> f32 {
 pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
     let w = world.w;
     let wf = w as f32;
-    let segs = strategy::world::render::rivers_with(world, true);
+    // (brooks too: the network of a map that draws the water as lines is denser than the one the front's picture needs)
+    let segs = strategy::world::render::rivers_min(world, true, 260.0);
     let mut down: std::collections::HashMap<usize, (usize, f32)> = std::collections::HashMap::new();
     let mut has_up: std::collections::HashSet<usize> = std::collections::HashSet::new();
-    let least = segs.iter().map(|s| s.2).fold(f32::MAX, f32::min).max(1.0);
+    // (the width scale is fixed at the old least river: a brook is thin, the great rivers as wide as before)
+    let least = 450.0f32;
     if std::env::var("RIVERDBG").is_ok() {
         let mut fl: Vec<f32> = segs.iter().map(|s| s.2).collect();
         fl.sort_by(|a, b| a.total_cmp(b));

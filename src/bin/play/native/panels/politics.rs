@@ -20,13 +20,13 @@ fn war_support(ui: &mut egui::Ui, s: &Skin, g: &Game) {
         x if x >= STRIKES => "колеблется",
         x if x >= DESERT => "слабая",
         x if x >= DEMAND_PEACE => "на исходе",
-        _ => "народ требует мира",
+        _ => "требует мира",
     };
     let tone = |x: f32| if x >= 0.5 { kit::GOOD } else if x >= STRIKES { kit::MIXED } else { kit::BAD };
     let items = vec![
         Stat::new("flag", "Поддержка войны", format!("{:.0}% · {}", sup * 100.0, word(sup)), tone(sup)),
         Stat::new("binoculars", "У врага", format!("{:.0}% · {}", foe * 100.0, word(foe)), tone(foe)),
-        Stat::new("strike", "Бастуют заводы", format!("{:.0}% выпуска оружия", g.war_mood.strike[me] * 100.0), if g.war_mood.strike[me] > 0.0 { kit::BAD } else { kit::PLAIN }),
+        Stat::new("strike", "Бастуют заводы", format!("{:.0}% оружия", g.war_mood.strike[me] * 100.0), if g.war_mood.strike[me] > 0.0 { kit::BAD } else { kit::PLAIN }),
     ];
     let r = kit::stats(ui, &items, 3);
     let parts = g.war_mood.parts[me].clone();
@@ -86,14 +86,29 @@ pub fn politics(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
     }
     if page == 2 {
         head(ui, s, "Трудные решения");
-        let mine: Vec<(u32, String)> = g.news.iter().rev().filter(|e| e.tab == "politics").take(12).map(|e| (e.month, e.text.clone())).collect();
+        let mine: Vec<(u32, String, String, bool)> = g.news.iter().rev().filter(|e| e.tab == "politics").take(12).map(|e| (e.month, e.text.clone(), e.tip.clone(), e.hot)).collect();
         if mine.is_empty() {
             words(ui, "Пока ничего.", 15.0, s.soft);
         }
-        for (m, l) in mine {
-            ui.label(RichText::new(date_words(m).to_uppercase()).family(egui::FontFamily::Name("head".into())).size(12.5).color(s.soft));
-            ui.label(l);
-            ui.add_space(3.0);
+        // (33rd session: each decision a card — the date in its heading letters, the words under it, a band of colour
+        // at its edge: red for what burned, gold for the rest — not a bare column of lines)
+        for (m, l, tip, hot) in mine {
+            let edge = if hot { super::super::kit::BAD } else { Color32::from_rgb(196, 160, 72) };
+            let resp = super::super::kit::framed(ui, Some(edge), hot, |ui| {
+                ui.horizontal(|ui| {
+                    if let Some(ch) = chrome::of(ui.ctx()) {
+                        let (sr, _) = ui.allocate_exact_size(vec2(30.0, 30.0), egui::Sense::hover());
+                        super::super::hud::seal(ui, &ch, sr.center(), 14.0, if hot { "alarm" } else { "scroll" }, ch.trim);
+                    }
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new(date_words(m).to_uppercase()).family(egui::FontFamily::Name("head".into())).size(12.5).color(s.soft));
+                        super::super::kit::words(ui, l, 14.0, s.ink);
+                    });
+                });
+            });
+            if !tip.is_empty() {
+                resp.response.tip(|| Card::new("Решение").icon("scroll").text(tip.clone()));
+            }
         }
     }
 }
@@ -240,50 +255,52 @@ pub fn war_controls(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     }
 }
 
-/// The rival at a glance (33rd session: the page was one button and a white void): his flag and name, how his
-/// economy stands to ours, his government, his intentions, the lands in dispute.
+/// The rival face to face with us (33rd session: the page was one button and a white void): the two flags and the
+/// bars of what is set against what — economy, people, the government's hold, in war the people's support for it
+/// and the divisions — then his intentions and the lands in dispute.
 fn rival_sheet(ui: &mut egui::Ui, s: &Skin, g: &Game) {
-    use super::super::kit::{self, Stat};
+    use super::super::kit::{self, Side, Stat, VsRow};
     let me = g.me;
     let foe = 1 - me;
     let rival = g.h.war.th.countries[foe];
     let mine = g.h.war.th.countries[me];
-    head(ui, s, "Соперник");
-    let name = g.countries[rival].0.clone();
-    let w = ui.available_width();
-    let (row, _) = ui.allocate_exact_size(vec2(w, 46.0), egui::Sense::hover());
-    let ch = chrome::of(ui.ctx());
-    let icons = chrome::icons(ui.ctx());
-    let mut v = chrome::Out::new();
-    if let Some(ch) = &ch {
-        ch.plate(&mut v, row, s, false, false, true, false);
-        v.push(egui::Shape::rect_filled(egui::Rect::from_min_size(row.min, vec2(4.0, row.height())), 1.0, s.accent));
-    }
-    ui.painter().extend(v);
-    let fr = egui::Rect::from_min_size(row.min + vec2(12.0, 8.0), vec2(45.0, 30.0));
-    if let (Some(f), Some(ch)) = (super::super::flags::get(ui.ctx(), rival), &ch) {
-        super::super::flags::paint(ui.ctx(), ui.painter(), fr, &f, ch.trim, Some(&icons));
-    }
-    let x = fr.max.x + 10.0;
-    ui.painter().text(pos2(x, row.min.y + 6.0), egui::Align2::LEFT_TOP, name.to_uppercase(), egui::FontId::new(15.0, egui::FontFamily::Name("head".into())), s.ink);
-    let line = if g.h.at_war { "идёт война" } else { "главный соперник" };
-    ui.painter().text(pos2(x, row.min.y + 25.0), egui::Align2::LEFT_TOP, line, egui::FontId::proportional(13.5), s.accent);
-    let ours = g.h.world.nations[mine].gdp_real.max(1e-9);
-    let ratio = g.h.world.nations[rival].gdp_real / ours;
+    head(ui, s, if g.h.at_war { "Противостояние" } else { "Соперник" });
+    let colour = |c: usize| {
+        let k = g.countries[c].1;
+        Color32::from_rgb(k[0], k[1], k[2])
+    };
+    let (us, them) = (Side { country: mine, name: g.countries[mine].0.clone(), colour: colour(mine) }, Side { country: rival, name: g.countries[rival].0.clone(), colour: colour(rival) });
+    let (gdp_a, gdp_b) = (g.h.world.nations[mine].gdp_real.max(0.0), g.h.world.nations[rival].gdp_real.max(0.0));
+    let ratio = gdp_b / gdp_a.max(1e-9);
+    let (pop_a, pop_b) = (g.h.world.nations[mine].pop.iter().sum::<f32>(), g.h.world.nations[rival].pop.iter().sum::<f32>());
     let shaky = crate::world::statecraft::SHAKY;
     let (st_me, st_foe) = (g.state.stability[me], g.state.stability[foe]);
+    let mut rows = vec![
+        VsRow::new("Хозяйство", gdp_a, gdp_b, format!("{}", super::super::charts::num(gdp_a)), format!("{}", super::super::charts::num(gdp_b))),
+        VsRow::new("Население", pop_a, pop_b, format!("{} млн", super::super::charts::num(pop_a)), format!("{} млн", super::super::charts::num(pop_b))),
+        VsRow::new("Власть держится", st_me.max(0.0), st_foe.max(0.0), g.stability_word(me), g.stability_word(foe)),
+    ];
+    if g.h.at_war {
+        let (sa, sb) = (g.war_mood.support[me], g.war_mood.support[foe]);
+        rows.push(VsRow::new("Поддержка войны", sa, sb, format!("{:.0}%", sa * 100.0), format!("{:.0}%", sb * 100.0)));
+        if let Some(c) = g.h.war.corps.as_ref() {
+            let ours = c.divs.iter().filter(|d| d.side == me).count() as f32;
+            let theirs = c.divs.iter().filter(|d| d.side == foe).count() as f32;
+            rows.push(VsRow::new("Дивизии на карте", ours, theirs, format!("{ours:.0}"), format!("{theirs:.0}")));
+        }
+    }
+    let resp = kit::versus(ui, &us, &them, &rows, false);
+    resp.tip(|| Card::new("Лицом к лицу").icon("clash").row("хозяйство соперника к нашему", format!("×{ratio:.2}")).row("у нас власть", format!("{st_me:.2}")).row("у них власть", format!("{st_foe:.2}")).note("хозяйство — реальный выпуск; в долгой войне оно решает больше числа дивизий"));
+    ui.add_space(4.0);
     let dispute = if g.state.grudge[foe] { ("претендует на наши земли", kit::BAD) } else if g.state.grudge[me] { ("держит наши былые земли", kit::MIXED) } else { ("споров о земле нет", kit::GOOD) };
     let intent = if g.state.claim[foe].is_some() { ("готовит войну против нас", kit::BAD) } else { ("мирен", kit::GOOD) };
     let items = vec![
-        Stat::new("balance", "Хозяйство", format!("×{ratio:.2} к нашему"), if ratio > 1.25 { kit::BAD } else if ratio < 0.8 { kit::GOOD } else { kit::MIXED }),
-        Stat::new("crown", "Власть у них", g.stability_word(foe), if st_foe >= shaky { kit::GOOD } else { kit::BAD }),
         Stat::new("binoculars", "Намерения", intent.0, intent.1),
         Stat::new("flag", "Земли", dispute.0, dispute.1),
+        Stat::new("crown", "Их власть", g.stability_word(foe), if st_foe >= shaky { kit::GOOD } else { kit::BAD }),
+        Stat::new("balance", "Хозяйство", format!("×{ratio:.2} к нашему"), if ratio > 1.25 { kit::BAD } else if ratio < 0.8 { kit::GOOD } else { kit::MIXED }),
     ];
-    let r = kit::stats(ui, &items, 2);
-    if let Some(resp) = r.into_iter().next() {
-        resp.tip(|| Card::new("Хозяйство соперника").icon("balance").row("против нашего", format!("×{ratio:.2}")).row("у нас власть", format!("{st_me:.2}")).row("у них власть", format!("{st_foe:.2}")).note("считается по реальному выпуску; сильное хозяйство — больше армии в долгой войне"));
-    }
+    kit::stats(ui, &items, 2);
     ui.add_space(4.0);
     say(ui, s, if g.h.at_war { "Слабость соперника — повод для наступления, но [supply]{снабжение} решает больше, чем число." } else { "Прежде чем обосновывать [claim]{цель войны}, сверьте хозяйство и власть соперника с нашими." });
 }

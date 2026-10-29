@@ -389,3 +389,121 @@ pub fn grade(x: f32) -> &'static str {
 pub fn ink(s: &Skin, base: Color32) -> Color32 {
     super::panels::ink_of(s, base)
 }
+
+/// One side of a head-to-head card (33rd session).
+pub struct Side {
+    pub country: usize,
+    pub name: String,
+    pub colour: Color32,
+}
+
+/// A row of a head-to-head card: what is compared, the two figures (their shares make the bar's
+/// split) and the words at the bar's ends.
+pub struct VsRow {
+    pub label: String,
+    pub a: f32,
+    pub b: f32,
+    pub a_text: String,
+    pub b_text: String,
+}
+
+impl VsRow {
+    pub fn new(label: &str, a: f32, b: f32, a_text: impl Into<String>, b_text: impl Into<String>) -> VsRow {
+        VsRow { label: label.into(), a, b, a_text: a_text.into(), b_text: b_text.into() }
+    }
+}
+
+/// Two countries face to face: their flags at the ends of a card, crossed swords between them,
+/// then a bar for each thing compared — the two figures at its ends, the split of the bar by their
+/// shares, each side in its country's colour (the second turned red where the two colours are alike),
+/// the leading figure bold. `dark`: on a dark plate that is already there (over the map); else on paper (in a folder).
+pub fn versus(ui: &mut Ui, a: &Side, b: &Side, rows: &[VsRow], dark: bool) -> Response {
+    let (ch, s) = chrome::dress(ui);
+    let icons = chrome::icons(ui.ctx());
+    let w = ui.available_width();
+    let (head_h, row_h) = (74.0, 38.0);
+    let (r, resp) = ui.allocate_exact_size(vec2(w, head_h + rows.len() as f32 * row_h + 6.0), Sense::hover());
+    if !ui.is_rect_visible(r) {
+        return resp;
+    }
+    let (ink, soft) = if dark { (s.desk_ink, s.desk_ink.gamma_multiply(0.78)) } else { (s.ink, s.soft) };
+    let mut v = Out::new();
+    if dark {
+        // (on a dark plate already: the card of the war over the map has its own)
+    } else {
+        v.push(epaint::Shadow { offset: vec2(0.0, 2.0), blur: 6.0, spread: 0.0, color: Color32::from_black_alpha(70) }.as_shape(r, 2.0).into());
+        ch.lay(&mut v, r, &ch.paper, 2.0);
+        ch.gloss(&mut v, r, Color32::from_white_alpha(44), Color32::from_black_alpha(26));
+        ch.bevel(&mut v, r, true, 1.2);
+        v.push(Shape::rect_stroke(r, 2.0, Stroke::new(1.0, Color32::from_black_alpha(100))));
+    }
+    ui.painter().extend(v);
+    let dist = |p: Color32, q: Color32| ((p.r() as f32 - q.r() as f32).powi(2) + (p.g() as f32 - q.g() as f32).powi(2) + (p.b() as f32 - q.b() as f32).powi(2)).sqrt();
+    let (ca, cb) = (a.colour, if dist(a.colour, b.colour) < 80.0 { Color32::from_rgb(190, 60, 48) } else { b.colour });
+    // the flags, each in a frame of its colour, and under them the names
+    let fsize = vec2(58.0, 37.0);
+    let pad = 14.0;
+    for (side, left) in [(a, true), (b, false)] {
+        let at = if left { pos2(r.min.x + pad, r.min.y + 10.0) } else { pos2(r.max.x - pad - fsize.x, r.min.y + 10.0) };
+        let fr = Rect::from_min_size(at, fsize);
+        let col = if left { ca } else { cb };
+        let mut v = Out::new();
+        v.push(epaint::Shadow { offset: vec2(0.0, 2.0), blur: 5.0, spread: 0.0, color: Color32::from_black_alpha(110) }.as_shape(fr.expand(2.0), 2.0).into());
+        v.push(Shape::rect_filled(fr.expand(2.5), 2.0, col));
+        v.push(Shape::rect_stroke(fr.expand(2.5), 2.0, Stroke::new(1.0, Color32::from_black_alpha(170))));
+        ui.painter().extend(v);
+        if let Some(f) = super::flags::get(ui.ctx(), side.country) {
+            super::flags::paint(ui.ctx(), ui.painter(), fr, &f, ch.trim, Some(&icons));
+        }
+        let mut job = egui::text::LayoutJob::simple_singleline(side.name.to_uppercase(), FontId::new(14.0, FontFamily::Name("head".into())), ink);
+        job.wrap = egui::text::TextWrapping::truncate_at_width(w / 2.0 - 22.0);
+        let gal = ui.painter().layout_job(job);
+        let x = if left { fr.min.x } else { fr.max.x - gal.size().x };
+        ui.painter().galley(pos2(x, fr.max.y + 7.0), gal, ink);
+    }
+    let mid = pos2(r.center().x, r.min.y + 10.0 + fsize.y / 2.0);
+    let sw = if dark { 30.0 } else { 38.0 };
+    super::look::icon(&icons, "clash", sw, Color32::from_black_alpha(150)).paint_at(ui, Rect::from_center_size(mid + vec2(1.0, 1.5), vec2(sw, sw)));
+    super::look::icon(&icons, "clash", sw, if dark { hud::lighten(ch.trim, 0.2) } else { s.accent }).paint_at(ui, Rect::from_center_size(mid, vec2(sw, sw)));
+    // the bars
+    let mut y = r.min.y + head_h;
+    for row in rows {
+        let (x0, x1) = (r.min.x + pad, r.max.x - pad);
+        let total = (row.a.max(0.0) + row.b.max(0.0)).max(1e-9);
+        let share = if row.a.max(0.0) + row.b.max(0.0) <= 0.0 { 0.5 } else { row.a.max(0.0) / total };
+        let lead_a = row.a > row.b * 1.001;
+        let lead_b = row.b > row.a * 1.001;
+        let face = |lead: bool| if lead { FontId::new(13.5, FontFamily::Name("bold".into())) } else { FontId::proportional(13.5) };
+        let (fa, fb) = (face(lead_a), face(lead_b));
+        let p = ui.painter();
+        p.text(pos2(x0, y + 1.0), egui::Align2::LEFT_TOP, &row.a_text, fa, if lead_a { ink } else { soft });
+        p.text(pos2(x1, y + 1.0), egui::Align2::RIGHT_TOP, &row.b_text, fb, if lead_b { ink } else { soft });
+        p.text(pos2(r.center().x, y + 3.0), egui::Align2::CENTER_TOP, row.label.to_uppercase(), FontId::new(11.5, FontFamily::Name("head".into())), soft);
+        let bar = Rect::from_min_max(pos2(x0, y + 20.0), pos2(x1, y + 31.0));
+        let mut v = Out::new();
+        v.push(Shape::rect_filled(bar, 2.0, Color32::from_black_alpha(if dark { 130 } else { 90 })));
+        ch.bevel(&mut v, bar, false, 1.0);
+        let inner = bar.shrink(1.5);
+        let cut = inner.min.x + inner.width() * share.clamp(0.0, 1.0);
+        for (seg, col) in [(Rect::from_min_max(inner.min, pos2(cut, inner.max.y)), ca), (Rect::from_min_max(pos2(cut, inner.min.y), inner.max), cb)] {
+            if seg.width() > 0.5 {
+                let mut m = epaint::Mesh::default();
+                let (top, bot) = (hud::lighten(col, 0.25), hud::darken(col, 0.22));
+                for (p, c) in [(seg.left_top(), top), (seg.right_top(), top), (seg.right_bottom(), bot), (seg.left_bottom(), bot)] {
+                    m.colored_vertex(p, c);
+                }
+                m.add_triangle(0, 1, 2);
+                m.add_triangle(0, 2, 3);
+                v.push(Shape::mesh(m));
+            }
+        }
+        v.push(Shape::line_segment([pos2(cut, bar.min.y - 2.0), pos2(cut, bar.max.y + 2.0)], Stroke::new(2.0, Color32::from_black_alpha(200))));
+        v.push(Shape::line_segment([pos2(cut, bar.min.y - 2.0), pos2(cut, bar.max.y + 2.0)], Stroke::new(1.0, if dark { ch.trim } else { Color32::from_rgb(250, 244, 226) })));
+        let mid = bar.center().x;
+        v.push(Shape::line_segment([pos2(mid, bar.max.y - 3.0), pos2(mid, bar.max.y)], Stroke::new(1.0, Color32::from_black_alpha(160))));
+        v.push(Shape::rect_stroke(bar, 2.0, Stroke::new(1.0, Color32::from_black_alpha(160))));
+        ui.painter().extend(v);
+        y += row_h;
+    }
+    resp
+}

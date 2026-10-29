@@ -18,10 +18,11 @@ impl App {
         let th = &war.th;
         let s = self.skin;
         let ch = self.chrome.clone();
-        let colour = |side: usize| {
-            let c = g.countries[th.countries[side]].1;
-            Color32::from_rgb(c[0], c[1], c[2])
+        let colour_of = |c: usize| {
+            let k = g.countries[c].1;
+            Color32::from_rgb(k[0], k[1], k[2])
         };
+        let colour = |side: usize| colour_of(th.countries[side]);
         let (mut ours, mut hungry, mut fighting) = (0usize, 0usize, 0usize);
         if let Some(c) = war.corps.as_ref() {
             for d in c.divs.iter().filter(|d| d.side == me) {
@@ -99,21 +100,20 @@ impl App {
                     return;
                 }
                 ui.add_space(4.0);
-                for (side, word) in [(me, "наши"), (1 - me, "враг")] {
-                    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::hover());
-                    let p = ui.painter();
-                    chip(p, r.left_center() + vec2(16.0, 0.0), side);
-                    p.text(r.left_center() + vec2(40.0, 0.0), Align2::LEFT_CENTER, g.h.home(side).name.clone(), body.clone(), s.desk_ink);
-                    p.text(r.right_center(), Align2::RIGHT_CENTER, word, body.clone(), if side == me { Color32::from_rgb(236, 230, 212) } else { Color32::from_rgb(240, 120, 104) });
-                }
-                ui.add_space(4.0);
+                let side = |c: usize| super::kit::Side { country: c, name: g.countries[c].0.clone(), colour: colour_of(c) };
+                let (sa, sb) = (g.war_mood.support[me], g.war_mood.support[1 - me]);
+                let vs_rows = [
+                    super::kit::VsRow::new("Дивизии", ours as f32, foe_seen, ours.to_string(), format!("≈{foe_seen:.0}")),
+                    super::kit::VsRow::new("Поддержка войны", sa, sb, format!("{:.0}%", sa * 100.0), format!("{:.0}%", sb * 100.0)),
+                ];
+                super::kit::versus(ui, &side(th.countries[me]), &side(th.countries[1 - me]), &vs_rows, true);
+                ui.add_space(2.0);
                 let row = |ui: &mut egui::Ui, what: &str, value: String, warn: bool| {
                     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 19.0), Sense::hover());
                     let p = ui.painter();
                     p.text(r.left_center(), Align2::LEFT_CENTER, what, body.clone(), s.desk_ink.gamma_multiply(0.85));
                     p.text(r.right_center(), Align2::RIGHT_CENTER, value, FontId::new(14.0, FontFamily::Name("bold".into())), if warn { Color32::from_rgb(244, 140, 110) } else { s.desk_ink });
                 };
-                row(ui, "Дивизий: наших / врага", format!("{ours} / ≈{:.0}", foe_seen), false);
                 if fighting > 0 || hungry > 0 {
                     row(ui, if hungry > 0 { "Боёв · без снабжения" } else { "Боёв идёт" }, if hungry > 0 { format!("{fighting} · {hungry}") } else { format!("{fighting}") }, hot);
                 }
