@@ -448,11 +448,7 @@ pub fn versus(ui: &mut Ui, a: &Side, b: &Side, rows: &[VsRow], dark: bool) -> Re
     if dark {
         // (on a dark plate already: the card of the war over the map has its own)
     } else {
-        v.push(epaint::Shadow { offset: vec2(0.0, 2.0), blur: 6.0, spread: 0.0, color: Color32::from_black_alpha(70) }.as_shape(r, 2.0).into());
-        ch.lay(&mut v, r, &ch.paper, 2.0);
-        ch.gloss(&mut v, r, Color32::from_white_alpha(44), Color32::from_black_alpha(26));
-        ch.bevel(&mut v, r, true, 1.2);
-        v.push(Shape::rect_stroke(r, 2.0, Stroke::new(1.0, Color32::from_black_alpha(100))));
+        leaf_at(&mut v, &ch, &s, r, None, false);
     }
     ui.painter().extend(v);
     let dist = |p: Color32, q: Color32| ((p.r() as f32 - q.r() as f32).powi(2) + (p.g() as f32 - q.g() as f32).powi(2) + (p.b() as f32 - q.b() as f32).powi(2)).sqrt();
