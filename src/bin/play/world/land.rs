@@ -64,7 +64,7 @@ impl Land {
         for (pts, _, wd) in &rivers {
             if *wd >= 0.25 {
                 // (every pixel the water covers: a way along the river's bed is no road)
-                let r = (wd / 2.0).max(0.5);
+                let r = (wd / 2.0 + 0.8).max(0.5);
                 let reach = r.ceil() as i64;
                 for p in pts {
                     for dy in -reach..=reach {
@@ -266,7 +266,7 @@ fn cost(world: &World, i: usize, j: usize, river: &[bool], road: &[bool]) -> Opt
     let mut c = ground + 60.0 * slope;
     if river[j] {
         // (a bridge costs most where the water is first met, and something for every pixel of it)
-        c += if river[i] { 5.0 } else { 14.0 };
+        c += if river[i] { 30.0 } else { 14.0 };
     }
     if road[j] {
         c *= 0.3;
@@ -499,7 +499,7 @@ fn river_width(ratio: f32) -> f32 {
 /// it joins. Every point carries the river's width there, which grows downstream (a brook, a
 /// stream, a river, a great river) and flares into an estuary at the open sea; on the flat land
 /// the way wanders in bends that grow with the width; then the line is straightened and bent
-/// smooth, and cut into short pieces, each with the width of its middle.
+/// smooth, and cut into pieces of one step, each with the width of its middle.
 pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
     let w = world.w;
     let wf = w as f32;
@@ -540,14 +540,24 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
         wd
     };
     let place = |i: usize| ((i % w) as f32 + 0.5, (i / w) as f32 + 0.5);
-    let node = |i: usize, f: f32| -> [f32; 3] {
-        // the cell's middle, evened out with the next six downstream (a staircase of cells would
-        // show on the bank of a wide river); the same for a cell whichever river asks, and the
-        // seam of the map kept whole
-        let (x0, y0) = place(i);
-        let (mut sx, mut sy, mut n) = (x0, y0, 1.0f32);
+    // the cell `n` steps on downstream (the mouth if the river ends sooner)
+    let ahead = |i: usize, n: usize| -> usize {
         let mut at = i;
-        for _ in 0..6 {
+        for _ in 0..n {
+            match down.get(&at) {
+                Some(&(j, _)) => at = j,
+                None => break,
+            }
+        }
+        at
+    };
+    // a cell's middle evened out with the `n` cells below it (a staircase of cells would show on the bank of a wide river, and
+    // set the swing of the bends awry); the seam of the map kept whole
+    let centre = |i: usize, n: usize| -> (f32, f32) {
+        let (x0, y0) = place(i);
+        let (mut sx, mut sy, mut cnt) = (x0, y0, 1.0f32);
+        let mut at = i;
+        for _ in 0..n {
             let Some(&(j, _)) = down.get(&at) else { break };
             at = j;
             let (mut px, py) = place(at);
@@ -558,10 +568,15 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
             }
             sx += px;
             sy += py;
-            n += 1.0;
+            cnt += 1.0;
         }
-        let (x, y) = (sx / n, sy / n);
+        (sx / cnt, sy / cnt)
+    };
+    let node = |i: usize, f: f32| -> [f32; 3] {
         let wd = width_at(i, f);
+        // (the wider the river, the longer the stretch it is evened over)
+        let n = ((3.0 + 2.5 * wd) as usize).clamp(3, 12);
+        let (x, y) = centre(i, n);
         let d = to_sea.get(&i).map_or(0, |d| d.0);
         let land = match world.terrain[i] {
             Terrain::Hills => 0.5,
@@ -569,15 +584,8 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
             _ => 1.0,
         };
         let taper = (d as f32 / 6.0).min(1.0);
-        // the way's direction a few cells on downstream (the seam of the map kept whole)
-        let mut at = i;
-        for _ in 0..5 {
-            match down.get(&at) {
-                Some(&(j, _)) => at = j,
-                None => break,
-            }
-        }
-        let (ax, ay) = place(at);
+        // the way's direction: from this middle to the middle `n` cells on
+        let (ax, ay) = centre(ahead(i, n), n);
         let mut tx = ax - x;
         if tx > wf / 2.0 {
             tx -= wf;
@@ -593,7 +601,7 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
         let len = 7.0 * wd + 14.0;
         let tau = std::f32::consts::TAU;
         let swing = (tau * d as f32 / len + phase).sin() + 0.45 * (tau * d as f32 / (0.41 * len) + 1.7 + 2.0 * phase).sin();
-        let reach = (0.9 * wd + 0.15).min(4.2) * land * taper * 0.8;
+        let reach = (0.9 * wd + 0.15).min(4.2) * land * taper * 0.8 * (tl / n as f32).min(1.0);
         // (and a small drift off the straight, whatever the way)
         let lam = 8.0 + 5.0 * wd;
         let amp = (0.2 * wd + 0.1).min(1.0) * land * taper * 1.6;
@@ -601,6 +609,7 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
         let dy = noise.get(x / lam + 9.7, y / lam + 3.1, 0.77) * amp;
         [x + nx * reach * swing + dx, y + ny * reach * swing + dy, wd]
     };
+    let mut joins: std::collections::HashMap<usize, bool> = std::collections::HashMap::new();
     let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
     let mut out = Vec::new();
     let mut heads: Vec<usize> = segs.iter().map(|s| s.0).filter(|i| !has_up.contains(i)).collect();
@@ -622,7 +631,10 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
                 q[0] += wf;
             }
             pts.push(q);
-            if !seen.insert(j) || !down.contains_key(&j) {
+            let fresh = seen.insert(j);
+            if !fresh || !down.contains_key(&j) {
+                // (a chain that ran into another river — not the sea or a lake — is a tributary)
+                joins.insert(out.len(), !fresh && down.contains_key(&j));
                 break;
             }
             i = j;
@@ -630,6 +642,59 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
         if pts.len() >= 2 {
             out.push(pts);
         }
+    }
+    // a brook that runs alongside a great river (a few pixels from it) is let join it where it first comes near: two lines
+    // close together are drawn as a jagged seam between them, and a great river with a ghost beside it reads wrong
+    const BIG: f32 = 1.5;
+    const NEAR: f32 = 4.5;
+    let cell = |x: f32, y: f32| ((x.rem_euclid(wf) / 5.0) as i32, (y / 5.0) as i32);
+    let mut grid: std::collections::HashMap<(i32, i32), Vec<(usize, [f32; 2])>> = std::collections::HashMap::new();
+    for (k, pts) in out.iter().enumerate() {
+        for p in pts.iter().filter(|p| p[2] >= BIG) {
+            grid.entry(cell(p[0], p[1])).or_default().push((k, [p[0].rem_euclid(wf), p[1]]));
+        }
+    }
+    let near_big = |k: usize, x: f32, y: f32| -> Option<[f32; 2]> {
+        let (cx, cy) = cell(x, y);
+        let mut best: Option<(f32, [f32; 2])> = None;
+        for gy in cy - 1..=cy + 1 {
+            for gx in cx - 1..=cx + 1 {
+                let gx = gx.rem_euclid((wf / 5.0).ceil() as i32);
+                for &(o, q) in grid.get(&(gx, gy)).into_iter().flatten() {
+                    if o == k {
+                        continue;
+                    }
+                    let dx = (q[0] - x.rem_euclid(wf) + wf / 2.0).rem_euclid(wf) - wf / 2.0;
+                    let d = dx.hypot(q[1] - y);
+                    if d <= NEAR && best.is_none_or(|b| d < b.0) {
+                        best = Some((d, [x + dx, q[1]]));
+                    }
+                }
+            }
+        }
+        best.map(|b| b.1)
+    };
+    let mut cut = 0usize;
+    let out: Vec<Vec<[f32; 3]>> = out
+        .into_iter()
+        .enumerate()
+        .map(|(k, mut pts)| {
+            // (not its first two points: a spring beside a river is allowed to start there; and not where it is about to meet
+            // the river anyway — the last twenty points, the stretch a true confluence is near it for)
+            // (only a true brook: one that is not itself a great river before it joins — the cut would take its great reach)
+            let brook = pts.iter().take(pts.len().saturating_sub(3)).all(|p| p[2] < BIG);
+            let room = if brook && joins.get(&k).copied().unwrap_or(false) { pts.len().saturating_sub(20) } else { 0 };
+            if let Some((at, q)) = pts.iter().enumerate().take(room).skip(2).filter(|(_, p)| p[2] < BIG).find_map(|(i, p)| near_big(k, p[0], p[1]).map(|q| (i, q))) {
+                let w = pts[at][2];
+                pts.truncate(at);
+                pts.push([q[0], q[1], w]);
+                cut += 1;
+            }
+            pts
+        })
+        .collect();
+    if std::env::var("RIVERDBG").is_ok() {
+        eprintln!("реки: ручьёв, сведённых с большой рекой: {cut}");
     }
     let mut lines = Vec::new();
     for pts in out {
@@ -639,10 +704,10 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
         let keep = simplify_keep(&flat, 0.25);
         let kept: Vec<[f32; 3]> = pts.iter().zip(&keep).filter(|(_, &k)| k).map(|(p, _)| *p).collect();
         let sm = smooth3(&kept, 2);
-        // (pieces of up to four steps, a point shared between neighbours)
+        // (a piece to each step: its own width, no overlap with the next — the card lays the water by the nearest piece)
         let mut at = 0;
         while at + 1 < sm.len() {
-            let to = (at + 4).min(sm.len() - 1);
+            let to = at + 1;
             let run = &sm[at..=to];
             let wd = run.iter().map(|p| p[2]).sum::<f32>() / run.len() as f32;
             let xy: Vec<[f32; 2]> = run.iter().map(|p| [p[0], p[1]]).collect();

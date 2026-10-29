@@ -375,6 +375,21 @@ void main() {
         }
         // banks of the rivers: wet earth, and greener growth along them
         float dc = lineDist(ln.rg, 6.0);
+        // (33rd session: between two rivers a few pixels apart the steps to the two lines point opposite ways, and the card's mixing
+        // of them reads «on the line» along the whole middle — a ghost river of jagged dashes. The true distance is never
+        // shorter than the shortest step of the four texels round the point less the way to that texel.)
+        {
+            vec2 ts = vec2(textureSize(uLines, 0));
+            ivec2 t0 = ivec2(floor(uv * ts - 0.5));
+            float low = 1e9;
+            for (int j = 0; j < 2; j++) {
+                for (int i = 0; i < 2; i++) {
+                    ivec2 tc = ivec2((t0.x + i + int(ts.x)) % int(ts.x), clamp(t0.y + j, 0, int(ts.y) - 1));
+                    low = min(low, lineDist(texelFetch(uLines, tc, 0).rg, 6.0));
+                }
+            }
+            dc = max(dc, low - 0.85 * uSize.x / ts.x);
+        }
         float rhw = dt.b * 4.0;
         float pxr = max(px.x, px.y);
         float least = uK < 1.2 ? 0.30 : uK < 2.0 ? 0.14 : 0.0;
@@ -596,7 +611,7 @@ void main() {
             vec3 wn = vec3(0.0, 0.0, 1.0);
             if (lodw > 0.01) {
                 vec2 g = fbmd(vWorld * 2.0 + vec2(uTime * 0.25, uTime * 0.1), 0.5, 2).yz;
-                wn = normalize(vec3(-g * 0.9 * lodw, 1.0));
+                wn = normalize(vec3(-g * 0.9 * lodw * (1.0 - 0.65 * great), 1.0));
             }
             // across the river: 0 in the middle, 1 at the edge; the way along it from the step to the line
             // (its sign fixed, so that the streaks do not break on the middle line)
@@ -616,16 +631,16 @@ void main() {
             float edge = 1.0 - smoothstep(0.0, 0.50, deep);
             wc = mix(wc, vec3(0.26, 0.50, 0.54), edge * 0.50 * great);
             wc = mix(wc, vec3(0.40, 0.47, 0.37), edge * edge * 0.30 * great);
-            wc *= 1.0 + (streak - 0.5) * 0.55 * great * lodS;
+            wc *= 1.0 + (streak - 0.5) * 0.36 * great * lodS;
             // sandbars: patches of pale sand in the shallows of the wide reaches
-            float bars = smoothstep(0.60, 0.70, vnoise(vWorld * 0.9, 1e5) * 0.75 + 0.45 * vnoise(vWorld * 2.3 + 11.0, 1e5) - 0.20 + 0.50 * across)
-                       * smoothstep(0.55, 0.85, across) * smoothstep(0.9, 1.7, rhw) * lodS;
-            wc = mix(wc, vec3(0.66, 0.60, 0.47) * (0.9 + 0.2 * grain), bars * 0.85);
+            float barn = vnoise(vWorld * 0.22, 1e5) * 0.7 + 0.3 * vnoise(vWorld * 0.55 + 11.0, 1e5);
+            float bars = smoothstep(0.52, 0.78, barn + 0.55 * (across - 0.55)) * smoothstep(0.50, 0.90, across) * smoothstep(1.2, 2.0, rhw) * lodS;
+            wc = mix(wc, vec3(0.58, 0.55, 0.44) * (0.94 + 0.12 * grain), bars * 0.55);
             float fres = pow(1.0 - max(dot(wn, V), 0.0), 5.0);
             wc = mix(wc, vec3(0.42, 0.54, 0.66), fres * 0.35);
             vec3 Hh = normalize(V + SUN);
             // (the sun's glints sparser and softer on the wide waters: confetti, not sparks)
-            wc += vec3(1.0, 0.95, 0.85) * pow(max(dot(wn, Hh), 0.0), mix(80.0, 140.0, great)) * mix(0.45, 0.22, great) * lodw;
+            wc += vec3(1.0, 0.95, 0.85) * pow(max(dot(wn, Hh), 0.0), mix(80.0, 260.0, great)) * mix(0.45, 0.09, great) * lodw;
             wc = mix(wc, vec3(0.20, 0.30, 0.28), smoothstep(vis * 0.5, vis, dc) * 0.30 * (1.0 - great));
             // (a wet, bright rim where the water meets the bank)
             float rim = (1.0 - smoothstep(0.0, 0.10 + 1.2 * pxr, vis - dc)) * great;

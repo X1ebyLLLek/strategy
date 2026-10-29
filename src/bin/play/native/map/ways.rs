@@ -15,13 +15,14 @@ pub use crate::world::land::{MAIN, LOCAL, RAIL};
 /// line: its points and a byte of its own written into channel `attr` (if any) where it is the
 /// nearest.
 pub fn near(out: &mut [u8], w: usize, h: usize, scale: usize, ch: usize, attr: Option<usize>, lines: &[(&[[f32; 2]], u8)], range: f32) {
-    near_by(out, w, h, scale, ch, attr, lines, range, 0.0)
+    near_by(out, w, h, scale, ch, attr, lines, range, 0.0, 0.35)
 }
 
 /// `near`, where among lines the winner at a texel is the one whose far side is nearest: the
 /// distance less `bias` times the line's byte (rivers: a brook's mouth beside a great river must
-/// not hide the great river's water — the byte is the half-width, `bias` its unit).
-pub fn near_by(out: &mut [u8], w: usize, h: usize, scale: usize, ch: usize, attr: Option<usize>, lines: &[(&[[f32; 2]], u8)], range: f32, bias: f32) {
+/// not hide the great river's water — the byte is the half-width, `bias` its unit). `ext`: how far each line is laid
+/// past its ends (0 for pieces that follow one another: the next piece covers what lies beyond).
+pub fn near_by(out: &mut [u8], w: usize, h: usize, scale: usize, ch: usize, attr: Option<usize>, lines: &[(&[[f32; 2]], u8)], range: f32, bias: f32, ext: f32) {
     const T: usize = 64;
     let (tw, th) = (w * scale, h * scale);
     let (nx, ny) = (tw.div_ceil(T), th.div_ceil(T));
@@ -30,11 +31,11 @@ pub fn near_by(out: &mut [u8], w: usize, h: usize, scale: usize, ch: usize, attr
     let mut tiles: Vec<Vec<([f32; 2], [f32; 2], u8)>> = vec![Vec::new(); nx * ny];
     // (each line a little longer at both ends: at a segment's end the way to it turns round the
     // end, which the card's mixing cannot follow — the end is laid past the line's true end)
-    const EXT: f32 = 0.35;
+    let ext = ext;
     let stretch = |a: [f32; 2], b: [f32; 2]| -> [f32; 2] {
         let (dx, dy) = (a[0] - b[0], a[1] - b[1]);
         let l = (dx * dx + dy * dy).sqrt().max(1e-6);
-        [a[0] + dx / l * EXT, a[1] + dy / l * EXT]
+        [a[0] + dx / l * ext, a[1] + dy / l * ext]
     };
     for (pts, at) in lines {
         let last = pts.len().saturating_sub(1);
