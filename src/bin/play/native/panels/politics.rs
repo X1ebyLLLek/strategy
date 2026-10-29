@@ -141,9 +141,6 @@ fn neighbours(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     say(ui, s, "Войну можно готовить против любого соседа: выберите [rival]{главного соперника}, затем обоснуйте [claim]{цель войны}.");
     ui.add_space(4.0);
     let ours = g.h.world.nations[mine].gdp_real.max(1e-9);
-    let ch = chrome::of(ui.ctx());
-    let icons = chrome::icons(ui.ctx());
-    let w = ui.available_width();
     let mut pick = None;
     for c in g.neighbours() {
         let name = g.countries[c].0.clone();
@@ -163,54 +160,28 @@ fn neighbours(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         } else {
             "сосед"
         };
-        let (row, _) = ui.allocate_exact_size(vec2(w, 46.0), egui::Sense::hover());
-        let mut v = chrome::Out::new();
-        if let Some(ch) = &ch {
-            if is_rival {
-                ch.plate(&mut v, row, s, false, false, true, false);
-                v.push(egui::Shape::rect_filled(egui::Rect::from_min_size(row.min, vec2(4.0, row.height())), 1.0, s.accent));
-            } else {
-                v.push(egui::Shape::line_segment([pos2(row.min.x, row.max.y - 0.5), pos2(row.max.x, row.max.y - 0.5)], egui::Stroke::new(0.8, s.soft.gamma_multiply(0.4))));
-            }
-        }
-        ui.painter().extend(v);
-        let fr = egui::Rect::from_min_size(row.min + vec2(10.0, 8.0), vec2(45.0, 30.0));
-        if let (Some(f), Some(ch)) = (super::super::flags::get(ui.ctx(), c), &ch) {
-            super::super::flags::paint(ui.ctx(), ui.painter(), fr, &f, ch.trim, Some(&icons));
-        }
-        let x = fr.max.x + 10.0;
-        ui.painter().text(pos2(x, row.min.y + 6.0), egui::Align2::LEFT_TOP, name.to_uppercase(), egui::FontId::new(15.0, egui::FontFamily::Name("head".into())), s.ink);
-        // (29th session: the words stop where the gauge begins — «держит наши былые земли» ran under it)
-        let mut job = egui::text::LayoutJob::simple_singleline(stand.to_string(), egui::FontId::proportional(13.5), if is_rival { s.accent } else { s.soft });
-        // (32nd session: the gauge moved under the button, so the words have the row's width — «держит наши былые земли» no longer cut)
-        job.wrap = egui::text::TextWrapping::truncate_at_width((row.max.x - 158.0 - x).max(40.0));
-        let sg = ui.painter().layout_job(job);
-        ui.painter().galley(pos2(x, row.min.y + 25.0), sg, s.soft);
-        // (what their government thinks of us: the figure on a badge of its tone, as in the world's list)
-        let opinion = g.diplo.of(c, g.country(me));
-        let bx = row.max.x - if blocked.is_none() && !is_rival { 98.0 + 52.0 } else { 58.0 };
-        let badge = egui::Rect::from_min_size(pos2(bx, row.min.y + 5.0), vec2(48.0, 22.0));
-        ui.painter().rect_filled(badge, 3.0, super::super::hud::lerp(super::diplomacy::tone(opinion), Color32::BLACK, 0.3));
-        ui.painter().text(badge.center(), egui::Align2::CENTER_CENTER, format!("{:+.0}", opinion * 100.0), egui::FontId::new(13.5, egui::FontFamily::Name("bold".into())), Color32::WHITE);
-        // (their economy against ours: five pips, ours in the middle)
-        let mut v = chrome::Out::new();
-        let lvl = (2.5 * ratio).clamp(0.2, 5.0);
-        let col = if ratio > 1.25 { Color32::from_rgb(200, 70, 50) } else if ratio < 0.8 { Color32::from_rgb(90, 150, 60) } else { Color32::from_rgb(200, 150, 50) };
-        let gr = super::super::hud::pips(&mut v, pos2(row.max.x - 76.0, row.min.y + 37.0), 5, lvl, col, 9.0, 5.0);
-        ui.painter().extend(v);
-        let hit = ui.interact(row, ui.id().with(("neighbour", c)), egui::Sense::hover());
+        // (36th session: each neighbour a card of its own — the flag in a frame, the standing under the name, what their government
+        // thinks of us as a figure and a gauge, their economy against ours as pips; before, rows of a table)
         let can = blocked.is_none() && !is_rival;
+        let opinion = g.diplo.of(c, g.country(me));
+        let col = if ratio > 1.25 { Color32::from_rgb(200, 70, 50) } else if ratio < 0.8 { Color32::from_rgb(90, 150, 60) } else { Color32::from_rgb(200, 150, 50) };
+        let mut rc = super::super::realm::Realm::new(c, name.clone(), opinion);
+        rc.line = stand.to_string();
+        rc.line_col = Some(if is_rival { s.accent } else { s.soft });
+        rc.edge = is_rival.then_some(s.accent);
+        rc.on = is_rival;
+        rc.power = Some(((2.5 * ratio).clamp(0.2, 5.0), col));
+        rc.keep = if can { 96.0 } else { 0.0 };
+        let (hit, row) = super::super::realm::card(ui, &rc);
         let mut b_resp = None;
         // (the button only when the rival may be changed; why not — on the card)
         if can {
-            let b = egui::Rect::from_min_size(pos2(row.max.x - 92.0, row.min.y + 4.0), vec2(86.0, 22.0));
-            let label = "Цель";
-            let resp = ui.put(b, |ui: &mut egui::Ui| widgets::plate(ui, label, 86.0, false, can));
+            let b = egui::Rect::from_min_size(pos2(row.max.x - 98.0, row.min.y + 8.0), vec2(86.0, 24.0));
+            let resp = ui.put(b, |ui: &mut egui::Ui| widgets::plate(ui, "Цель", 86.0, false, can));
             b_resp = Some(resp);
+            // (32nd session: the button put into the row dragged the cursor up under itself; back under the card)
+            ui.advance_cursor_after_rect(egui::Rect::from_min_size(row.min, vec2(row.width(), super::super::realm::HEIGHT + 2.0)));
         }
-        // (32nd session: the button put into the row dragged the cursor up under itself — the rows crowded; back under the row)
-        ui.advance_cursor_after_rect(row);
-        let _ = gr;
         let card = || {
             let mut cd = Card::new(name.clone()).banner(c, Color32::from_rgb(g.countries[c].1[0], g.countries[c].1[1], g.countries[c].1[2])).sub(stand).row("хозяйство к нашему", format!("×{ratio:.2}")).row("войн с нами в прошлом", past_wars.to_string());
             if is_rival {

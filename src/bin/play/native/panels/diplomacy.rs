@@ -87,21 +87,22 @@ pub fn diplomacy(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     }
     // the wars of the world
     if !g.diplo.wars.is_empty() {
-        kit::words(ui, "Войны в мире", 14.0, s.accent);
+        kit::ribbon(ui, "Войны в мире", Some("clash"));
         let now = g.month() as i32;
         for war in g.diplo.wars.clone() {
-            let side = |k: usize| war.sides[k].iter().map(|&c| g.countries[c].0.as_str()).collect::<Vec<_>>().join(" + ");
+            // (36th session: a war a card — the flags of the leaders at its ends, a bar by who leads; it was a line and a bar)
+            let camp = |k: usize, colour: Color32| {
+                let all = &war.sides[k];
+                let more = if all.len() > 1 { format!(" +{}", all.len() - 1) } else { String::new() };
+                super::super::realm::Camp { country: all[0], name: format!("{}{more}", g.countries[all[0]].0), colour }
+            };
             let lead = (war.score + 1.0) / 2.0;
-            let r = ui.horizontal(|ui| {
-                ui.set_width(ui.available_width());
-                words(ui, format!("{} — {}", side(0), side(1)), 13.0, s.ink);
-            });
-            let bar = charts::shares(ui, &[(side(0), lead.max(0.02), Color32::from_rgb(176, 96, 60)), (side(1), (1.0 - lead).max(0.02), Color32::from_rgb(84, 112, 150))], 8.0);
-            let months = (now - war.since).max(0) / 12 * 12 + (now - war.since).max(0) % 12;
-            let cause = war.cause.clone();
-            let card = move || Card::new("Война в мире").icon("clash").row("причина", cause.clone()).row("идёт", format!("{months} мес.")).row("перевес нападающих", format!("{:+.0}", war.score * 100.0)).note("её ведут без фронта: решают сила хозяйств и удача; конец — перемирие, у сдавшихся — дань");
-            r.response.tip(card.clone());
-            bar.tip(card);
+            let side = |k: usize| war.sides[k].iter().map(|&c| g.countries[c].0.as_str()).collect::<Vec<_>>().join(" + ");
+            let months = (now - war.since).max(0);
+            let line = format!("{} · идёт {months} мес.", war.cause);
+            let r = super::super::realm::war(ui, &camp(0, Color32::from_rgb(176, 96, 60)), &camp(1, Color32::from_rgb(84, 112, 150)), lead, &line);
+            let (cause, score, names) = (war.cause.clone(), war.score, format!("{} — {}", side(0), side(1)));
+            r.tip(move || Card::new("Война в мире").icon("clash").text(names.clone()).row("причина", cause.clone()).row("идёт", format!("{months} мес.")).row("перевес нападающих", format!("{:+.0}", score * 100.0)).note("её ведут без фронта: решают сила хозяйств и удача; конец — перемирие, у сдавшихся — дань"));
         }
         ui.add_space(4.0);
     }
@@ -109,50 +110,24 @@ pub fn diplomacy(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     let mut order = live.clone();
     order.sort_by(|&a, &b| g.diplo.of(b, me_c).total_cmp(&g.diplo.of(a, me_c)).then(a.cmp(&b)));
     let pick_id = egui::Id::new("diplo-pick");
-    // (for pictures: a country picked by `DIPLO_PICK=c`)
-    let shot_pick = std::env::var("DIPLO_PICK").ok().and_then(|v| v.parse::<usize>().ok());
+    // (for pictures: a country picked by `DIPLO_PICK=c`, or the first of the list by `DIPLO_PICK=top`)
+    let shot_pick = std::env::var("DIPLO_PICK").ok().and_then(|v| if v == "top" { order.first().copied() } else { v.parse::<usize>().ok() });
     let picked: Option<usize> = ui.ctx().data(|d| d.get_temp(pick_id)).or(shot_pick).filter(|c: &usize| live.contains(c));
-    kit::words(ui, "Страны мира: что их правительства думают о нас", 14.0, s.accent);
-    let ch = chrome::of(ui.ctx());
-    let icons = chrome::icons(ui.ctx());
-    let w = ui.available_width();
+    kit::ribbon(ui, "Страны мира", Some("flag"));
+    say(ui, s, "Что правительство каждой страны думает о нас: число на жетоне и шкала под именем. Щёлкните карточку — что можно предложить.");
     let mut click = None;
     for &c in &order {
         let op = g.diplo.of(c, me_c);
-        let (row, resp) = ui.allocate_exact_size(vec2(w, 40.0), egui::Sense::click());
-        if !ui.is_rect_visible(row) {
-            continue;
-        }
-        let on = picked == Some(c);
-        let mut v = chrome::Out::new();
-        if let Some(ch) = &ch {
-            if on {
-                ch.plate(&mut v, row, s, false, false, true, false);
-            } else if resp.hovered() {
-                v.push(egui::Shape::rect_filled(row, 2.0, s.accent.gamma_multiply(0.12)));
-            }
-            v.push(egui::Shape::line_segment([pos2(row.min.x, row.max.y - 0.5), pos2(row.max.x, row.max.y - 0.5)], egui::Stroke::new(0.8, s.soft.gamma_multiply(0.35))));
-        }
-        ui.painter().extend(v);
-        let fr = egui::Rect::from_min_size(row.min + vec2(6.0, 7.0), vec2(39.0, 26.0));
-        if let (Some(f), Some(ch)) = (super::super::flags::get(ui.ctx(), c), &ch) {
-            super::super::flags::paint(ui.ctx(), ui.painter(), fr, &f, ch.trim, Some(&icons));
-        }
-        let x = fr.max.x + 8.0;
+        // (36th session: each country a card — the flag in a frame, its regime under its name, the pacts we keep with it as icons,
+        // what its government thinks of us as a figure and a gauge; before, rows of a table with a hairline between them)
         let regime = g.polity.of.get(c).map_or("", |p| p.regime.name());
-        ui.painter().text(pos2(x, row.min.y + 4.0), egui::Align2::LEFT_TOP, g.countries[c].0.to_uppercase(), egui::FontId::new(13.5, egui::FontFamily::Name("head".into())), s.ink);
-        let war_word = if g.diplo.war_of(c).is_some() { " · воюет" } else { "" };
-        ui.painter().text(pos2(x, row.min.y + 21.0), egui::Align2::LEFT_TOP, format!("{}{war_word}", regime.to_lowercase()), egui::FontId::proportional(12.0), s.soft);
-        // the pacts with us, as icons; the opinion as a number on its tone
-        let mut px = row.max.x - 60.0;
-        for p in g.diplo.pacts_of(c).iter().filter(|p| p.has(me_c)) {
-            px -= 20.0;
-            super::super::look::icon(&icons, pact_icon(p.kind), 17.0, s.accent).paint_at(ui, egui::Rect::from_min_size(pos2(px, row.min.y + 11.0), vec2(17.0, 17.0)));
-        }
-        let badge = egui::Rect::from_min_size(pos2(row.max.x - 54.0, row.min.y + 9.0), vec2(48.0, 22.0));
-        // (darkened under the white figure: it reads on every tone)
-        ui.painter().rect_filled(badge, 3.0, super::super::hud::lerp(tone(op), Color32::BLACK, 0.3));
-        ui.painter().text(badge.center(), egui::Align2::CENTER_CENTER, format!("{:+.0}", op * 100.0), egui::FontId::new(13.5, egui::FontFamily::Name("bold".into())), Color32::WHITE);
+        let at_war = g.diplo.war_of(c).is_some();
+        let mut rc = super::super::realm::Realm::new(c, g.countries[c].0.clone(), op);
+        rc.line = format!("{}{}", regime.to_lowercase(), if at_war { " · воюет" } else { "" });
+        rc.line_col = at_war.then_some(kit::BAD);
+        rc.on = picked == Some(c);
+        rc.pacts = g.diplo.pacts_of(c).iter().filter(|p| p.has(me_c)).map(|p| pact_icon(p.kind)).collect();
+        let (resp, _) = super::super::realm::card(ui, &rc);
         let name = g.countries[c].0.clone();
         let reasons = g.reasons_words(c, me_c);
         let card = || {
@@ -165,6 +140,10 @@ pub fn diplomacy(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         if resp.tip(card).clicked() {
             click = Some(c);
         }
+        // (36th session: what we may do with the country picked opens right under its card, not at the end of the list)
+        if picked == Some(c) {
+            country(ui, s, g, c);
+        }
     }
     if let Some(c) = click {
         let next = if picked == Some(c) { None } else { Some(c) };
@@ -173,10 +152,6 @@ pub fn diplomacy(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             None => d.remove::<usize>(pick_id),
         });
     }
-    if let Some(c) = picked {
-        ui.add_space(6.0);
-        country(ui, s, g, c);
-    }
 }
 
 /// The country picked: its opinion of us and why, its pacts, what we may do.
@@ -184,19 +159,25 @@ fn country(ui: &mut egui::Ui, s: &Skin, g: &mut Game, c: usize) {
     let me_c = g.country(g.me);
     let op = g.diplo.of(c, me_c);
     let name = g.countries[c].0.clone();
-    kit::framed(ui, Some(tone(op)), false, |ui| {
-        kit::bold(ui, name.to_uppercase(), 16.0, s.ink);
+    kit::framed(ui, Some(tone(op)), true, |ui| {
         let p = g.polity.of.get(c).cloned();
+        let gdp = |x: usize| g.h.world.nations.get(x).map_or(1e-6, |n| n.gdp.max(1e-6));
+        let ratio = gdp(c) / gdp(me_c);
+        // (36th session: the facts of the country as tiles — the economy against ours, the faith, the government's regard — not lines)
+        let mut items = vec![Stat::new("gears", "Хозяйство", format!("×{ratio:.2} к нашему"), if ratio > 1.25 { kit::BAD } else if ratio < 0.8 { kit::GOOD } else { kit::MIXED })];
+        let mut faith_card = None;
         if let Some(p) = &p {
             let faith = g.polity.faiths.get(p.state_faith).map_or(String::new(), |f| f.name.clone());
             let ours = g.polity.of.get(me_c).map_or(usize::MAX, |x| x.state_faith);
-            let same = if ours == p.state_faith { "наша вера" } else if g.polity.distance(ours, p.state_faith) < 0.75 { "вера одного корня с нашей" } else { "чужая вера" };
-            words(ui, format!("{} · «{faith}» ({same})", p.regime.name()), 13.0, s.soft);
+            let (same, tn) = if ours == p.state_faith { ("наша вера", kit::GOOD) } else if g.polity.distance(ours, p.state_faith) < 0.75 { ("одного корня", kit::MIXED) } else { ("чужая вера", kit::BAD) };
+            items.push(Stat::new("faith", "Вера", same, tn));
+            faith_card = Some((faith, p.regime.name().to_string()));
         }
-        let gdp = |x: usize| g.h.world.nations.get(x).map_or(1e-6, |n| n.gdp.max(1e-6));
-        words(ui, format!("Хозяйство к нашему: ×{:.2}", gdp(c) / gdp(me_c)), 13.0, s.soft);
-        ui.add_space(3.0);
-        words(ui, format!("Их правительство {} к нам: {:+.0}", stand_word(op), op * 100.0), 14.0, s.ink);
+        items.push(Stat::new("people", "Мнение о нас", stand_word(op), tone(op)).num(format!("{:+.0}", op * 100.0)));
+        let rs = kit::stats(ui, &items, 3);
+        if let (Some((faith, regime)), Some(r)) = (faith_card, rs.get(1)) {
+            r.clone().tip(|| Card::new(format!("Вера: «{faith}»")).icon("faith").row("строй", regime.clone()).note("общая вера сближает: союз и мир заключить легче"));
+        }
         charts::mood(ui, ui.available_width(), op);
         // why: each reason with its number
         let reasons = g.reasons_words(c, me_c);

@@ -23,6 +23,7 @@ mod kit;
 mod look;
 mod map;
 mod panels;
+mod realm;
 mod reports;
 mod screens;
 mod techtree;
