@@ -380,14 +380,12 @@ pub(super) fn plans(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Contex
                     c.kit[me][u] += 2.5 * sh.units[u] * sh.norm_of(u) * (1.0 + sh.overhead(&pack)) + lack_kit[u];
                 }
             }
-            // (and the stores of supply full: a staff that cannot feed the army it has raises no more, which is not what is checked here)
-            let at = g.h.at[me];
-            g.h.world.nations[at].arsenal.iter_mut().for_each(|a| *a += 500.0);
-            g.advance();
-            while let Some((id, kind)) = g.ev.waiting.first().map(|e| (e.id, e.kind)) {
-                let keep = matches!(kind, crate::country::events::Kind::PeaceOffer | crate::country::events::Kind::Weary);
-                g.answer(id, keep as usize);
-            }
+            // (and the stores of supply full — a staff that cannot feed the army it has raises no more, which is not what is checked
+            // here — then the month's forming of divisions alone, so that none has marched off from the banner)
+            g.h.war.stores[me] = 1.0;
+            g.h.war.cover[me] = f32::INFINITY;
+            let packed = g.pack.clone();
+            g.h.war.month_divs(&packed);
             let c = g.h.war.corps.as_ref().unwrap();
             let new: Vec<&strategy::military::corps::Division> = c.divs.iter().filter(|d| d.side == me && d.id >= last).collect();
             gathered = set && !new.is_empty() && new.iter().all(|d| d.group == 1 && (d.at == q || d.way.first().is_some() || d.gone > 0.0));
