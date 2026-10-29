@@ -168,7 +168,9 @@ impl App {
                 }
                 // the crate before the gauge
                 let icons = chrome::icons(ctx);
-                look::icon(&icons, "crate", 13.0, s.desk_ink.gamma_multiply(0.8)).paint_at(ui, egui::Rect::from_min_size(egui::pos2(x, foot_y), egui::vec2(13.0, 13.0)));
+                // (34th session: a hungry army's crate is a red warning, so that it is seen at the card's foot, not only in the pips)
+                let hungry = acc[k].1 > 0.0 && fed < 0.5;
+                look::icon(&icons, if hungry { "hazard" } else { "crate" }, 13.0, if hungry { Color32::from_rgb(240, 110, 90) } else { s.desk_ink.gamma_multiply(0.8) }).paint_at(ui, egui::Rect::from_min_size(egui::pos2(x, foot_y), egui::vec2(13.0, 13.0)));
                 // the group's name, its order with the order's badge
                 let name = crate::words::group_name(k);
                 let room_w = at2.max.x - x - 24.0;

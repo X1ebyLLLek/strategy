@@ -332,13 +332,58 @@ impl MapView {
             painter.circle_stroke(p, 8.0, Stroke::new(1.6, Color32::from_rgb(232, 199, 106)));
             painter.circle_filled(p, 3.5, Color32::from_rgb(232, 199, 106));
         }
-        // the player's depots of supply
+        // the player's depots of supply (34th session: a crate in a dark disc with a green rim, a name beside it near; and the
+        // depots being built, with the months left — they were not drawn at all)
+        let now = g.month();
+        let near = self.k >= 1.6;
+        let mut depot = |q: usize, building: Option<u32>| {
+            let p = self.pt(Self::at(g, th.provs[q]));
+            if !painter.clip_rect().expand(30.0).contains(p) {
+                return;
+            }
+            let rim = if building.is_some() { Color32::from_rgb(232, 199, 106) } else { Color32::from_rgb(159, 211, 106) };
+            painter.circle_filled(p + vec2(0.0, 1.5), 11.0, Color32::from_black_alpha(110));
+            painter.circle_filled(p, 10.0, Color32::from_rgba_unmultiplied(20, 18, 14, 235));
+            painter.circle_stroke(p, 10.0, Stroke::new(if building.is_some() { 1.4 } else { 1.8 }, rim));
+            if building.is_some() {
+                // (a ring of dashes while it is laid)
+                for k in 0..12 {
+                    let a = k as f32 / 12.0 * std::f32::consts::TAU + self.t();
+                    painter.circle_filled(p + vec2(a.cos(), a.sin()) * 13.5, 1.2, rim);
+                }
+            }
+            // (the glyph in shapes: a crate with its slats, or an hourglass)
+            if building.is_some() {
+                painter.add(egui::Shape::convex_polygon(vec![p + vec2(-4.5, -5.5), p + vec2(4.5, -5.5), p + vec2(0.0, 0.0)], rim, Stroke::NONE));
+                painter.add(egui::Shape::convex_polygon(vec![p + vec2(-4.5, 5.5), p + vec2(4.5, 5.5), p + vec2(0.0, 0.0)], rim, Stroke::NONE));
+            } else {
+                let r = Rect::from_center_size(p, vec2(10.0, 8.0));
+                painter.rect_filled(r, 1.0, rim.gamma_multiply(0.35));
+                painter.rect_stroke(r, 1.0, Stroke::new(1.3, rim));
+                painter.line_segment([r.left_top(), r.right_bottom()], Stroke::new(1.0, rim));
+                painter.line_segment([r.right_top(), r.left_bottom()], Stroke::new(1.0, rim));
+            }
+            if near {
+                let text = match building {
+                    Some(r) => format!("склад · {} мес.", r.saturating_sub(now).max(1)),
+                    None => "склад".to_string(),
+                };
+                let font = FontId::new(12.5, FontFamily::Name("bold".into()));
+                let w = painter.layout_no_wrap(text.clone(), font.clone(), rim).size().x;
+                let pill = Rect::from_min_size(p + vec2(12.0, -8.5), vec2(w + 10.0, 17.0));
+                painter.rect_filled(pill, 8.0, Color32::from_rgba_unmultiplied(20, 18, 14, 215));
+                painter.rect_stroke(pill, 8.0, Stroke::new(1.0, rim.gamma_multiply(0.7)));
+                painter.text(pill.center(), Align2::CENTER_CENTER, text, font, rim);
+            }
+        };
         for &q in &war.hubs[me] {
             if war.owner[q] == me {
-                let p = self.pt(Self::at(g, th.provs[q]));
-                let r = Rect::from_center_size(p, vec2(14.0, 14.0));
-                painter.rect_filled(r, 2.0, Color32::from_rgba_unmultiplied(20, 18, 14, 230));
-                painter.rect_stroke(r, 2.0, Stroke::new(1.6, Color32::from_rgb(159, 211, 106)));
+                depot(q, None);
+            }
+        }
+        for &(side, q, ready) in &g.state.building {
+            if side == me {
+                depot(q, Some(ready));
             }
         }
         // the lines of supply: laid provinces go onto the land's ways (the card draws them); the

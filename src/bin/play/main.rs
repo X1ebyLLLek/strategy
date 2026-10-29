@@ -228,6 +228,18 @@ fn main() {
                 game.act(saves::Act::Line(rail, path));
             }
         }
+        // (for pictures: two depots of supply — one standing, one laid now — in the provinces of ours at 4 and 8 steps from the capital)
+        if args.iter().any(|a| a == "--depots") {
+            let me = game.me;
+            let cap = game.h.war.th.capital[me];
+            let d = game.h.war.distance_from(cap);
+            let own = |k: u32| (0..game.h.war.owner.len()).filter(|&q| game.h.war.owner[q] == me && d[q] == k).min();
+            if let (Some(a), Some(b)) = (own(4), own(8)) {
+                game.h.war.hubs[me].push(a);
+                game.h.home_mut(me).treasury += 1e3;
+                game.build_depot(b);
+            }
+        }
         // (for pictures: an economist put in charge of the economy — `adv0`…`adv2` — or the player himself, `me`)
         if let Some(v) = arg("--econ") {
             game.act(saves::Act::Form(vec![("econ".to_string(), v)]));

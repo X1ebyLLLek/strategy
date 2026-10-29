@@ -101,6 +101,11 @@ impl App {
                         let (pts, _, _) = g.land.rivers.iter().max_by(|a, b| a.2.total_cmp(&b.2).then(a.0.len().cmp(&b.0.len())))?;
                         let q = if c == "mouth" { *pts.last()? } else { pts[pts.len() / 2] };
                         Some((q[0].rem_euclid(g.world.w as f32), q[1]))
+                    } else if c == "depot" {
+                        // (the first depot of ours, standing or being laid)
+                        let w = &g.h.war;
+                        let q = w.hubs[g.me].first().copied().or_else(|| g.state.building.iter().find(|b| b.0 == g.me).map(|b| b.1))?;
+                        Some(at(th.provs[q]))
                     } else if c == "forest" {
                         // (the largest forest province of the war)
                         let p = th.provs.iter().copied().filter(|&p| g.world.provinces[p].terrain == strategy::world::map::Terrain::Forest).max_by_key(|&p| g.world.provinces[p].area)?;
