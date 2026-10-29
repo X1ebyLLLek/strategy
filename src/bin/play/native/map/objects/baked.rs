@@ -77,6 +77,7 @@ pub fn variant(kind: usize, era: f32, r: f32) -> usize {
         COTTAGE if old => pick(&[(FARM_A, 0.35), (FARM_B, 0.35), (OLDHOUSE, 0.30)]),
         COTTAGE if wastes => pick(&[(OLDHOUSE, 0.45), (COTTAGE_B, 0.30), (FARM_A, 0.25)]),
         COTTAGE => pick(&[(COTTAGE_B, 0.32), (OLDHOUSE, 0.24), (FARM_A, 0.22), (FARM_B, 0.22)]),
+        TOWNHOUSE if old => pick(&[(ORDINARY_A, 0.30), (ORDINARY_B, 0.70)]),
         TOWNHOUSE => pick(&[(ORDINARY_A, 0.5), (ORDINARY_B, 0.5)]),
         HIPHOUSE => pick(&[(COTTAGE_B, 0.30), (FARM_A, 0.25), (FARM_B, 0.25), (OLDHOUSE, 0.20)]),
         BLOCK if wastes => PANEL,
