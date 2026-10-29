@@ -139,6 +139,8 @@ impl Nation {
             self.remit_in[i] = 0.0;
         }
         let mut paid = vec![0.0f32; ng];
+        let mut profit_tax = vec![0.0f32; ng];
+        let mut payout = 0.0f32;
         let mut employed = vec![0.0f32; ng];
         // what people took in kind was made and used too (what workers took from their sector
         // counts in its value added below; what the idle grew for themselves, here)
@@ -168,6 +170,14 @@ impl Nation {
             let dividend = (self.cash[s] - keep).max(0.0);
             self.cash[s] -= dividend;
             // (what the state owns of the sector, its share of the dividend goes to the treasury)
+            // (the tax on profit comes off what the sector pays out, before its owners count it)
+            payout += dividend;
+            let levy = dividend * self.profit_tax.clamp(0.0, 0.9);
+            let dividend = dividend - levy;
+            if levy > 0.0 {
+                self.treasury += levy;
+                profit_tax[sec.owner] += levy;
+            }
             match self.public.get(s) {
                 Some(&k) if k > 0.0 => {
                     let ours = dividend * k.min(1.0);
@@ -194,10 +204,25 @@ impl Nation {
             };
             self.treasury += tax;
             self.money[g] += income[g] - tax;
+            // the till takes its share of what the group spent, the estate tax a share of what it holds
+            let till: f32 = match self.sales_tax.is_empty() {
+                true => 0.0,
+                false => (0..nk).map(|j| self.spent[g][j] * self.sales_tax.get(j).copied().unwrap_or(0.0)).sum(),
+            };
+            let till = till.min(self.money[g].max(0.0));
+            self.money[g] -= till;
+            self.treasury += till;
+            let estate = (self.money[g].max(0.0) * self.estate_tax.get(g).copied().unwrap_or(0.0)).clamp(0.0, self.money[g].max(0.0));
+            self.money[g] -= estate;
+            self.treasury += estate;
             if let Some(t) = self.taxed.get_mut(g) {
-                *t = tax;
+                *t = tax + till + estate + profit_tax[g];
+            }
+            if let Some(t) = self.taxed_by.get_mut(g) {
+                *t = [tax, till, profit_tax[g], estate];
             }
         }
+        self.payout = payout;
         self.duties = duties;
         self.public_money = public;
         for j in 0..nk {

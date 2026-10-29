@@ -80,7 +80,9 @@ pub struct Row {
 /// left at its end.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Book {
+    /// All taxes together, and the same by kind: [income, purchases, profit, estate].
     pub tax: f32,
+    pub kinds: [f32; 4],
     pub duty: f32,
     pub sectors: f32,
     pub dole: f32,
@@ -590,6 +592,7 @@ impl Game {
             let n = self.h.home(s);
             let mut b = Book {
                 tax: n.taxed.iter().sum(),
+                kinds: (0..4).map(|k| n.taxed_by.iter().map(|t| t[k]).sum::<f32>()).collect::<Vec<f32>>().try_into().unwrap_or_default(),
                 duty: n.duties,
                 sectors: n.public_money,
                 dole: n.doled,

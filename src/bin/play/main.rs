@@ -244,6 +244,11 @@ fn main() {
         if let Some(v) = arg("--econ") {
             game.act(saves::Act::Form(vec![("econ".to_string(), v)]));
         }
+        // (for pictures: levers of the state set first, as the window would send them — `--set fx_tax=1,fx_sales=2`)
+        if let Some(v) = arg("--set") {
+            let form: Vec<(String, String)> = v.split(',').filter_map(|x| x.split_once('=')).map(|(k, v)| (k.trim().to_string(), v.trim().to_string())).collect();
+            game.act(saves::Act::Form(form));
+        }
         // (for pictures: months of peace lived first — another time of year)
         if let Some(m) = arg("--peace").and_then(|v| v.parse::<u32>().ok()) {
             for _ in 0..m {

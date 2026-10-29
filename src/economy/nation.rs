@@ -327,6 +327,16 @@ pub struct Nation {
     pub wage_k: f32,
     pub invest_k: f32,
     pub taxed: Vec<f32>,
+    /// The other taxes (32nd… 35th session): a share of what each good costs the buyer, paid on top
+    /// at the till (empty: none); the share of the sectors' dividends the state takes before the
+    /// owners see them; a monthly share of the money each group holds (empty: none). `taxed_by`
+    /// says, group by group, what of `taxed` was each tax: [income, purchases, profit, estate].
+    pub sales_tax: Vec<f32>,
+    pub profit_tax: f32,
+    pub estate_tax: Vec<f32>,
+    pub taxed_by: Vec<[f32; 4]>,
+    /// What the sectors paid out to their owners last month, before the profit tax.
+    pub payout: f32,
     /// The order of the land and of labour, and the people's lives (the game's levers; neutral by
     /// default): the workers' share of what each sector adds, times (empty: as the pack and the
     /// labour law say — estates leave the tiller less, land of his own more); how readily idle
@@ -586,6 +596,11 @@ impl Nation {
             wage_k: 1.0,
             invest_k: 1.0,
             taxed: vec![0.0; ng],
+            sales_tax: Vec::new(),
+            profit_tax: 0.0,
+            estate_tax: Vec::new(),
+            taxed_by: vec![[0.0; 4]; ng],
+            payout: 0.0,
             wage_by: Vec::new(),
             mobility_k: 1.0,
             growth_by: Vec::new(),
@@ -667,6 +682,8 @@ impl Nation {
         self.lab_pay *= f;
         scale(&mut self.subsidised);
         scale(&mut self.taxed);
+        self.taxed_by.iter_mut().for_each(|t| t.iter_mut().for_each(|x| *x *= f));
+        self.payout *= f;
         scale(&mut self.civil_by);
         self.civil_paid *= f;
         self.duties *= f;

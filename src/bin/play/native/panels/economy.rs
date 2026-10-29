@@ -59,16 +59,17 @@ pub(super) fn pair_chart(ui: &mut egui::Ui, s: &Skin, g: &Game, title: &str, wha
 }
 
 /// The pages of the economy's folder (28th session; the overview in front of them, 29th).
-pub const PAGES: [&str; 5] = ["Обзор", "Бюджет", "Хозяйство", "Деньги", "Люди"];
+pub const PAGES: [&str; 6] = ["Обзор", "Бюджет", "Налоги", "Хозяйство", "Деньги", "Люди"];
 
 /// The pages by what they are: the overview (the vital signs, what needs attention, the levers of
-/// each), the budget (the treasury's sheet), the economy (market, trades), the money (finances,
+/// each), the budget (the treasury's sheet), the taxes (each tax, who pays it, what it brings), the economy (market, trades), the money (finances,
 /// banks), the people.
 pub const OVERVIEW: usize = 0;
 pub const BUDGET: usize = 1;
-pub const ECONOMY: usize = 2;
-pub const MONEY: usize = 3;
-pub const PEOPLE: usize = 4;
+pub const TAXES: usize = 2;
+pub const ECONOMY: usize = 3;
+pub const MONEY: usize = 4;
+pub const PEOPLE: usize = 5;
 
 /// The economy, page by page: the overview (who runs the economy, what needs attention, the vital
 /// signs with their causes and levers); the budget (the treasury's sheet with its levers, what the
@@ -78,6 +79,7 @@ pub const PEOPLE: usize = 4;
 pub fn econ(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
     match page {
         BUDGET => budget(ui, s, g),
+        TAXES => super::taxes::taxes(ui, s, g),
         ECONOMY => economy(ui, s, g),
         MONEY => {
             super::finance::finance(ui, s, g);

@@ -92,11 +92,9 @@ pub(super) fn finance(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             r.tip(|| c());
         }
     }
-    kit::words(ui, "Рычаги меняют само хозяйство: у кого сколько денег, что выгодно строить, что везут из-за границы. Что выйдет — покажут цены, стройка и настроение людей.", 13.0, s.soft);
+    kit::words(ui, "Налоги и пошлины — на странице «Налоги». Остальные рычаги меняют само хозяйство: у кого сколько денег, что выгодно строить, что везут из-за границы. Что выйдет — покажут цены, стройка и настроение людей.", 13.0, s.soft);
     let fx = g.fiscal.clone();
-    choices(ui, s, g, "Кто платит налог", "stamper", &TAXES, fx.tax[me], "fx_tax");
     choices(ui, s, g, "Кому раздаёт казна", "bread", &DOLES, fx.dole[me], "fx_dole");
-    choices(ui, s, g, "Пошлины", "wall", &TARIFFS, fx.tariff[me], "fx_tariff");
     choices(ui, s, g, "Кредит", "coins", &RATES, fx.rate[me], "fx_rate");
     choices(ui, s, g, "Печатный станок", "stamper", &PRINTS, fx.print[me], "fx_print");
     {

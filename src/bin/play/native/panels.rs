@@ -34,6 +34,7 @@ mod production;
 mod science;
 mod sheet;
 mod society;
+mod taxes;
 mod techs;
 
 pub use army::army;

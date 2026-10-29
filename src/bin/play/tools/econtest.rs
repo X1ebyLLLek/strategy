@@ -214,6 +214,49 @@ pub fn econtest(pack: Pack, seed: u64) -> bool {
         format!("за год налог берёт {:.0}% против {:.0}% их дохода; часть настроения от налога {:+.2} против {:+.2}, всё настроение {:+.2} против {:+.2}{}", ba * 100.0, bb * 100.0, pa, pb, mood(&a), mood(&b), war(&a, &b)),
     ));
 
+    // 8. the taxes beside the income tax (35th session): each takes from those it names and from nobody else,
+    // and what it does follows from the market — the till tax weighs more on the poor (they spend all they
+    // earn), the profit tax thins what owners hold and their confidence, the estate tax falls on owners only
+    let kinds = |g: &Game| g.rows.last().map(|r| r.book[g.me].kinds).unwrap_or_default();
+    let share = |g: &Game, kind: usize, r: usize| -> f32 {
+        let n = g.h.home(g.me);
+        let gs: Vec<usize> = (0..g.pack.groups.len()).filter(|&k| crate::country::policy::role(&g.pack, k) == r).collect();
+        let (t, inc): (f32, f32) = gs.iter().fold((0.0, 0.0), |(t, i), &k| (t + n.taxed_by[k][kind], i + n.income[k].max(0.0) + n.taxed_by[k][2]));
+        t / inc.max(1e-9)
+    };
+    let a = run(&base, &[("fx_sales", "3")], 12, &none);
+    let b = run(&base, &[], 12, &none);
+    let (ka, kb) = (kinds(&a), kinds(&b));
+    let (poor_a, rich_a) = (0.5 * (share(&a, 1, 0) + share(&a, 1, 1)), share(&a, 1, 3));
+    checks.push((
+        "налог на всё: казне деньги, бедных он бьёт сильнее богатых".into(),
+        ka[1] > kb[1] + 0.05 * ka[1].max(1e-6) && ka[1] > 0.0 && poor_a > rich_a,
+        format!("с покупок за месяц {:.2} против {:.2}; доля дохода: у крестьян и рабочих {:.1}%, у собственников {:.1}%{}", ka[1], kb[1], poor_a * 100.0, rich_a * 100.0, war(&a, &b)),
+    ));
+    let a = run(&base, &[("fx_profit", "3")], 24, &none);
+    let b = run(&base, &[("fx_profit", "0")], 24, &none);
+    let owners = |g: &Game| -> f32 {
+        let n = g.h.home(g.me);
+        (0..g.pack.groups.len()).filter(|&k| crate::country::policy::role(&g.pack, k) == 3).map(|k| n.money[k]).sum()
+    };
+    let (ka, kb) = (kinds(&a), kinds(&b));
+    let (oa, ob) = (owners(&a), owners(&b));
+    let (ca, cb) = (a.fiscal.confidence[me], b.fiscal.confidence[me]);
+    checks.push((
+        "налог на прибыль: казне деньги, у собственников меньше и они мрачнее".into(),
+        ka[2] > 0.0 && kb[2] == 0.0 && oa < ob && ca < cb,
+        format!("с прибыли за месяц {:.2} против {:.2}; деньги собственников {:.1} против {:.1}; уверенность {:.2} против {:.2}{}", ka[2], kb[2], oa, ob, ca, cb, war(&a, &b)),
+    ));
+    let a = run(&base, &[("fx_estate", "1")], 12, &none);
+    let b = run(&base, &[], 12, &none);
+    let (ka, kb) = (kinds(&a), kinds(&b));
+    let others: f32 = (0..a.pack.groups.len()).filter(|&k| crate::country::policy::role(&a.pack, k) != 3).map(|k| a.h.home(me).taxed_by[k][3]).sum();
+    checks.push((
+        "налог на капитал платят одни собственники".into(),
+        ka[3] > 0.0 && kb[3] == 0.0 && others < 1e-6,
+        format!("с имущества за месяц {:.2} против {:.2}; с не-собственников взято {:.3}{}", ka[3], kb[3], others, war(&a, &b)),
+    ));
+
     let ok = checks.iter().filter(|c| c.1).count();
     println!("проверки хозяйства и власти{} ({:.0} с):", if spoil { " — КОНТРОЛЬ: механизмы выключены, все должны упасть" } else { "" }, started.elapsed().as_secs_f32());
     for (name, good, why) in &checks {

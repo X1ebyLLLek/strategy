@@ -172,7 +172,7 @@ pub(super) fn sheet(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     flows(
         ui,
         s,
-        &[("налоги", b.tax, kit::GOOD), ("пошлины", b.duty, hud::lighten(kit::GOOD, 0.25)), ("заводы казны", b.sectors, hud::darken(kit::GOOD, 0.2)), ("прочее", b.other.max(0.0), kit::PLAIN)],
+        &[("подоходный", b.kinds[0], kit::GOOD), ("с покупок", b.kinds[1], Color32::from_rgb(70, 130, 176)), ("на прибыль", b.kinds[2], Color32::from_rgb(150, 92, 164)), ("на имущество", b.kinds[3], Color32::from_rgb(82, 150, 108)), ("пошлины", b.duty, hud::lighten(kit::GOOD, 0.25)), ("заводы казны", b.sectors, hud::darken(kit::GOOD, 0.2)), ("прочее", b.other.max(0.0), kit::PLAIN)],
         &[
             ("армия", b.army, Color32::from_rgb(176, 58, 42)),
             ("жалованье", b.soldiers, Color32::from_rgb(150, 70, 52)),
@@ -189,9 +189,10 @@ pub(super) fn sheet(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     // what the treasury took in
     total(ui, s, "Доходы", income, green);
     let step_tax = gdp * 0.01;
-    let (r, d) = line_marked(ui, s, "Налоги", "", b.tax, top, green, Some((&format!("{}%", (tax * 100.0).round()), mine)), Some("tax_plus"));
+    let more = b.kinds[1] + b.kinds[2] + b.kinds[3] > 0.005;
+    let (r, d) = line_marked(ui, s, "Налоги", if more { "все виды · подробно в «Налогах»" } else { "виды — в «Налогах»" }, b.tax, top, green, Some((&format!("{}%", (tax * 100.0).round()), mine)), Some("tax_plus"));
     glow(ui, r.rect, "tax");
-    r.tip(|| Card::new("Налог с доходов").icon("coins").row("взято за месяц", num(b.tax)).row("налог", format!("{:.0}%", tax * 100.0)).row("+1 пункт налога", format!("≈ +{} в месяц", num(step_tax))).text("Больше налог — больше казна, но у людей и хозяев меньше денег: меньше покупают, меньше строят; тяжёлый налог злит тех, кто его платит.").note(if mine { "− и + справа: шаг — 1 пункт" } else { "налог ведёт советник" }));
+    r.tip(|| Card::new("Налоги").icon("coins").row("взято за месяц", num(b.tax)).row("подоходный", num(b.kinds[0])).row("с покупок", num(b.kinds[1])).row("на прибыль", num(b.kinds[2])).row("на имущество", num(b.kinds[3])).row("ставка подоходного", format!("{:.0}%", tax * 100.0)).row("+1 пункт налога", format!("≈ +{} в месяц", num(step_tax))).text("Больше налог — больше казна, но у людей и хозяев меньше денег: меньше покупают, меньше строят; тяжёлый налог злит тех, кто его платит.").note(if mine { "− и + справа: шаг — 1 пункт" } else { "налог ведёт советник" }));
     // (the spoiled control of the self-checks: the + of the tax does nothing)
     if d != 0 && !super::super::spoiled() {
         act(g, &[("tax", format!("{:.0}", ((tax * 100.0).round() + d as f32).clamp(0.0, 80.0)))]);

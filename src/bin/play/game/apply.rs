@@ -528,7 +528,7 @@ impl Game {
         if let Some(t) = num("tech") {
             self.set_tech(me, t as usize);
         }
-        for what in ["tax", "dole", "tariff", "caps", "labour", "rate", "print"] {
+        for what in ["tax", "sales", "profit", "estate", "dole", "tariff", "caps", "labour", "rate", "print"] {
             if let Some(k) = num(&format!("fx_{what}")) {
                 self.set_fiscal(me, what, k as usize);
             }

@@ -34,6 +34,55 @@ pub static TAXES: [Choice; 4] = [
     Choice { name: "Подушная подать", icon: "people", about: "С каждого поровну — бедные платят больше доли, богатые меньше: собственники строят, простой народ ропщет." },
 ];
 
+/// The tax at the till: a share of what the buyer pays, on top (35th session).
+pub static SALES: [Choice; 4] = [
+    Choice { name: "Нет", icon: "stop", about: "Покупки ничем не облагаются." },
+    Choice { name: "Лёгкий акциз", icon: "shop", about: "5% к цене товаров, кроме хлеба и того, без чего не живут. Платит тот, кто покупает: богатые тратят больше — платят больше." },
+    Choice { name: "Тяжёлый акциз", icon: "gem", about: "12% к цене товаров, кроме хлеба. Казне много, но покупают меньше — и заводам, что их делают, хуже." },
+    Choice { name: "Налог на всё", icon: "hazard", about: "10% и на хлеб: казне больше всего, а бедные, что тратят всё на еду, отдают долю побольше богатых." },
+];
+
+/// The tax on the profit of enterprises: taken from what sectors pay out to their owners.
+pub static PROFIT: [Choice; 4] = [
+    Choice { name: "Нет", icon: "stop", about: "Прибыль целиком достаётся владельцам: они строят и вкладывают." },
+    Choice { name: "Лёгкий (10%)", icon: "scroll", about: "Десятая часть выплат владельцам идёт казне." },
+    Choice { name: "Средний (20%)", icon: "stamper", about: "Пятая часть: казне заметно, владельцам меньше на новые заводы." },
+    Choice { name: "Тяжёлый (35%)", icon: "fist", about: "Больше трети: казна богатеет, а стройка частных заводов стихает, уверенность владельцев падает." },
+];
+
+/// The tax on property: a share of the money a group holds, each month.
+pub static ESTATE: [Choice; 4] = [
+    Choice { name: "Нет", icon: "stop", about: "Накопленное не облагается." },
+    Choice { name: "На капитал и земли", icon: "village", about: "0,6% запаса денег собственников в месяц: платят только владельцы, простой народ не затронут." },
+    Choice { name: "Тяжёлый на капитал", icon: "gem", about: "1,5% запаса в месяц с собственников: казне много, они прячут и вывозят деньги." },
+    Choice { name: "На любое имущество", icon: "people", about: "0,5% запаса со всех и 1,5% с собственников: у простых людей меньше сбережений на чёрный день." },
+];
+
+/// Rates of the till tax a good bears at level `k` (share of its price): none, light on goods that
+/// are not a ration, heavy on them, the same on all.
+pub fn sales_of(pack: &Pack, k: usize, i: usize) -> f32 {
+    let g = &pack.goods[i];
+    if g.military {
+        return 0.0;
+    }
+    let food = pack.ration(i);
+    match k {
+        1 if !food => 0.05,
+        2 if !food => 0.12,
+        3 => 0.10,
+        _ => 0.0,
+    }
+}
+
+/// The share of the profit tax at level `k`.
+pub const PROFIT_RATE: [f32; 4] = [0.0, 0.10, 0.20, 0.35];
+
+/// The monthly share of the money held that the estate tax takes from a group of role `r` at level `k`.
+pub fn estate_of(k: usize, r: usize) -> f32 {
+    const K: [[f32; 4]; 4] = [[0.0; 4], [0.0, 0.0, 0.0, 0.006], [0.0, 0.0, 0.0, 0.015], [0.005, 0.005, 0.005, 0.015]];
+    K[k.min(3)][r.min(3)]
+}
+
 pub static DOLES: [Choice; 4] = [
     Choice { name: "Поровну на душу", icon: "people", about: "Что казна не тратит, раздаётся всем поровну." },
     Choice { name: "Бедным", icon: "bread", about: "Раздача тем, кто беднее: голодных меньше, бедные спокойнее." },
@@ -80,6 +129,10 @@ pub const CAP: f32 = 1.25;
 #[derive(Clone, Debug)]
 pub struct Fiscal {
     pub tax: [usize; 2],
+    /// The taxes besides the income tax: at the till, on profit, on property (levels 0 … 3).
+    pub sales: [usize; 2],
+    pub profit: [usize; 2],
+    pub estate: [usize; 2],
     pub dole: [usize; 2],
     pub tariff: [usize; 2],
     pub caps: [bool; 2],
@@ -111,6 +164,9 @@ impl Default for Fiscal {
     fn default() -> Fiscal {
         Fiscal {
             tax: [0; 2],
+            sales: [0; 2],
+            profit: [0; 2],
+            estate: [0; 2],
             dole: [0; 2],
             tariff: [0; 2],
             caps: [false; 2],
@@ -133,7 +189,7 @@ impl Default for Fiscal {
 }
 
 /// The tax of a group of role `r` (0 the people of the land … 3 owners), times the custom, by scale.
-fn tax_k(scale: usize, r: usize) -> f32 {
+pub fn tax_k(scale: usize, r: usize) -> f32 {
     const K: [[f32; 4]; 4] = [[1.0, 1.0, 1.0, 1.0], [0.7, 0.85, 1.15, 1.8], [0.5, 0.7, 1.4, 3.0], [1.25, 1.1, 0.8, 0.5]];
     K[scale.min(3)][r.min(3)]
 }
@@ -145,7 +201,7 @@ fn dole_k(kind: usize, r: usize) -> f32 {
 }
 
 /// The duty on good `i` by policy `k`.
-fn duty_of(pack: &Pack, k: usize, i: usize) -> f32 {
+pub fn duty_of(pack: &Pack, k: usize, i: usize) -> f32 {
     let g = &pack.goods[i];
     if !g.tradable {
         return 0.0;
@@ -251,6 +307,11 @@ impl Game {
             let at_war = self.h.at_war;
             let n = self.h.home_mut(s);
             n.tax_by = if fx.tax[s] == 0 { Vec::new() } else { (0..ng).map(|g| tax_k(fx.tax[s], role(&pack, g))).collect() };
+            // (the self-checks' control: the three newer taxes are not laid on the economy)
+            let off = crate::country::econ_spoiled();
+            n.sales_tax = if fx.sales[s] == 0 || off { Vec::new() } else { (0..nk).map(|i| sales_of(&pack, fx.sales[s], i)).collect() };
+            n.profit_tax = if off { 0.0 } else { PROFIT_RATE[fx.profit[s].min(3)] };
+            n.estate_tax = if fx.estate[s] == 0 || off { Vec::new() } else { (0..ng).map(|g| estate_of(fx.estate[s], role(&pack, g))).collect() };
             n.dole_by = match fx.dole[s] {
                 0 => Vec::new(),
                 2 => (0..ng).map(|g| 0.3 + 6.0 * n.drafted.get(g).copied().unwrap_or(0.0) / n.pop[g].max(1e-6) + if at_war { 0.0 } else { 0.7 }).collect(),
@@ -336,7 +397,12 @@ impl Game {
         let owners: Vec<usize> = (0..pack.groups.len()).filter(|&g| role(&pack, g) == 3).collect();
         // taxes evaded: the higher the tax and the weaker the government, the more — and the less
         // the state reaches (its officials, `civil`)
-        let tax = self.h.home(s).tax;
+        // (all the taxes weigh: the others' share of the output, last month's, adds to the income tax's rate)
+        let extra = {
+            let n = self.h.home(s);
+            n.taxed_by.iter().map(|t| t[1] + t[2] + t[3]).sum::<f32>() / n.gdp.max(1e-6)
+        };
+        let tax = self.h.home(s).tax + extra;
         let reach = (1.6 - self.civil.reach[s]).clamp(0.6, 1.45);
         let evasion = (((tax - 0.2) * 0.8 + (0.55 - st).max(0.0) * 0.4 + 0.04) * reach - 0.04).clamp(0.0, 0.4);
         self.fiscal.evaded[s] = evasion;
@@ -356,6 +422,17 @@ impl Game {
                     _ => 0.6,
                 };
                 n.tax_by[g] *= (1.0 - evasion * k).max(0.3);
+            }
+        }
+        // (what is hidden is hidden from the newer taxes too: owners from the one on profit, the rich from the one
+        // on property, everybody a little from the one at the till)
+        if evasion > 0.005 {
+            n.profit_tax *= (1.0 - 1.5 * evasion).max(0.3);
+            for (g, t) in n.estate_tax.iter_mut().enumerate() {
+                *t *= (1.0 - evasion * match role(&pack, g) { 3 => 1.5, 2 => 1.0, _ => 0.6 }).max(0.3);
+            }
+            for t in n.sales_tax.iter_mut() {
+                *t *= 1.0 - 0.4 * evasion;
             }
         }
         // capital flight and its return
@@ -390,6 +467,13 @@ impl Game {
         if fx.tax[s] == 2 {
             st -= 0.0008;
         }
+        // (a tax on bread is remembered by everyone who buys it)
+        if fx.sales[s] == 3 {
+            st -= 0.0010;
+        }
+        if fx.estate[s] == 3 {
+            st -= 0.0004;
+        }
         if fx.dole[s] == 2 && self.h.at_war {
             st += 0.0015;
         }
@@ -416,6 +500,9 @@ impl Game {
         let fx = &mut self.fiscal;
         let (old, name) = match what {
             "tax" => (std::mem::replace(&mut fx.tax[s], k3), TAXES[k3].name),
+            "sales" => (std::mem::replace(&mut fx.sales[s], k3), SALES[k3].name),
+            "profit" => (std::mem::replace(&mut fx.profit[s], k3), PROFIT[k3].name),
+            "estate" => (std::mem::replace(&mut fx.estate[s], k3), ESTATE[k3].name),
             "dole" => (std::mem::replace(&mut fx.dole[s], k3), DOLES[k3].name),
             "tariff" => (std::mem::replace(&mut fx.tariff[s], k3), TARIFFS[k3].name),
             "caps" => (std::mem::replace(&mut fx.caps[s], k > 0) as usize, if k > 0 { "Твёрдые цены на хлеб" } else { "Цены свободны" }),
@@ -434,7 +521,13 @@ impl Game {
         self.stamp += 1;
         let now = self.month();
         if s == self.me {
-            self.news.push(Note::new(now, &format!("финансы: {}", name.to_lowercase()), false, "econ"));
+            let what_tax = match what {
+                "sales" => "налог с покупок",
+                "profit" => "налог на прибыль",
+                "estate" => "налог на имущество",
+                _ => "финансы",
+            };
+            self.news.push(Note::new(now, &format!("{what_tax}: {}", name.to_lowercase()), false, "econ"));
         } else {
             let who = self.h.home(s).name.clone();
             if matches!(what, "tariff" | "print" | "rate") {
@@ -509,6 +602,22 @@ impl Game {
             _ => self.fiscal.tax[s],
         };
         self.set_fiscal(s, "tax", tax);
+        // the other taxes: a government short of money in a war reaches for the till; one that cares
+        // for the poor leans on the rich; one building industry spares its owners
+        let broke = f.treasury < 0.5 && self.h.at_war;
+        let sales = if broke && !poor_angry { 1 } else { 0 };
+        self.set_fiscal(s, "sales", sales);
+        let profit = match course {
+            Some(Kind::Welfare) if !timid => 1,
+            _ if broke && !timid => 1,
+            _ => 0,
+        };
+        self.set_fiscal(s, "profit", profit);
+        let estate = match course {
+            Some(Kind::Welfare) if !timid => 1,
+            _ => 0,
+        };
+        self.set_fiscal(s, "estate", estate);
         let dole = if self.h.at_war {
             2
         } else if poor_angry || course == Some(Kind::Welfare) {
