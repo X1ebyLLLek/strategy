@@ -28,6 +28,7 @@ mod objects;
 mod paint;
 mod plans;
 mod probes;
+mod rivers;
 mod scene;
 mod seas;
 mod towns;
@@ -308,6 +309,8 @@ pub struct MapView {
     moved: bool,
     fit_rect: Rect,
     labels: Vec<Label>,
+    /// The great rivers' names, written along them (33rd session).
+    river_labels: Vec<rivers::RiverLabel>,
     fitted: bool,
     /// The small map in the corner.
     mini: Option<TextureHandle>,
@@ -513,6 +516,7 @@ impl MapView {
             moved: false,
             fit_rect: Rect::NOTHING,
             labels,
+            river_labels: rivers::labels(g),
             fitted: false,
             mini: None,
             zoom_once: 1.0,

@@ -657,6 +657,20 @@ pub fn rivers(world: &World) -> Vec<(Vec<[f32; 2]>, [f32; 4], f32)> {
     lines
 }
 
+/// The rivers' pieces gathered into whole rivers: runs of pieces each starting where the last one ended
+/// (`rivers` gives them so, a river's pieces one after another, from its source down).
+pub fn river_chains(rivers: &[(Vec<[f32; 2]>, [f32; 4], f32)]) -> Vec<Vec<usize>> {
+    let mut out: Vec<Vec<usize>> = Vec::new();
+    for (i, r) in rivers.iter().enumerate() {
+        let joins = i > 0 && rivers[i - 1].0.last() == r.0.first();
+        match (joins, out.last_mut()) {
+            (true, Some(c)) => c.push(i),
+            _ => out.push(vec![i]),
+        }
+    }
+    out
+}
+
 /// Corners cut `rounds` times like `smooth`, carrying a third number (the width) along.
 fn smooth3(pts: &[[f32; 3]], rounds: usize) -> Vec<[f32; 3]> {
     let mut sm = pts.to_vec();

@@ -332,18 +332,26 @@ pub(super) fn plans(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Contex
         let mut cand: Vec<usize> = (0..war.owner.len()).filter(|&q| war.owner[q] == g.me && d[q] >= 2).collect();
         cand.sort_by_key(|&q| (d[q], q));
         drop(g);
-        cand.into_iter().find(|&q| spot(app, q).is_some())
+        // (the nearest few to the line that are on the screen: a counter or a banner may sit on the first, and take the click)
+        cand.into_iter().filter(|&q| spot(app, q).is_some()).take(8).collect::<Vec<usize>>()
     };
     let mut gathered = false;
-    match place {
+    let mut place_q = None;
+    for &q in &place {
+        if let Some(m) = app.map.as_mut() {
+            m.build = super::super::map::Build::Muster;
+        }
+        let Some(p) = spot(app, q) else { continue };
+        for ev in [vec![egui::Event::PointerMoved(p)], vec![egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed: true, modifiers: none }], vec![egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed: false, modifiers: none }], vec![]] {
+            step(app, ev, none);
+        }
+        if shared.lock().unwrap().h.war.corps.as_ref().is_some_and(|c| c.muster[me] == Some(q)) {
+            place_q = Some(q);
+            break;
+        }
+    }
+    match place_q.or(place.first().copied()) {
         Some(q) => {
-            if let Some(m) = app.map.as_mut() {
-                m.build = super::super::map::Build::Muster;
-            }
-            let p = spot(app, q).unwrap();
-            for ev in [vec![egui::Event::PointerMoved(p)], vec![egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed: true, modifiers: none }], vec![egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed: false, modifiers: none }], vec![]] {
-                step(app, ev, none);
-            }
             let mut g = shared.lock().unwrap();
             let set = g.h.war.corps.as_ref().is_some_and(|c| c.muster[me] == Some(q));
             if !set {

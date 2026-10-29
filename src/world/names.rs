@@ -50,6 +50,26 @@ pub fn countries(rng: &mut Rng, n: usize) -> Vec<String> {
     out
 }
 
+/// A river's name, not one of `taken` (it is added there): the stem of a name with a river's ending.
+pub fn river(rng: &mut Rng, taken: &mut HashSet<String>) -> String {
+    const RIVER: [&str; 12] = ["а", "ва", "ица", "ра", "ень", "уна", "ава", "ея", "ета", "ога", "ма", "на"];
+    loop {
+        let (a, m, e) = (START[rng.below(START.len())], MID[rng.below(MID.len())], RIVER[rng.below(RIVER.len())]);
+        let vowel = |c: Option<char>| c.is_some_and(|c| "аеёиоуыэюя".contains(c));
+        let left = if m.is_empty() { a } else { m };
+        if vowel(left.chars().last()) && vowel(e.chars().next()) {
+            continue;
+        }
+        if !m.is_empty() && vowel(a.chars().last()) && vowel(m.chars().next()) {
+            continue;
+        }
+        let s = format!("{a}{m}{e}");
+        if taken.insert(s.clone()) {
+            return s;
+        }
+    }
+}
+
 /// A town's name, not one of `taken` (it is added there).
 pub fn place(rng: &mut Rng, taken: &mut HashSet<String>) -> String {
     const TOWN: [&str; 18] = ["град", "бург", "ск", "ов", "поль", "ин", "ец", "ево", "берг", "мир", "дар", "горск", "вель", "ань", "ор", "иц", "ино", "штадт"];

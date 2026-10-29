@@ -315,6 +315,8 @@ impl MapView {
                 }
             }
         }
+        // (the great rivers' names last: they give way to the countries' and the towns')
+        self.river_names(painter, rect, &mut taken);
     }
 
     /// The capitals of the war, the player's depots of supply, the lines of supply (laid ones on

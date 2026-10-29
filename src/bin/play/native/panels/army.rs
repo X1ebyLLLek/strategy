@@ -563,8 +563,27 @@ fn supply(ui: &mut egui::Ui, s: &Skin, g: &mut Game, build: &mut super::super::m
         .response
         .tip(|| Card::new("Снабжение").icon("crate").tone("доходит до войск", format!("{:.0}%", fed * 100.0), if fed > 0.9 { Tone::Good } else { Tone::Bad }));
     }
-    head(ui, s, "Склады снабжения");
     let have = g.h.war.hubs[me].iter().filter(|&&q| g.h.war.owner[q] == me).count();
+    // (33rd session: the page opened with a sentence and two buttons — the figures on tiles first)
+    {
+        use super::super::kit::{self, Stat};
+        let hungry = g.h.war.corps.as_ref().map_or(0, |c| c.divs.iter().filter(|d| d.side == me && d.supplied < 0.5).count());
+        let all = g.h.war.corps.as_ref().map_or(0, |c| c.divs.iter().filter(|d| d.side == me).count());
+        let laid = g.state.works.iter().filter(|x| x.side == me && x.finished()).count();
+        let busy = g.state.works.iter().filter(|x| x.side == me && !x.finished()).count();
+        let fed = g.h.fed[me];
+        let mut items = Vec::new();
+        if g.h.at_war {
+            items.push(Stat::new("crate", "Доходит до войск", format!("{:.0}%", fed * 100.0), if fed > 0.9 { kit::GOOD } else if fed > 0.6 { kit::MIXED } else { kit::BAD }));
+            if all > 0 {
+                items.push(Stat::new("hazard", "Без снабжения", format!("{hungry} из {all} дивизий"), if hungry == 0 { kit::GOOD } else if hungry * 4 < all { kit::MIXED } else { kit::BAD }));
+            }
+        }
+        items.push(Stat::new("supply", "Склады", if have == 0 { "нет".to_string() } else { have.to_string() }, if have == 0 { kit::PLAIN } else { kit::GOOD }));
+        items.push(Stat::new("wire", "Линии к фронту", if busy > 0 { format!("{laid} + строится {busy}") } else if laid == 0 { "нет".to_string() } else { laid.to_string() }, if laid + busy == 0 { kit::PLAIN } else { kit::GOOD }));
+        kit::stats(ui, &items, 2);
+    }
+    head(ui, s, "Склады снабжения");
     ui.label(match have {
         0 => "Складов нет.".to_string(),
         1 => "Один склад.".to_string(),
