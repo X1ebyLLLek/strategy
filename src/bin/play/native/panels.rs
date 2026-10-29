@@ -22,6 +22,7 @@ mod diplomacy;
 pub mod economy;
 mod finance;
 mod forecast;
+mod laffer;
 mod ledger;
 mod levers;
 mod military;

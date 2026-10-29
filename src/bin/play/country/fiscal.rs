@@ -188,6 +188,25 @@ impl Default for Fiscal {
     }
 }
 
+/// The share of the taxes evaded (0 … 0.4): `tax` — all the taxes as a share of the output (the income tax's rate and the others'
+/// take), `stability` the government's hold, `reach` the state's reach (`civil`). The same formula the owners' month uses
+/// (`business`), and the page «Налоги» reads it to tell what a rate would bring once the hiding is counted.
+pub fn evasion_of(tax: f32, stability: f32, reach: f32) -> f32 {
+    let reach = (1.6 - reach).clamp(0.6, 1.45);
+    (((tax - 0.2) * 0.8 + (0.55 - stability).max(0.0) * 0.4 + 0.04) * reach - 0.04).clamp(0.0, 0.4)
+}
+
+/// The share of a tax a group of role `r` still pays when `evasion` of it is hidden: owners hide the most, those who live by
+/// the land and wages the least.
+pub fn kept_k(evasion: f32, r: usize) -> f32 {
+    let hide = match r {
+        3 => 1.5,
+        2 => 1.0,
+        _ => 0.6,
+    };
+    (1.0 - evasion * hide).max(0.3)
+}
+
 /// The tax of a group of role `r` (0 the people of the land … 3 owners), times the custom, by scale.
 pub fn tax_k(scale: usize, r: usize) -> f32 {
     const K: [[f32; 4]; 4] = [[1.0, 1.0, 1.0, 1.0], [0.7, 0.85, 1.15, 1.8], [0.5, 0.7, 1.4, 3.0], [1.25, 1.1, 0.8, 0.5]];
@@ -415,8 +434,7 @@ impl Game {
             n.taxed_by.iter().map(|t| t[1] + t[2] + t[3]).sum::<f32>() / n.gdp.max(1e-6)
         };
         let tax = self.h.home(s).tax + extra;
-        let reach = (1.6 - self.civil.reach[s]).clamp(0.6, 1.45);
-        let evasion = (((tax - 0.2) * 0.8 + (0.55 - st).max(0.0) * 0.4 + 0.04) * reach - 0.04).clamp(0.0, 0.4);
+        let evasion = evasion_of(tax, st, self.civil.reach[s]);
         self.fiscal.evaded[s] = evasion;
         // (months of cheap credit in a row, for the record; a bank crisis is the banks' — `credit`)
         self.fiscal.cheap[s] = if fx.rate[s] == 0 { fx.cheap[s] + 1 } else { 0 };
@@ -428,12 +446,7 @@ impl Game {
                 n.tax_by = vec![1.0; ng];
             }
             for g in 0..ng {
-                let k = match role(&pack, g) {
-                    3 => 1.5,
-                    2 => 1.0,
-                    _ => 0.6,
-                };
-                n.tax_by[g] *= (1.0 - evasion * k).max(0.3);
+                n.tax_by[g] *= kept_k(evasion, role(&pack, g));
             }
         }
         // (what is hidden is hidden from the newer taxes too: owners from the one on profit, the rich from the one
@@ -441,7 +454,7 @@ impl Game {
         if evasion > 0.005 {
             n.profit_tax *= (1.0 - 1.5 * evasion).max(0.3);
             for (g, t) in n.estate_tax.iter_mut().enumerate() {
-                *t *= (1.0 - evasion * match role(&pack, g) { 3 => 1.5, 2 => 1.0, _ => 0.6 }).max(0.3);
+                *t *= kept_k(evasion, role(&pack, g));
             }
             for t in n.sales_tax.iter_mut() {
                 *t *= 1.0 - 0.4 * evasion;
@@ -694,5 +707,40 @@ impl Game {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod hiding_tests {
+    use super::{evasion_of, kept_k};
+
+    /// The formula as it stood inline in `business` before the page «Налоги» began to read it (36th session).
+    fn old_evasion(tax: f32, st: f32, reach: f32) -> f32 {
+        let reach = (1.6 - reach).clamp(0.6, 1.45);
+        (((tax - 0.2) * 0.8 + (0.55 - st).max(0.0) * 0.4 + 0.04) * reach - 0.04).clamp(0.0, 0.4)
+    }
+
+    #[test]
+    fn evasion_is_the_old_formula_and_grows_with_the_tax() {
+        let mut last = 0.0;
+        for t in 0..=80 {
+            let tax = t as f32 / 100.0;
+            let e = evasion_of(tax, 0.7, 0.6);
+            assert_eq!(e, old_evasion(tax, 0.7, 0.6));
+            assert!(e >= last, "evasion fell as the tax rose");
+            last = e;
+        }
+        // (a control: a weak state hides more, a strong one less — the test tells the two apart)
+        assert!(evasion_of(0.3, 0.3, 0.3) > evasion_of(0.3, 0.8, 0.9));
+        assert!(evasion_of(0.3, 0.7, 0.6) > evasion_of(0.1, 0.7, 0.6));
+    }
+
+    #[test]
+    fn owners_hide_most_and_everybody_pays_something() {
+        for e in [0.0, 0.1, 0.4] {
+            assert!(kept_k(e, 3) <= kept_k(e, 2) && kept_k(e, 2) <= kept_k(e, 0));
+            assert!(kept_k(e, 3) >= 0.3 && kept_k(e, 0) <= 1.0);
+        }
+        assert_eq!(kept_k(0.0, 3), 1.0);
     }
 }

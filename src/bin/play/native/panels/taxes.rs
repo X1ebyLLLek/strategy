@@ -9,7 +9,7 @@ use super::*;
 use super::super::charts::{num, pct};
 use super::super::hud;
 use super::super::kit::{self, Stat};
-use crate::country::fiscal::{duty_of, estate_of, sales_of, tax_k, Choice, ESTATE, PROFIT, PROFIT_RATE, SALES, TARIFFS, TAXES};
+use crate::country::fiscal::{duty_of, estate_of, kept_k, sales_of, tax_k, Choice, ESTATE, PROFIT, PROFIT_RATE, SALES, TARIFFS, TAXES};
 use crate::country::policy::role;
 
 /// The kinds of tax, by colour: income, purchases, profit, property, duties.
@@ -216,6 +216,8 @@ pub(super) fn taxes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     let (word, tone) = weight(take / gdp);
     let ev = g.fiscal.evaded[me];
     let conf = g.fiscal.confidence[me];
+    // (what the owners' month hides by: the other taxes' share of the output, the state's hold and reach)
+    let hide = laffer::Hiding { extra: n.taxed_by.iter().map(|t| t[1] + t[2] + t[3]).sum::<f32>() / gdp, stability: g.state.stability[me], reach: g.civil.reach[me] };
     kit::ribbon(ui, "Налоги страны", Some("coins"));
     let items = vec![
         Stat::new("coins", "Собрано в месяц", format!("{:.0}% выпуска", take / gdp * 100.0), kit::PLAIN).num(num(take)),
@@ -264,15 +266,20 @@ pub(super) fn taxes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         "самый крупный и предсказуемый доход казны: ставкой управляют быстро",
         "каждый пункт — меньше денег у людей и хозяев: меньше покупают и строят; выше 20% начинают прятать доходы",
         |ui| {
-            let (d, _) = super::levers::step(ui, s, "coins", "Ставка", &format!("{}%", (tax * 100.0).round()), mine, &format!("обычная в эпохе — {:.0}%. Шаг в 1 пункт даёт ≈ {}{} в месяц.", usual * 100.0, if tax > 0.0 { "+" } else { "" }, num(gdp * 0.01)));
+            let curve = laffer::curve(&n, &pack, fx.tax[me], &hide);
+            let worth = laffer::point_worth(&n, &pack, fx.tax[me], tax, &hide);
+            let (d, _) = super::levers::step(ui, s, "coins", "Ставка", &format!("{}%", (tax * 100.0).round()), mine, &format!("обычная в эпохе — {:.0}%. Пункт ставки сейчас: {}{} в месяц, уклонение учтено.", usual * 100.0, if worth >= 0.0 { "+" } else { "" }, num(worth)));
             if d != 0 && !super::super::spoiled() {
                 act(g, &[("tax", format!("{:.0}", ((tax * 100.0).round() + d as f32).clamp(0.0, 80.0)))]);
             }
+            laffer::plot(ui, s, &curve, tax, usual, took);
+            let paper = laffer::paper_at(&n, &pack, fx.tax[me], tax + 0.01) - laffer::paper_at(&n, &pack, fx.tax[me], tax);
+            laffer::verdict(ui, s, tax, &curve, worth, paper, took, laffer::yield_at(&n, &pack, fx.tax[me], tax, &hide));
             super::levers::rule(ui, s);
             kit::bold(ui, "С кого брать", 14.0, s.ink);
-            let est = |k: usize| -> f32 { tax_estimate(&n, &pack, k, tax) };
+            let est = |k: usize| -> f32 { laffer::yield_at(&n, &pack, k, tax, &hide) };
             let now = est(fx.tax[me]);
-            let who = |k: usize| by_group(&n, &pack, &|gr| n.income[gr].max(0.0) * (tax * if k == 0 { 1.0 } else { tax_k(k, role(&pack, gr)) }).clamp(0.0, 0.95));
+            let who = |k: usize| by_group(&n, &pack, &|gr| n.income[gr].max(0.0) * (tax * if k == 0 { 1.0 } else { tax_k(k, role(&pack, gr)) } * kept_k(hide.at(tax), role(&pack, gr))).clamp(0.0, 0.95));
             if let Some(k) = tiles(ui, "Подоходный", &TAXES, ["Плоский", "Лестница", "Роскошь", "Подушный"], fx.tax[me], 0, &est, &who, gdp, now) {
                 act(g, &[("fx_tax", k.to_string())]);
             }
@@ -394,15 +401,4 @@ pub(super) fn taxes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     );
     kit::words(ui, theirs, 13.0, s.soft);
     ui.add_space(8.0);
-}
-
-/// What the income tax would bring at rate `tax` if its «who pays» were `kind`, by last month's
-/// incomes (what people earned before tax).
-fn tax_estimate(n: &strategy::economy::nation::Nation, pack: &strategy::pack::Pack, kind: usize, tax: f32) -> f32 {
-    (0..pack.groups.len())
-        .map(|g| {
-            let k = if kind == 0 { 1.0 } else { tax_k(kind, role(pack, g)) };
-            n.income[g].max(0.0) * (tax * k).clamp(0.0, 0.95)
-        })
-        .sum()
 }
