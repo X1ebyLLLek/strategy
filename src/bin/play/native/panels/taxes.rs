@@ -381,6 +381,18 @@ pub(super) fn taxes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             }
         },
     );
+    // the rival's taxes, as far as they show
+    let o = 1 - me;
+    let theirs = format!(
+        "У соседа: подоходный {:.0}% ({}), с покупок — {}, на прибыль — {}, на имущество — {}, пошлины — {}",
+        g.h.home(o).tax * 100.0,
+        TAXES[g.fiscal.tax[o]].name.to_lowercase(),
+        SALES[g.fiscal.sales[o]].name.to_lowercase(),
+        PROFIT[g.fiscal.profit[o]].name.to_lowercase(),
+        ESTATE[g.fiscal.estate[o]].name.to_lowercase(),
+        TARIFFS[g.fiscal.tariff[o]].name.to_lowercase()
+    );
+    kit::words(ui, theirs, 13.0, s.soft);
     ui.add_space(8.0);
 }
 
