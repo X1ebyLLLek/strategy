@@ -11,7 +11,7 @@ use super::chrome::{self, Card, Tip, Tone};
 use super::{command, hud, map, App};
 
 /// Width of the panel; height of a row.
-const W: f32 = 430.0;
+const W: f32 = 480.0;
 const ROW: f32 = 26.0;
 
 impl App {
@@ -40,7 +40,7 @@ impl App {
         let ch = self.chrome.clone();
         let s = self.skin;
         let rows = divs.len().min(9);
-        let h = 112.0 + (command::H - 26.0) + 30.0 + 20.0 + rows as f32 * ROW + 8.0;
+        let h = 124.0 + (command::H - 26.0) + 30.0 + 20.0 + rows as f32 * ROW + 8.0;
         let at = pos2(free.min.x + 10.0, free.max.y - h - 10.0);
         let mut act: Vec<Act> = Vec::new();
         let mut only: Option<u32> = None;
@@ -74,13 +74,20 @@ impl App {
                     });
                 });
                 // how strong, organised and equipped they are, in bars as on the map's counters
-                let (br, _) = ui.allocate_exact_size(vec2(W - 24.0, 18.0), Sense::hover());
+                // (33rd session: the label over its bar with the figure at the other end — the label sat on the bar)
+                let (br, _) = ui.allocate_exact_size(vec2(W - 24.0, 30.0), Sense::hover());
                 let half = (br.width() - 20.0) / 3.0;
                 let bar = |p: &egui::Painter, x: f32, v: f32, col: Color32, label: &str| {
-                    let r = Rect::from_min_size(pos2(x, br.min.y + 10.0), vec2(half, 6.0));
-                    p.rect_filled(r.expand(1.0), 1.5, Color32::from_black_alpha(200));
-                    p.rect_filled(Rect::from_min_size(r.min, vec2(r.width() * v.clamp(0.0, 1.0), r.height())), 1.0, col);
-                    p.text(pos2(x, br.min.y + 4.0), Align2::LEFT_CENTER, label, FontId::new(12.5, FontFamily::Proportional), s.desk_ink);
+                    let r = Rect::from_min_size(pos2(x, br.min.y + 19.0), vec2(half, 7.0));
+                    p.rect_filled(r.expand(1.2), 2.0, Color32::from_black_alpha(210));
+                    let f = Rect::from_min_size(r.min, vec2(r.width() * v.clamp(0.0, 1.0), r.height()));
+                    if f.width() > 0.5 {
+                        p.rect_filled(f, 1.5, col);
+                        p.rect_filled(Rect::from_min_size(f.min, vec2(f.width(), 2.5)), 1.5, Color32::from_white_alpha(60));
+                    }
+                    p.rect_stroke(r.expand(1.2), 2.0, Stroke::new(1.0, Color32::from_black_alpha(120)));
+                    p.text(pos2(x, br.min.y + 8.0), Align2::LEFT_CENTER, label, FontId::new(12.5, FontFamily::Proportional), s.desk_ink.gamma_multiply(0.9));
+                    p.text(pos2(x + half, br.min.y + 8.0), Align2::RIGHT_CENTER, format!("{:.0}%", v.clamp(0.0, 1.0) * 100.0), FontId::new(13.0, FontFamily::Name("bold".into())), s.desk_ink);
                 };
                 bar(ui.painter(), br.min.x, strength, Color32::from_rgb(112, 196, 84), "численность");
                 bar(ui.painter(), br.min.x + half + 10.0, org, Color32::from_rgb(236, 200, 64), "организация");
@@ -174,13 +181,13 @@ impl App {
                         map::sign(p, &pack.units[kind].symbol, sb.center(), 18.0, 11.0, Color32::from_rgb(29, 26, 21));
                         let name = crate::words::division_name(d.no, &c.shapes[d.side][d.shape].name);
                         let mut job = egui::text::LayoutJob::simple_singleline(name.clone(), FontId::new(13.5, FontFamily::Proportional), s.desk_ink);
-                        job.wrap = egui::text::TextWrapping::truncate_at_width(196.0);
+                        job.wrap = egui::text::TextWrapping::truncate_at_width(210.0);
                         let gal = p.layout_job(job);
                         p.galley(pos2(sb.max.x + 6.0, r.center().y - gal.size().y / 2.0), gal, s.desk_ink);
                         // its three bars
                         let st = c.strength(&pack, d);
                         let eq = c.equipped(&pack, d);
-                        let x = r.min.x + 236.0;
+                        let x = r.min.x + 250.0;
                         for (i, (v, col)) in [(st, Color32::from_rgb(112, 196, 84)), (d.org, Color32::from_rgb(236, 200, 64)), (eq.min(1.0), if eq < 0.8 { Color32::from_rgb(236, 160, 40) } else { Color32::from_rgb(130, 176, 214) })].into_iter().enumerate() {
                             let b = Rect::from_min_size(pos2(x, r.center().y - 8.0 + i as f32 * 5.5), vec2(48.0, 4.0));
                             p.rect_filled(b.expand(0.8), 1.0, Color32::from_black_alpha(200));

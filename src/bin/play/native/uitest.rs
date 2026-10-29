@@ -157,6 +157,16 @@ pub fn uitest(shared: Arc<Mutex<Game>>, control: bool) -> bool {
         }
         return lines.iter().all(|l| l.starts_with("[OK]"));
     }
+    // (`UIONLY=war`: the war's orders alone)
+    if std::env::var("UIONLY").is_ok_and(|v| v == "war") {
+        frame(&ctx, &mut app, 1600.0, 900.0);
+        frame(&ctx, &mut app, 1600.0, 900.0);
+        war::plans(&shared, &mut app, &ctx, &mut say);
+        for l in &lines {
+            println!("{l}");
+        }
+        return lines.iter().all(|l| l.starts_with("[OK]"));
+    }
     layout::folders(&shared, &mut app, &ctx, t0, &mut say);
     // (`UIONLY=layout`: the layout checks alone, for a quick look)
     if std::env::var("UIONLY").is_ok_and(|v| v == "layout") {
