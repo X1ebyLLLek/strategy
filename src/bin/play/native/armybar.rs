@@ -276,7 +276,12 @@ impl App {
                     let gal = ui.painter().layout_job(job);
                     ui.painter().galley(egui::pos2(x, at2.max.y - 7.0 - gal.size().y), gal, col);
                 };
-                ui.painter().text(egui::pos2(x, at2.min.y + 6.0), egui::Align2::LEFT_TOP, title, egui::FontId::new(14.5, egui::FontFamily::Name("head".into())), s.desk_ink);
+                // (33rd session: «РЕЗЕРВ СТАВКИ» ran under the card's edge in a narrow card — set smaller, down to 12 pt, to fit)
+                let mut tsize = 14.5;
+                while tsize > 12.0 && ui.painter().layout_no_wrap(title.to_string(), egui::FontId::new(tsize, egui::FontFamily::Name("head".into())), s.desk_ink).size().x > at2.max.x - 6.0 - x {
+                    tsize -= 0.5;
+                }
+                ui.painter().text(egui::pos2(x, at2.min.y + 6.0 + (14.5 - tsize) * 0.4), egui::Align2::LEFT_TOP, title, egui::FontId::new(tsize, egui::FontFamily::Name("head".into())), s.desk_ink);
                 if i == 0 {
                     // the reserve: divisions outside the armies, recruits still drilling, the depots
                     let (reserve, ids, recruits) = g.h.war.corps.as_ref().map_or((0, Vec::new(), 0), |c| {

@@ -151,7 +151,7 @@ pub static PLANS: &[Plan] = &[
     },
     Plan {
         id: "patriots",
-        name: "Патриотическое воспитание",
+        name: "Воспитание патриотов",
         icon: "flag",
         months: 24,
         cost: 0.04,

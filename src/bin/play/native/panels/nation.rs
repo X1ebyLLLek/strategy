@@ -290,8 +290,15 @@ fn programmes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             let icons = chrome::icons(ui.ctx());
             let (ir, _) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::hover());
             super::super::look::icon(&icons, p.icon, 20.0, if finished { s.soft } else { s.ink }).paint_at(ui, ir);
-            let mut job = egui::text::LayoutJob::simple_singleline(p.name.to_string(), egui::FontId::new(14.0, if finished { egui::FontFamily::Proportional } else { egui::FontFamily::Name("bold".into()) }), if finished { s.soft } else { s.ink });
-            job.wrap = egui::text::TextWrapping::truncate_at_width(170.0);
+            // (33rd session: «Патриотическое воспитание» was cut to «Патриотическое вос…»; a long name is set smaller, down to 12.5 pt, before it is cut)
+            let family = if finished { egui::FontFamily::Proportional } else { egui::FontFamily::Name("bold".into()) };
+            let ink = if finished { s.soft } else { s.ink };
+            let mut size = 14.0;
+            while size > 12.5 && ui.painter().layout_no_wrap(p.name.to_string(), egui::FontId::new(size, family.clone()), ink).size().x > 172.0 {
+                size -= 0.5;
+            }
+            let mut job = egui::text::LayoutJob::simple_singleline(p.name.to_string(), egui::FontId::new(size, family), ink);
+            job.wrap = egui::text::TextWrapping::truncate_at_width(174.0);
             let gal = ui.painter().layout_job(job);
             let (lr, _) = ui.allocate_exact_size(vec2(176.0, 22.0), egui::Sense::hover());
             ui.painter().galley(egui::pos2(lr.min.x, lr.center().y - gal.size().y / 2.0), gal, s.ink);
