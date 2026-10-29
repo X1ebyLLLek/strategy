@@ -304,6 +304,27 @@ void main() {
         // (30th session: the dark growth lighter and greener — under a country's tint it was grey-violet mud)
         vec3 lush = mix(col, vec3(lumc * 0.72, lumc * 1.06, lumc * 0.58), 0.50) * 0.88;
         col = mix(col, lush, b.a * 0.75);
+        // (33rd session: the deserts and dry basins were one grey-lilac smear from the middle zoom on. Now broad swells of
+        // sand, ochre and pale crust, and wind-combed dunes lit from the sun's side, as an aerial photograph of a sandy waste;
+        // the dunes give way to the swells as the pixel grows)
+        float des = smoothstep(0.20, 0.70, wk[4]);
+        if (des > 0.01 && (uDbg & 2) == 0) {
+            float ld = dot(col, vec3(0.3, 0.59, 0.11));
+            float sw = fbm(vWorld + vec2(41.0, 17.0), 1.0 / 14.0, 3);
+            vec3 sandc = vec3(ld * 1.26, ld * 1.06, ld * 0.80);
+            vec3 ochre = vec3(ld * 1.34, ld * 0.99, ld * 0.70);
+            vec3 pale = vec3(ld * 1.10, ld * 1.05, ld * 0.97);
+            vec3 tone = mix(mix(sandc, ochre, smoothstep(0.35, 0.70, sw)), pale, 0.8 * smoothstep(0.55, 0.85, fbm(vWorld + 9.0, 1.0 / 22.0, 2)));
+            col = mix(col, tone, des * 0.65);
+            float fineD = 1.0 - smoothstep(0.35, 1.3, max(px.x, px.y));
+            if (fineD > 0.01) {
+                vec2 dq = vec2(dot(vWorld, vec2(0.87, 0.5)), dot(vWorld, vec2(-0.5, 0.87)));
+                vec2 s2 = vec2(dq.x * 0.22, dq.y * 1.6) + 2.2 * (fbm(vWorld + 5.0, 1.0 / 24.0, 2) - 0.5);
+                float d0 = fbm(s2, 1.0 / 5.0, 3);
+                float d1 = fbm(s2 + vec2(0.0, 0.35), 1.0 / 5.0, 3);
+                col *= 1.0 + 0.19 * clamp((d1 - d0) * 6.0, -1.0, 1.0) * fineD * des;
+            }
+        }
         vec4 dt = texture(uDetail, uv);
         vec4 ln = texture(uLines, uv);
         vec4 wy = texture(uWays, uv);
