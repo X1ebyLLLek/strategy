@@ -3,7 +3,8 @@
 //! who pays the tax, to whom the state hands back, duties, credit, the press, the labour law, a cap
 //! on the price of bread; subsidies and state ownership of each trade.
 
-use crate::country::fiscal::{Choice, CAP, DOLES, LABOUR, PRINTS, RATES, TARIFFS, TAXES};
+use crate::country::fiscal::{dole_weights, Choice, CAP, DOLES, INVEST_K, LABOUR, PRINTS, PRINT_SHARE, RATES, TARIFFS, TAXES, WAGE_K};
+use super::super::charts::num;
 use super::*;
 use super::super::kit::{self, Stat};
 
@@ -14,6 +15,41 @@ fn choices(ui: &mut egui::Ui, s: &Skin, g: &mut Game, label: &str, icon: &str, l
         act(g, &[(key, k.to_string())]);
     }
     levers::rule(ui, s);
+}
+
+/// A law of four choices as a card of paper (35th session): what it is and the choice in force, a good and a bad of it,
+/// the tiles of its choices — the card of each with what it would do in figures (`rows`); the choice asked for is sent as `key`.
+#[allow(clippy::too_many_arguments)]
+fn law_card(ui: &mut egui::Ui, s: &Skin, g: &mut Game, icon: &str, title: &str, list: &'static [Choice; 4], short: [&str; 4], chosen: usize, usual: usize, key: &str, pro: &str, con: &str, rows: &dyn Fn(usize) -> Vec<(String, String)>) {
+    let mut asked = None;
+    kit::framed(ui, Some(s.accent), false, |ui| {
+        ui.horizontal(|ui| {
+            let (ir, _) = ui.allocate_exact_size(vec2(28.0, 28.0), egui::Sense::hover());
+            if ui.is_rect_visible(ir) {
+                kit::socket(ui, ir.center(), 13.0, icon, s.accent, 0.3);
+            }
+            kit::bold(ui, title.to_string(), 15.5, s.ink);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                kit::bold(ui, list[chosen].name.to_string(), 14.0, s.ink);
+            });
+        });
+        kit::words(ui, list[chosen].about, 13.0, s.soft);
+        ui.add_space(2.0);
+        super::taxes::pro_con(ui, s, pro, con);
+        ui.add_space(3.0);
+        let marks: Vec<(&str, &str)> = (0..4).map(|k| (short[k], list[k].icon)).collect();
+        asked = widgets::law(ui, &marks, chosen, usual, &|k| {
+            let mut c = Card::new(format!("{title}: {}", list[k].name)).icon(list[k].icon).text(list[k].about);
+            for (name, v) in rows(k) {
+                c = c.row(name, v);
+            }
+            c.note(if k == chosen { "действует сейчас" } else { "щёлкните — решение уйдёт в правительство" })
+        })
+        .filter(|&k| k != chosen);
+    });
+    if let Some(k) = asked {
+        act(g, &[(key, k.to_string())]);
+    }
 }
 
 /// The section of finances.
@@ -94,9 +130,32 @@ pub(super) fn finance(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     }
     kit::words(ui, "Налоги и пошлины — на странице «Налоги». Остальные рычаги меняют само хозяйство: у кого сколько денег, что выгодно строить, что везут из-за границы. Что выйдет — покажут цены, стройка и настроение людей.", 13.0, s.soft);
     let fx = g.fiscal.clone();
-    choices(ui, s, g, "Кому раздаёт казна", "bread", &DOLES, fx.dole[me], "fx_dole");
-    choices(ui, s, g, "Кредит", "coins", &RATES, fx.rate[me], "fx_rate");
-    choices(ui, s, g, "Печатный станок", "stamper", &PRINTS, fx.print[me], "fx_print");
+    {
+        let n = g.h.home(me).clone();
+        let at_war = g.h.at_war;
+        let book = g.rows.last().map(|r| r.book[me]).unwrap_or_default();
+        let dole = |k: usize| -> Vec<(String, String)> {
+            let w = dole_weights(&pack, &n, k, at_war);
+            let total: f32 = (0..w.len()).map(|gr| n.pop[gr] * w[gr]).sum::<f32>().max(1e-9);
+            let mut v = vec![("раздача в месяц".to_string(), num(book.dole))];
+            for gr in 0..w.len() {
+                if n.pop[gr] > 1e-6 {
+                    v.push((pack.groups[gr].name.clone(), format!("{:.0}% раздачи", n.pop[gr] * w[gr] / total * 100.0)));
+                }
+            }
+            v
+        };
+        law_card(ui, s, g, "bread", "Кому раздаёт казна", &DOLES, ["Поровну", "Бедным", "Семьям", "Хозяевам"], fx.dole[me], 0, "fx_dole", "что казна не потратила, возвращается людям и идёт в покупки", "кому раздают — тем и достаётся: бедным спокойствие, предпринимателям стройка", &dole);
+        let rate = |k: usize| -> Vec<(String, String)> {
+            vec![("стройка частных заводов".into(), format!("×{:.2}", INVEST_K[k])), ("печатный станок".into(), if k == 3 { "нельзя".into() } else { "можно".into() })]
+        };
+        law_card(ui, s, g, "coins", "Кредит", &RATES, ["Дешёвый", "Обычная", "Дорогой", "Золото"], fx.rate[me], 1, "fx_rate", "дешёвые деньги — владельцы строят быстрее; дорогие — цены спокойнее", "дешёвые — цены растут, а при долгом кредите и пузырь; дорогие — стройка медленнее", &rate);
+        let press = |k: usize| -> Vec<(String, String)> {
+            let m = if fx.rate[me] == 3 { 0.0 } else { PRINT_SHARE[k] * income };
+            vec![("напечатает в месяц".into(), num(m)), ("доля доходов казны".into(), format!("{:.0}%", PRINT_SHARE[k] * 100.0))]
+        };
+        law_card(ui, s, g, "stamper", "Печатный станок", &PRINTS, ["Стоит", "Понемногу", "Щедро", "Без удержу"], fx.print[me], 0, "fx_print", "деньги казне сразу, без налогов и займов", "чем больше печатают, тем быстрее растут цены и дешевеют деньги", &press);
+    }
     {
         let k = g.bond_level(me);
         choices(ui, s, g, "Военные займы", "scroll", &crate::country::war_mood::BONDS, k, "fx_bonds");
@@ -111,7 +170,10 @@ pub(super) fn finance(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             say(ui, s, &line);
         }
     }
-    choices(ui, s, g, "Закон о труде", "hand", &LABOUR, fx.labour[me], "fx_labour");
+    {
+        let wage = |k: usize| -> Vec<(String, String)> { vec![("доля работников в добавленной стоимости".into(), format!("×{:.2}", WAGE_K[k]))] };
+        law_card(ui, s, g, "hand", "Закон о труде", &LABOUR, ["Без защиты", "Обычай", "Профсоюзы", "Контроль"], fx.labour[me], 1, "fx_labour", "работникам доля больше: они покупают больше и спокойнее", "хозяевам меньше прибыли: строят меньше, уверенность падает", &wage);
+    }
     {
         let on = fx.caps[me];
         if levers::switch(ui, s, "bread", "Твёрдые цены на хлеб", on, ["Нет", "Введены"], true, &format!("цена того, без чего не живут, не выше {:.0}% обычной: бедным легче, но чего не хватает — делят в очередях, а делать это становится менее выгодно", CAP * 100.0)) {

@@ -200,6 +200,23 @@ fn dole_k(kind: usize, r: usize) -> f32 {
     K[kind.min(3)][r.min(3)]
 }
 
+/// The weight a head of each group has in what the state hands back, by the kind of dole.
+pub fn dole_weights(pack: &Pack, n: &strategy::economy::nation::Nation, kind: usize, at_war: bool) -> Vec<f32> {
+    (0..pack.groups.len())
+        .map(|g| match kind {
+            2 => 0.3 + 6.0 * n.drafted.get(g).copied().unwrap_or(0.0) / n.pop[g].max(1e-6) + if at_war { 0.0 } else { 0.7 },
+            k => dole_k(k, role(pack, g)),
+        })
+        .collect()
+}
+
+/// What the labour law does to the workers' share of value added, and the interest rate to how readily owners build (times).
+pub const WAGE_K: [f32; 4] = [0.85, 1.0, 1.15, 1.3];
+pub const INVEST_K: [f32; 4] = [1.6, 1.0, 0.7, 0.85];
+
+/// What the press prints a month at level `k`, a share of the state's income.
+pub const PRINT_SHARE: [f32; 4] = [0.0, 0.1, 0.33, 0.8];
+
 /// The duty on good `i` by policy `k`.
 pub fn duty_of(pack: &Pack, k: usize, i: usize) -> f32 {
     let g = &pack.goods[i];
@@ -290,11 +307,10 @@ impl Game {
 
     /// What the press prints a month for side `s` now.
     fn print_amount(&self, s: usize) -> f32 {
-        const K: [f32; 4] = [0.0, 0.1, 0.33, 0.8];
         if self.fiscal.rate[s] == 3 {
             return 0.0;
         }
-        K[self.fiscal.print[s].min(3)] * self.income(s)
+        PRINT_SHARE[self.fiscal.print[s].min(3)] * self.income(s)
     }
 
     /// Before the world's month: each side's finances laid on its economy (the core's levers).
@@ -312,15 +328,11 @@ impl Game {
             n.sales_tax = if fx.sales[s] == 0 || off { Vec::new() } else { (0..nk).map(|i| sales_of(&pack, fx.sales[s], i)).collect() };
             n.profit_tax = if off { 0.0 } else { PROFIT_RATE[fx.profit[s].min(3)] };
             n.estate_tax = if fx.estate[s] == 0 || off { Vec::new() } else { (0..ng).map(|g| estate_of(fx.estate[s], role(&pack, g))).collect() };
-            n.dole_by = match fx.dole[s] {
-                0 => Vec::new(),
-                2 => (0..ng).map(|g| 0.3 + 6.0 * n.drafted.get(g).copied().unwrap_or(0.0) / n.pop[g].max(1e-6) + if at_war { 0.0 } else { 0.7 }).collect(),
-                k => (0..ng).map(|g| dole_k(k, role(&pack, g))).collect(),
-            };
+            n.dole_by = if fx.dole[s] == 0 { Vec::new() } else { dole_weights(&pack, n, fx.dole[s], at_war) };
             n.duty = if fx.tariff[s] == 0 { Vec::new() } else { (0..nk).map(|i| duty_of(&pack, fx.tariff[s], i)).collect() };
             n.price_cap = if fx.caps[s] { (0..nk).map(|i| if pack.ration(i) { CAP } else { 0.0 }).collect() } else { Vec::new() };
-            n.wage_k = [0.85, 1.0, 1.15, 1.3][fx.labour[s].min(3)];
-            n.invest_k = [1.6, 1.0, 0.7, 0.85][fx.rate[s].min(3)];
+            n.wage_k = WAGE_K[fx.labour[s].min(3)];
+            n.invest_k = INVEST_K[fx.rate[s].min(3)];
             n.subsidy = if fx.subsidy[s].iter().all(|&x| x == 0) { Vec::new() } else { (0..ns).map(|k| SUBSIDY[fx.subsidy[s].get(k).copied().unwrap_or(0).min(3) as usize]).collect() };
             n.public = if fx.public[s].iter().all(|&x| x == 0) { Vec::new() } else { (0..ns).map(|k| PUBLIC[fx.public[s].get(k).copied().unwrap_or(0).min(3) as usize]).collect() };
             // the press: new money for the treasury

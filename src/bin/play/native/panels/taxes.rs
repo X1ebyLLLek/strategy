@@ -133,12 +133,12 @@ fn payers(ui: &mut egui::Ui, s: &Skin, g: &Game) {
 }
 
 /// A good and a bad of a tax, one line each.
-fn pro_con(ui: &mut egui::Ui, s: &Skin, pro: &str, con: &str) {
+pub(super) fn pro_con(ui: &mut egui::Ui, s: &Skin, pro: &str, con: &str) {
     for (mark, text, col) in [("+", pro, kit::GOOD), ("−", con, kit::BAD)] {
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
             let (r, _) = ui.allocate_exact_size(vec2(14.0, 16.0), egui::Sense::hover());
-            ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, mark, egui::FontId::new(16.0, egui::FontFamily::Name("bold".into())), hud::lighten(col, 0.12));
+            ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, mark, egui::FontId::new(16.0, egui::FontFamily::Name("bold".into())), hud::darken(col, 0.38));
             kit::words(ui, text.to_string(), 13.0, s.ink);
         });
     }
