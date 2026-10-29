@@ -315,7 +315,7 @@ impl Game {
         // (in true distance: a province of the game's map is narrower than the usual one)
         let far = if d[q] == strategy::military::front::NO { 12.0 } else { d[q] as f32 * w.scale };
         let money = self.h.home(s).army_money().max(0.01);
-        (HUB_COST * money * (1.0 + 0.12 * far), HUB_MONTHS + (far / 3.0) as u32)
+        (HUB_COST * money * (1.0 + 0.2 * far), HUB_MONTHS + (far / 2.0) as u32)
     }
 
     /// The player builds a depot of supply in province `q` of the theatre (his own, reached from

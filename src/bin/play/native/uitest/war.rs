@@ -380,6 +380,9 @@ pub(super) fn plans(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Contex
                     c.kit[me][u] += 2.5 * sh.units[u] * sh.norm_of(u) * (1.0 + sh.overhead(&pack)) + lack_kit[u];
                 }
             }
+            // (and the stores of supply full: a staff that cannot feed the army it has raises no more, which is not what is checked here)
+            let at = g.h.at[me];
+            g.h.world.nations[at].arsenal.iter_mut().for_each(|a| *a += 500.0);
             g.advance();
             while let Some((id, kind)) = g.ev.waiting.first().map(|e| (e.id, e.kind)) {
                 let keep = matches!(kind, crate::country::events::Kind::PeaceOffer | crate::country::events::Kind::Weary);

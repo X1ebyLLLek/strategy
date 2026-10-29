@@ -10,7 +10,7 @@ impl Campaign {
     /// each staff gives its groups their shares and orders and moves divisions between them to
     /// match; a capital taken moves, a country holding too little of its people gives up; the
     /// books: each side's army is its divisions and its pool.
-    pub(crate) fn month_divs(&mut self, pack: &Pack) {
+    pub fn month_divs(&mut self, pack: &Pack) {
         self.month += 1;
         let seed = hash64(self.seed ^ self.month as u64);
         let nu = pack.units.len();

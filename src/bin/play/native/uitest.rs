@@ -159,6 +159,13 @@ pub fn uitest(shared: Arc<Mutex<Game>>, control: bool) -> bool {
         }
         return lines.iter().all(|l| l.starts_with("[OK]"));
     }
+    if std::env::var("UIONLY").is_ok_and(|v| v == "supply") {
+        world::supply_rules(&shared, &mut say);
+        for l in &lines {
+            println!("{l}");
+        }
+        return lines.iter().all(|l| l.starts_with("[OK]"));
+    }
     // (`UIONLY=war`: the war's orders alone)
     if std::env::var("UIONLY").is_ok_and(|v| v == "war") {
         frame(&ctx, &mut app, 1600.0, 900.0);
@@ -188,6 +195,7 @@ pub fn uitest(shared: Arc<Mutex<Game>>, control: bool) -> bool {
     land::edges(&shared, &mut app, &ctx, &mut say);
     land::lines(&shared, &mut app, &mut say);
     world::rail(&shared, &mut say);
+    world::supply_rules(&shared, &mut say);
     world::flags(&shared, &mut say);
     land::fog(&shared, &mut say);
     land::towns(&shared, &mut app, &mut say);
