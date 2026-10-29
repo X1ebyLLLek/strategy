@@ -254,6 +254,8 @@ void main() {
         vec3 c = vec3(0.0);
         vec3 nd = vec3(0.0);
         float sum = 0.0;
+        float bestw = 0.0;
+        float bestl = 0.0;
         for (int i = 0; i < 8; i++) {
             if (wk[i] < 0.02 || (uDbg & 2) != 0) continue;
             // (the forests' own ground — their glades, round the canopy — is the meadow's)
@@ -261,6 +263,10 @@ void main() {
             vec3 a = texture(uPhotos, vec3(t1, li)).rgb;
             vec3 a2 = texture(uPhotos, vec3(t2, li)).rgb;
             vec3 tc = mix(a, a2, 0.35);
+            if (wk[i] > bestw) {
+                bestw = wk[i];
+                bestl = li;
+            }
             float lift = dot(tc, vec3(0.33));
             float wgt = wk[i] * wk[i] * (0.35 + lift);
             c += wgt * tc;
@@ -276,6 +282,21 @@ void main() {
         col = mix(c, b.rgb * (lc / max(lb, 1e-3)), 0.30 * (1.0 - wk[1]));
         float grain = texture(uNormal, uv).a;
         col *= 0.86 + 0.28 * grain;
+        // (32nd session: close up the ground was soft paint — one photograph per 16 world pixels, stretched. A second look
+        // at the dominant ground's photograph at four times the frequency adds its small light and dark (the
+        // photograph's own, graded against its mean), and a fine grain of blades and grit over it: the ground
+        // gets a crisp tooth as the camera comes down, and nothing at the middle zoom, where it would only glitter)
+        {
+            float pxd = max(px.x, px.y);
+            float closeD = smoothstep(0.13, 0.035, pxd);
+            if (closeD > 0.01 && (uDbg & 2) == 0) {
+                vec3 dp = texture(uPhotos, vec3(vWorld / 3.7 + vec2(0.21, 0.47), bestl)).rgb;
+                vec3 mean = textureLod(uPhotos, vec3(0.5, 0.5, bestl), 9.0).rgb;
+                float dl = dot(dp, vec3(0.3, 0.59, 0.11)) / max(dot(mean, vec3(0.3, 0.59, 0.11)), 0.05);
+                float fine = vnoise(vWorld * 23.0, uSize.x * 23.0) - 0.5;
+                col *= mix(1.0, clamp(dl, 0.62, 1.55), 0.55 * closeD) * (1.0 + 0.16 * fine * closeD);
+            }
+        }
         // broad dark patches of growth on gentle ground (thicker grass, copses, damp hollows):
         // darker and a little greener, as a painted map shows them from afar
         // (made once with the world's layers: `ground::layers`)
@@ -444,7 +465,14 @@ void main() {
         float drift = (fbm(vWorld, 1.0 / 6.0, 3) - 0.5) * mix(1.0, 0.45, coarse);
         float snow = smoothstep(sline, sline + 0.045, h + 0.10 * drift + 0.03 * grain + 0.16 * cav) * smoothstep(0.62, 0.82, n.z + 0.10 * drift) * smoothstep(-0.20, 0.15, cav);
         vec3 snowp = mix(texture(uPhotos, vec3(t1, 7.0)).rgb, texture(uPhotos, vec3(t2, 7.0)).rgb, 0.4);
-        col = mix(col, snowp * vec3(0.98, 0.99, 1.0), snow);
+        // (32nd session: the peaks' snow lay as one flat white sheet from afar; now its hollows are cooler and shaded, its
+        // crests bright, wind-combed in drifts — the same sculpting the winter plain has)
+        vec2 wq = vec2(dot(vWorld, vec2(0.94, 0.34)), dot(vWorld, vec2(-0.34, 0.94)));
+        float sd = fbm(vWorld, 1.0 / 7.0, 3);
+        float comb = fbm(vec2(wq.x * 0.35, wq.y * 1.9), 1.0 / 5.0, 2);
+        float crest = smoothstep(0.38, 0.62, 0.55 * sd + 0.45 * comb + 0.22 * (grain - 0.5) + 0.30 * cav * (1.0 - coarse));
+        col = mix(col, snowp * vec3(0.98, 0.99, 1.0) * mix(vec3(0.74, 0.80, 0.90), vec3(1.0), crest), snow);
+        float snowcov = 0.0;
         // the time of year: winter's snow lies where it is cold enough (towards the poles, up
         // high; less on steep slopes, broken at its edge), autumn yellows the grass and browns
         // the fields, spring's mud darkens the low wet ground
@@ -452,8 +480,12 @@ void main() {
             float coldness = latc_of(vWorld) + 0.55 * h;
             float lies = smoothstep(0.16, 0.36, coldness + 0.14 * (fbm(vWorld, 1.0 / 16.0, 3) - 0.5));
             float winter = uSeason.x * lies * smoothstep(0.30, 0.75, n.z) * (1.0 - water);
-            vec3 snowc = vec3(0.90, 0.92, 0.95) * (0.92 + 0.12 * grain);
-            col = mix(col, snowc, winter * 0.92);
+            // (32nd session: the winter plain was one blown-out white — no drifts, no shade, the country's colour
+            // gone. Now the snow is a little darker and bluer in its hollows and bright on its crests, wind-combed
+            // in long drifts; the ground (a forest, a field's furrows) shows faintly through)
+            vec3 snowc = mix(vec3(0.70, 0.76, 0.86), vec3(0.93, 0.945, 0.97), crest) * (0.94 + 0.10 * grain);
+            snowcov = winter;
+            col = mix(col, snowc, winter * 0.90);
             float grass = clamp(wk[0] + 0.8 * wk[2] + 0.6 * wk[6], 0.0, 1.0);
             float lumy = dot(col, vec3(0.3, 0.59, 0.11));
             col = mix(col, vec3(lumy * 1.30, lumy * 1.05, lumy * 0.55), uSeason.y * (0.55 * grass + 0.45 * farm) * (1.0 - winter));
@@ -618,7 +650,8 @@ void main() {
             tint *= 0.93 + 0.14 * hash(vec2(float(id), 17.0));
             // (30th session: under a forest the country's colour is weaker — the forest keeps its green and the country
             // its tint at the edge and in the open: it was a purple-grey mush with no forest in it)
-            col = mix(col, tint * clamp(lum, 0.80, 1.25), uOverlay * on * (1.0 - 0.30 * ck));
+            // (32nd session: on snow the tint is stronger — the white ground carries it less)
+            col = mix(col, tint * clamp(lum, 0.80, 1.25), min(uOverlay * (1.0 + 0.38 * snowcov), 0.92) * on * (1.0 - 0.30 * ck));
             // borders (far away; close up egui draws them smooth): the countries' dark, the
             // provinces' faint, the front red
             if (uBorders > 0.0) {

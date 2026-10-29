@@ -588,6 +588,20 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View, figures: &[Figure]) {
         gl.disable(glow::POLYGON_OFFSET_FILL);
         gl.disable(glow::BLEND);
         gl.depth_mask(true);
+        // (32nd session: an outline — each model drawn first as a shell blown out along its normals, only the faces turned
+        // from us, dark: the body is drawn over it, and a rim of a screen point or so is left. A khaki figure on
+        // khaki land stood out by its ring alone; now its edge is a line, as a miniature's is)
+        gl.enable(glow::CULL_FACE);
+        gl.cull_face(glow::BACK);
+        gl.uniform_1_i32(u("uMode").as_ref(), 5);
+        for (k, m) in g.models.iter().enumerate() {
+            let n = (by[k].len() / 8) as i32;
+            if n > 0 {
+                gl.bind_vertex_array(Some(m.vao));
+                gl.draw_arrays_instanced(glow::TRIANGLES, 0, m.verts, n);
+            }
+        }
+        gl.disable(glow::CULL_FACE);
         gl.uniform_1_i32(u("uMode").as_ref(), 0);
         for (k, m) in g.models.iter().enumerate() {
             let n = (by[k].len() / 8) as i32;

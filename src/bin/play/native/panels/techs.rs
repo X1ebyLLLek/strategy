@@ -136,7 +136,10 @@ pub(super) fn techs(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
                 }
             });
         });
-        ui.add_space(4.0);
+        // (32nd session: the button put at the row's side pulled the cursor up to its own foot — the next card began
+        // inside this one, over its second line; the cursor goes back under the whole row)
+        ui.advance_cursor_after_rect(row);
+        ui.add_space(2.0);
         let resp = rresp;
         let tip = g.tech_tip(t);
         let world = seen(t);

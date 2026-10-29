@@ -150,25 +150,28 @@ fn neighbours(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         ui.painter().text(pos2(x, row.min.y + 6.0), egui::Align2::LEFT_TOP, name.to_uppercase(), egui::FontId::new(15.0, egui::FontFamily::Name("head".into())), s.ink);
         // (29th session: the words stop where the gauge begins — «держит наши былые земли» ran under it)
         let mut job = egui::text::LayoutJob::simple_singleline(stand.to_string(), egui::FontId::proportional(13.5), if is_rival { s.accent } else { s.soft });
-        job.wrap = egui::text::TextWrapping::truncate_at_width((row.max.x - 156.0 - x).max(40.0));
+        // (32nd session: the gauge moved under the button, so the words have the row's width — «держит наши былые земли» no longer cut)
+        job.wrap = egui::text::TextWrapping::truncate_at_width((row.max.x - 104.0 - x).max(40.0));
         let sg = ui.painter().layout_job(job);
         ui.painter().galley(pos2(x, row.min.y + 25.0), sg, s.soft);
         // (their economy against ours: five pips, ours in the middle)
         let mut v = chrome::Out::new();
         let lvl = (2.5 * ratio).clamp(0.2, 5.0);
         let col = if ratio > 1.25 { Color32::from_rgb(200, 70, 50) } else if ratio < 0.8 { Color32::from_rgb(90, 150, 60) } else { Color32::from_rgb(200, 150, 50) };
-        let gr = super::super::hud::pips(&mut v, pos2(row.max.x - 150.0, row.min.y + 30.0), 5, lvl, col, 9.0, 5.0);
+        let gr = super::super::hud::pips(&mut v, pos2(row.max.x - 76.0, row.min.y + 37.0), 5, lvl, col, 9.0, 5.0);
         ui.painter().extend(v);
         let hit = ui.interact(row, ui.id().with(("neighbour", c)), egui::Sense::hover());
         let can = blocked.is_none() && !is_rival;
         let mut b_resp = None;
         // (the button only when the rival may be changed; why not — on the card)
         if can {
-            let b = egui::Rect::from_min_size(pos2(row.max.x - 92.0, row.min.y + 6.0), vec2(86.0, 22.0));
+            let b = egui::Rect::from_min_size(pos2(row.max.x - 92.0, row.min.y + 4.0), vec2(86.0, 22.0));
             let label = "Цель";
             let resp = ui.put(b, |ui: &mut egui::Ui| widgets::plate(ui, label, 86.0, false, can));
             b_resp = Some(resp);
         }
+        // (32nd session: the button put into the row dragged the cursor up under itself — the rows crowded; back under the row)
+        ui.advance_cursor_after_rect(row);
         let _ = gr;
         let card = || {
             let mut cd = Card::new(name.clone()).banner(c, Color32::from_rgb(g.countries[c].1[0], g.countries[c].1[1], g.countries[c].1[2])).sub(stand).row("хозяйство к нашему", format!("×{ratio:.2}")).row("войн с нами в прошлом", past_wars.to_string());

@@ -155,7 +155,8 @@ impl App {
         let gen = gr.general.as_ref().map_or(String::new(), |x| x.name.clone());
         let attacking = matches!(gr.order, Order::Attack(_));
         let status = match &tool {
-            Tool::Front { .. } => "щелчок по соседу — весь фронт; протянуть вдоль границы — участок".to_string(),
+            // (32nd session: it was cut at the card's width — «…фронт; про…»; the stretch along the border is in the button's card)
+            Tool::Front { .. } => "щелчок по соседу — весь фронт".to_string(),
             Tool::Attack { .. } => "щёлкните по провинции врага — цель".to_string(),
             _ if ks.len() > 1 => format!("и ещё: {}", ks[1..].iter().map(|&j| crate::words::group_name(j)).collect::<Vec<_>>().join(", ")),
             _ if draft && !at_war => "план готов — исполнить в войну".to_string(),

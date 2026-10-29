@@ -33,6 +33,12 @@ void main() {
         frag = vec4(0.0, 0.0, 0.0, a);
         return;
     }
+    if (uMode == 5) {
+        // the outline: dark, a little of the country's colour in it, gone with the haze
+        vec3 oc = mix(vec3(0.04, 0.045, 0.06), vCol * 0.28, 0.5);
+        frag = vec4(mix(oc, vec3(0.64, 0.72, 0.80), haze * 0.55), 1.0);
+        return;
+    }
     // the paints: the uniform (the country's), skin, leather, steel, wood, painted metal, white,
     // brass, a bay horse, rubber
     int k = int(vPaint + 0.5);

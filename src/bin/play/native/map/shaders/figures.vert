@@ -96,5 +96,10 @@ void main() {
     vN = n;
     vec3 at = vec3(aInst.xy + p.xy * size, ground(aInst.xy) + p.z * size);
     gl_Position = uMvp * vec4(at, 1.0);
+    if (uMode == 5) {
+        // the outline's shell: out along the normal by a screen point or so (the world's size of a point grows with the distance)
+        at += normalize(n) * gl_Position.w * 0.0012;
+        gl_Position = uMvp * vec4(at, 1.0);
+    }
     vDepth = gl_Position.w;
 }
