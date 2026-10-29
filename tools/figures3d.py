@@ -7,6 +7,9 @@ bronze), a technical and an armoured rig of the wastes.
 
     python -I tools/figures3d.py DIR_WITH_GLB [--preview OUT.png]
 
+(32nd session: the tank is now the T-12 of `figures_new.py`, and the musketeers' and riflemen's clothes are finished by
+`figures_dress.py` — run both after this one, and remove assets/figures/DRESSED before the second.)
+
 DIR holds <id>.glb, each fetched from the model's page https://poly.pizza/m/<id> (the page names
 https://static.poly.pizza/<uuid>.glb). The figures' format: b'FIG1', the vertex count (u32), then
 eight f32 a vertex — position (x front, y left, z up; the figure stands on z = 0), normal, the

@@ -136,6 +136,7 @@ class Glb:
         pose = self.pose(anim, t)
         W = self.worlds(pose)
         P, N, C, M, NN = [], [], [], [], []
+        UV = []
         scene = self.j.get('scene', 0)
         roots = self.j['scenes'][scene]['nodes'] if 'scenes' in self.j else list(range(len(self.j['nodes'])))
         seen = set()
@@ -208,11 +209,17 @@ class Glb:
                 if 'COLOR_0' in at:
                     vc = self.acc(at['COLOR_0'])[:, :3].astype(np.float64)
                     col = col * vc[tri].mean(1)
+                if 'TEXCOORD_0' in at:
+                    UV.append(self.acc(at['TEXCOORD_0'])[tri].mean(1))
+                else:
+                    UV.append(np.zeros((len(tri), 2)))
                 P.append(tp)
                 N.append(tn)
                 C.append(col)
                 M.extend([mat.get('name', '')] * len(tri))
                 NN.extend([name] * len(tri))
+        # (each triangle's middle in the texture, in the same order — for a model whose texture came apart from it)
+        self.last_uv = np.concatenate(UV)
         return np.concatenate(P), np.concatenate(N), np.concatenate(C), M, NN
 
 
