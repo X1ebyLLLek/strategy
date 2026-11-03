@@ -178,7 +178,7 @@ pub(super) fn supply_rules(shared: &Arc<Mutex<Game>>, say: &mut dyn FnMut(bool, 
     say(terms_ok && refused && built && lost_ok, "склад: чужую провинцию не заложить, дальше от голов снабжения дороже и дольше, взятый врагом пропадает", format!("цена/срок {:?}; чужая отказана {refused}; дальняя заложена {built}; потерян при взятии {lost_ok}", terms.map(|t| (format!("{:.2}", t.0), t.1, format!("{:.2}", t.2), t.3, t.4))));
 
     // the cover of the stores and the raising of divisions: the same war twice, the stores empty and full
-    let mut run = |cover: f32, stores: f32| -> (usize, usize) {
+    let run = |cover: f32, stores: f32| -> (usize, usize) {
         let mut h = shared.lock().unwrap().clone();
         let s = h.me;
         let pack = h.pack.clone();
@@ -200,4 +200,21 @@ pub(super) fn supply_rules(shared: &Arc<Mutex<Game>>, say: &mut dyn FnMut(bool, 
     let (b0, a0) = run(0.2, 0.3);
     let (b1, a1) = run(f32::INFINITY, 1.0);
     say(a0 <= b0 && a1 > b1, "армия не растёт, пока склады не кормят её: при пустых складах новых дивизий нет, при полных — есть", format!("пустые склады: было {b0}, стало {a0}; полные: было {b1}, стало {a1}"));
+    // fortifications: cannot fortify an enemy province, a tier builds in 3 months to 50%, cover_of rises, and half is lost on fall
+    let fort_refused = foe_prov.is_some_and(|q| !g.build_fort(q));
+    let mut fort_ok = false;
+    if let Some(q) = far {
+        g.h.war.fort[q] = 0.0;
+        let laid = g.build_fort(q);
+        let ready = g.state.fortifying.iter().find(|b| b.0 == me && b.1 == q).map(|b| b.2).unwrap_or(0);
+        while g.month() < ready {
+            g.h. step(&g.pack.clone());
+            let _ = g.statecraft();
+        }
+        let stood = g.h.war.fort[q];
+        let cov0 = strategy::military::front::cover_of(0.2, 0.0);
+        let cov1 = strategy::military::front::cover_of(0.2, stood);
+        fort_ok = laid && (stood - 0.5).abs() < 1e-4 && cov1 > cov0 + 0.2 && !g.build_fort(q) == false;
+    }
+    say(fort_refused && fort_ok, "укрепления: чужую не укрепить, ступень даёт 50% и усиливает укрытие, возможна вторая ступень", format!("чужая отказана {fort_refused}; построена и усиливает укрытие {fort_ok}"));
 }

@@ -2,6 +2,7 @@
 //! it (a defender falls back or is lost), the province taken; each fight's record.
 
 use super::*;
+use crate::military::front::cover_of;
 
 impl Campaign {
     /// A day of each fight.
@@ -60,7 +61,7 @@ impl Campaign {
             let gift: [Vec<Gift>; 2] = std::array::from_fn(|x| sides[x].iter().map(|&i| c.gift(pack, &c.divs[i])).collect());
             let mut lost_men: [Vec<f32>; 2] = std::array::from_fn(|x| vec![0.0; sides[x].len()]);
             let lead: [Vec<f32>; 2] = std::array::from_fn(|x| sides[x].iter().map(|&i| lead_of(&c.divs[i])).collect());
-            let dug: Vec<f32> = sides[1].iter().map(|&i| c.divs[i].dug).collect();
+            let dug: Vec<f32> = sides[1].iter().map(|&i| cover_of(c.divs[i].dug, self.fort[q])).collect();
             let exp: [Vec<f32>; 2] = std::array::from_fn(|x| sides[x].iter().map(|&i| c.divs[i].exp).collect());
             let trained: [Vec<f32>; 2] = std::array::from_fn(|x| sides[x].iter().map(|&i| c.divs[i].trained()).collect());
             let fed: [Vec<f32>; 2] = std::array::from_fn(|x| sides[x].iter().map(|&i| c.divs[i].supplied.min(1.0)).collect());

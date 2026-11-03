@@ -611,7 +611,7 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View) {
             gl.draw_arrays_instanced(glow::TRIANGLES, 0, mesh.verts, n as i32);
         }
     };
-    let all = |mesh: &Mesh| {
+    let _all = |mesh: &Mesh| {
         if mesh.copies > 0 {
             gl.bind_vertex_array(Some(mesh.vao));
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(mesh.inst));

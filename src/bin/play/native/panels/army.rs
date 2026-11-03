@@ -611,6 +611,24 @@ fn supply(ui: &mut egui::Ui, s: &Skin, g: &mut Game, build: &mut super::super::m
         *build = if depot { super::super::map::Build::None } else { super::super::map::Build::Depot };
     }
     // the lines of supply: a railway (in the ages of steam) or a road through one's own land
+    // fortifications on the map
+    head(ui, s, "Укрепления");
+    let fname = g.fort_name();
+    say(ui, s, "[fort]{Укрепления} в провинции укрывают обороняющиеся войска сверх полевых окопов (две ступени по 50%). При потере провинции половина укреплений разрушается.");
+    ui.add_space(3.0);
+    let forts_stood = (0..g.h.war.fort.len()).filter(|&q| g.h.war.owner[q] == me && g.h.war.fort[q] > 0.01).count();
+    let forts_busy = g.state.fortifying.iter().filter(|b| b.0 == me).count();
+    if forts_stood > 0 || forts_busy > 0 {
+        ui.label(format!("Укреплено провинций: {forts_stood}{}", if forts_busy > 0 { format!(", строится: {forts_busy}") } else { String::new() }));
+    }
+    let fort_on = *build == super::super::map::Build::Fort;
+    let fort_cost = g.fort_terms(me, g.h.war.th.capital[me]);
+    if widgets::plate(ui, if fort_on { "Щёлкните по своей провинции… (отмена)" } else { "Укрепить провинцию…" }, w, fort_on, true)
+        .tip(|| Card::new(fname).icon("shield").text("Каждая ступень даёт +50% укреплений провинции (до 100% за две постройки) — вплоть до +60% защиты укрытия сверх окопов.").row("укреплено провинций", forts_stood.to_string()).row("первая ступень", format!("{:.2} · {} мес.", fort_cost.0, fort_cost.1)))
+        .clicked()
+    {
+        *build = if fort_on { super::super::map::Build::None } else { super::super::map::Build::Fort };
+    }
     head(ui, s, "Линии снабжения");
     say(ui, s, "Снабжение идёт от столицы и складов шаг за шагом по провинциям. [line_supply]{Линия снабжения} к фронту — и войска там сытее.");
     ui.add_space(3.0);

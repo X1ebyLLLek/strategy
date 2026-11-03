@@ -125,7 +125,7 @@ impl Campaign {
                 self.reserve[o].iter_mut().for_each(|x| *x = x.max(0.0));
             }
             let mut att = Army { supplied: supply[s][from], ..self.sides[s].real(g.clone()) };
-            let mut def = Army { supplied: supply[o][q], dug: self.dug[o][q], ..self.sides[o].real(self.troops[o][q].clone()) };
+            let mut def = Army { supplied: supply[o][q], dug: cover_of(self.dug[o][q], self.fort[q]), ..self.sides[o].real(self.troops[o][q].clone()) };
             // the generals who lead them: the troops fight as well as they are led
             let mut lead = [1.0f32; 2];
             for (i, (side, at, army)) in [(s, from, &mut att), (o, q, &mut def)].into_iter().enumerate() {
@@ -135,7 +135,7 @@ impl Campaign {
                 army.tough.iter_mut().for_each(|t| *t *= k);
             }
             let kinds = [g.clone(), self.troops[o][q].clone()];
-            let dug_then = self.dug[o][q];
+            let dug_then = cover_of(self.dug[o][q], self.fort[q]);
             let ratio = Campaign::worth(pack, &g) / Campaign::worth(pack, &self.troops[o][q]).max(1e-6);
             let out = battle(pack, self.th.terrain[q], [&att, &def], Kind::Attack, &mut rng, false);
             let won = out.winner == Some(0);
@@ -175,6 +175,7 @@ impl Campaign {
             }
             if won {
                 self.owner[q] = s;
+                self.fort[q] *= FORT_SPOIL;
                 self.dug[o][q] = 0.0;
                 self.dug[s][q] = 0.0;
                 self.taken[self.th.terrain[q] as usize] += 1.0;
@@ -369,6 +370,7 @@ impl Campaign {
                 if around > 0.0 && Campaign::worth(pack, &self.troops[o][p]) < SURRENDER * around {
                     self.owner[p] = s;
                     self.troops[o][p].iter_mut().for_each(|x| *x = 0.0);
+                    self.fort[p] *= FORT_SPOIL;
                     self.dug[o][p] = 0.0;
                     self.dug[s][p] = 0.0;
                     self.surrendered[o] += 1;

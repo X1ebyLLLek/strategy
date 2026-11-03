@@ -19,6 +19,7 @@ pub enum Act {
     Claim,
     Peace,
     Depot(usize),
+    Fort(usize),
     /// A line of supply begun: a railway (or a road) through these provinces of the theatre.
     Line(bool, Vec<usize>),
     /// The government turns on another neighbour (a map country).
@@ -71,6 +72,7 @@ impl Game {
                 self.offer_peace(me)
             }
             Act::Depot(q) => self.build_depot(q),
+            Act::Fort(q) => self.build_fort(q),
             Act::Line(rail, path) => {
                 let me = self.me;
                 self.begin_line(me, rail, path)
@@ -111,6 +113,9 @@ impl Game {
     pub fn fingerprint(&self) -> u64 {
         let mut h = hash64(self.month() as u64 ^ (self.day as u64) << 32);
         let mut mix = |x: u64| h = hash64(h ^ x);
+        for &f in &self.h.war.fort {
+            mix(f.to_bits() as u64);
+        }
         for &o in &self.h.war.owner {
             mix(o as u64);
         }
@@ -165,6 +170,7 @@ impl Game {
                 Act::Claim => "claim".into(),
                 Act::Peace => "peace".into(),
                 Act::Depot(q) => format!("depot {q}"),
+                Act::Fort(q) => format!("fort {q}"),
                 Act::Line(rail, path) => format!("line {} {}", if *rail { "rail" } else { "road" }, path.iter().map(|q| q.to_string()).collect::<Vec<_>>().join(",")),
                 Act::Rival(c) => format!("rival {c}"),
                 Act::Send(v, q) => format!("send {} {q}", ids(v)),
@@ -222,6 +228,7 @@ impl Game {
                         "claim" => Act::Claim,
                         "peace" => Act::Peace,
                         "depot" => Act::Depot(arg.parse().map_err(|_| format!("непонятная строка: {l}"))?),
+                        "fort" => Act::Fort(arg.parse().map_err(|_| format!("непонятная строка: {l}"))?),
                         "rival" => Act::Rival(arg.parse().map_err(|_| format!("непонятная строка: {l}"))?),
                         "send" | "assign" | "sendon" => {
                             let (v, x) = arg.split_once(' ').ok_or_else(|| format!("непонятная строка: {l}"))?;
@@ -522,7 +529,7 @@ pub fn savetest(pack: strategy::pack::Pack, path: &str, seed: u64) -> bool {
         Act::Answer(..) => 1,
         Act::Claim => 2,
         Act::Peace => 3,
-        Act::Depot(_) => 4,
+        Act::Depot(_) | Act::Fort(_) => 4,
         Act::Line(..) => 5,
         Act::Rival(_) => 5,
         Act::Send(..) | Act::Halt(_) | Act::Assign(..) | Act::SendOn(..) | Act::Raise(_) | Act::Sector(..) | Act::Front(..) => 6,

@@ -2,6 +2,7 @@
 //! fights, supply and hunger, refill.
 
 use super::*;
+use crate::military::front::FORT_SPOIL;
 
 impl Campaign {
     /// The worth of each side's divisions in each province, as side `s` sees the enemy's: on the
@@ -265,6 +266,7 @@ impl Campaign {
     /// Side `s` takes province `q`.
     pub(super) fn take(&mut self, s: usize, q: usize) {
         self.owner[q] = s;
+        self.fort[q] *= FORT_SPOIL;
         self.dug[0][q] = 0.0;
         self.dug[1][q] = 0.0;
         self.taken[self.th.terrain[q] as usize] += 1.0;

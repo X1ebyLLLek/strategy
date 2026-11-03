@@ -115,7 +115,7 @@ pub(super) fn techs(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     if open.is_empty() {
         kit::words(ui, "Всё, что знает эпоха, страна уже знает.", 13.5, s.soft);
     }
-    let icons = chrome::icons(ui.ctx());
+    let _icons = chrome::icons(ui.ctx());
     for &t in &open {
         let tech = &pack.techs[t];
         let on = know.target == Some(t);

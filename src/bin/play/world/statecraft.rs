@@ -19,6 +19,11 @@ pub const TRUCE: u32 = 36;
 /// Months a depot of supply takes to build; what it costs, in months of the army's money.
 pub const HUB_MONTHS: u32 = 2;
 pub const HUB_COST: f32 = 0.5;
+/// Months a tier of fortifications takes to build; what it costs, in months of the army's money;
+/// how much fortification each tier adds (two tiers fill a province to 1.0).
+pub const FORT_MONTHS: u32 = 3;
+pub const FORT_COST: f32 = 0.35;
+pub const FORT_STEP: f32 = 0.5;
 /// Below this stability a government does not dare to make a claim.
 pub const SHAKY: f32 = 0.3;
 /// What a province of a railway and of a road costs, in months of the army's money; how many
@@ -70,6 +75,8 @@ pub struct Statecraft {
     pub grudge: [bool; 2],
     /// Depots being built: side, province of the theatre, the month it is ready.
     pub building: Vec<(usize, usize, u32)>,
+    /// Fortifications being built: side, province of the theatre, the month the tier is ready.
+    pub fortifying: Vec<(usize, usize, u32)>,
     /// The trades the player's state builds in (taken in turn, month by month).
     pub queue: Vec<usize>,
     /// The lines of supply laid and being laid (railways, roads), in the order begun.
@@ -134,6 +141,29 @@ impl Game {
         // side still holds
         self.lay_works();
         // the state builds by the player's list, a trade a month in turn
+        // fortifications finished (a work in a province the enemy took is lost)
+        let mut forts_done = Vec::new();
+        let owner = &self.h.war.owner;
+        self.state.fortifying.retain(|&(s, q, ready)| {
+            if q >= owner.len() || owner[q] != s {
+                false
+            } else if ready <= now {
+                forts_done.push((s, q));
+                false
+            } else {
+                true
+            }
+        });
+        let fname = self.fort_name();
+        for (s, q) in forts_done {
+            if let Some(f) = self.h.war.fort.get_mut(q) {
+                *f = (*f + FORT_STEP).min(1.0);
+                let pct = (*f * 100.0).round() as u32;
+                if s == me {
+                    self.news.push(Note::new(now, &format!("построены укрепления ({fname}, {pct}%)"), false, "army"));
+                }
+            }
+        }
         if self.adviser.is_none() && !self.state.queue.is_empty() {
             let k = self.state.queue[now as usize % self.state.queue.len()];
             self.h.home_mut(me).build_focus = Some(k);
@@ -163,6 +193,13 @@ impl Game {
             for s in 0..2 {
                 if s != me || self.auto.is_some() || self.state.staff_logistics {
                     self.bot_depot(s);
+                }
+            }
+        }
+        if self.h.at_war && now % 4 == 2 {
+            for s in 0..2 {
+                if s != me || self.auto.is_some() || self.state.staff_logistics {
+                    self.bot_fort(s);
                 }
             }
         }
@@ -344,6 +381,84 @@ impl Game {
     }
 
     /// Whether the age has railways (else only roads are laid).
+    /// The name of fortifications in the age.
+    pub fn fort_name(&self) -> &'static str {
+        match self.pack.theme.as_str() {
+            "parchment" => "крепостной вал",
+            "rust" => "рубеж бункеров",
+            _ => "укрепрайон",
+        }
+    }
+
+    /// What a tier of fortifications in province `q` costs side `s` and the months it takes (the
+    /// second tier costs a quarter more).
+    pub fn fort_terms(&self, s: usize, q: usize) -> (f32, u32) {
+        let have = self.h.war.fort.get(q).copied().unwrap_or(0.0);
+        let money = self.h.home(s).army_money().max(0.01);
+        (FORT_COST * money * (1.0 + 0.5 * have), FORT_MONTHS)
+    }
+
+    /// The player builds a tier of fortifications in province `q` of the theatre (his own, reached
+    /// from his capital, not yet fully fortified), if the treasury pays for it.
+    pub fn build_fort(&mut self, q: usize) -> bool {
+        let me = self.me;
+        let now = self.month();
+        let have = self.h.war.fort.get(q).copied().unwrap_or(1.0);
+        if q >= self.h.war.owner.len() || self.h.war.owner[q] != me || have >= 0.99 || self.state.fortifying.iter().any(|b| b.0 == me && b.1 == q) {
+            return false;
+        }
+        if self.h.war.reach(me)[q] == strategy::military::front::NO {
+            self.news.push(Note::new(now, "укрепления не заложены: до этой провинции не дойти от столицы по своей земле", true, "army"));
+            return false;
+        }
+        let (cost, months) = self.fort_terms(me, q);
+        let fname = self.fort_name();
+        let n = self.h.home_mut(me);
+        if n.treasury < cost {
+            self.news.push(Note::new(now, "на постройку укреплений не хватает денег в казне", true, "army"));
+            return false;
+        }
+        n.treasury -= cost;
+        self.state.fortifying.push((me, q, now + months));
+        self.news.push(Note::new(now, &format!("заложены укрепления: {fname}"), false, "army").with_tip(format!("стоит {cost:.2}, готовы через {months} мес.")));
+        true
+    }
+
+    /// A bot fortifies its front province facing the strongest enemy where no fortifications are
+    /// being built yet.
+    fn bot_fort(&mut self, s: usize) {
+        if self.state.fortifying.iter().any(|b| b.0 == s) {
+            return;
+        }
+        let w = &self.h.war;
+        let reach = w.reach(s);
+        let front = w.front(s);
+        let o = 1 - s;
+        let seen: Vec<f32> = (0..w.owner.len()).map(|r| 1.0 + w.th.pop[r]).collect();
+        let Some(&q) = front
+            .iter()
+            .filter(|&&p| reach[p] != strategy::military::front::NO && w.fort.get(p).copied().unwrap_or(0.0) < 0.99)
+            .max_by(|&&a, &&b| {
+                let ta: f32 = w.th.nbr[a].iter().filter(|&&r| w.owner[r] == o).map(|&r| seen[r]).sum();
+                let tb: f32 = w.th.nbr[b].iter().filter(|&&r| w.owner[r] == o).map(|&r| seen[r]).sum();
+                ta.total_cmp(&tb)
+            })
+        else {
+            return;
+        };
+        let (cost, months) = self.fort_terms(s, q);
+        let fname = self.fort_name();
+        let n = self.h.home_mut(s);
+        if n.treasury >= cost * 1.5 {
+            n.treasury -= cost;
+            let now = self.month();
+            self.state.fortifying.push((s, q, now + months));
+            if s == self.me {
+                self.news.push(Note::new(now, &format!("штаб заложил укрепления ({fname}) на фронте"), false, "army").with_tip(format!("стоит {cost:.2}, готовы через {months} мес.")));
+            }
+        }
+    }
+
     pub fn has_rails(&self) -> bool {
         self.pack.theme != "parchment"
     }

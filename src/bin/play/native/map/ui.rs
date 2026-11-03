@@ -336,7 +336,7 @@ impl MapView {
         // depots being built, with the months left — they were not drawn at all)
         let now = g.month();
         let near = self.k >= 1.6;
-        let mut depot = |q: usize, building: Option<u32>| {
+        let depot = |q: usize, building: Option<u32>| {
             let p = self.pt(Self::at(g, th.provs[q]));
             if !painter.clip_rect().expand(30.0).contains(p) {
                 return;
@@ -388,6 +388,63 @@ impl MapView {
         }
         // the lines of supply: laid provinces go onto the land's ways (the card draws them); the
         // player's unfinished ones are dashes; the way planned under the hand while laying one
+        // the fortifications (standing and being built: a crenellated bastion badge)
+        let fname = g.fort_name();
+        let has_depot = |q: usize| war.hubs[me].contains(&q) || g.state.building.iter().any(|b| b.0 == me && b.1 == q);
+        let fort_mark = |q: usize, lvl: f32, building: Option<u32>| {
+            let shift = if has_depot(q) { vec2(-16.0, 14.0) } else { vec2(0.0, 0.0) };
+            let p = self.pt(Self::at(g, th.provs[q])) + shift;
+            if !painter.clip_rect().expand(30.0).contains(p) {
+                return;
+            }
+            let own = war.owner[q] == me;
+            let rim = if building.is_some() {
+                Color32::from_rgb(232, 199, 106)
+            } else if own {
+                Color32::from_rgb(138, 188, 224)
+            } else {
+                Color32::from_rgb(214, 126, 108)
+            };
+            painter.circle_filled(p + vec2(0.0, 1.5), 11.0, Color32::from_black_alpha(110));
+            painter.circle_filled(p, 10.0, Color32::from_rgba_unmultiplied(20, 18, 14, 235));
+            painter.circle_stroke(p, 10.0, Stroke::new(if building.is_some() { 1.4 } else { 1.8 }, rim));
+            if building.is_some() {
+                for k in 0..12 {
+                    let a = k as f32 / 12.0 * std::f32::consts::TAU + self.t();
+                    painter.circle_filled(p + vec2(a.cos(), a.sin()) * 13.5, 1.2, rim);
+                }
+            }
+            // bastion with three merlons
+            let wall = Rect::from_center_size(p + vec2(0.0, 2.0), vec2(10.0, 5.0));
+            painter.rect_filled(wall, 0.5, rim.gamma_multiply(if lvl >= 0.99 { 0.85 } else { 0.45 }));
+            painter.rect_stroke(wall, 0.5, Stroke::new(1.1, rim));
+            for dx in [-3.6f32, 0.0, 3.6] {
+                let m = Rect::from_center_size(p + vec2(dx, -2.2), vec2(2.4, 3.2));
+                painter.rect_filled(m, 0.3, rim);
+            }
+            if near {
+                let text = match building {
+                    Some(r) => format!("{fname} · {} мес.", r.saturating_sub(now).max(1)),
+                    None => format!("{fname} · {:.0}%", lvl * 100.0),
+                };
+                let font = FontId::new(12.5, FontFamily::Name("bold".into()));
+                let w = painter.layout_no_wrap(text.clone(), font.clone(), rim).size().x;
+                let pill = Rect::from_min_size(p + vec2(12.0, -8.5), vec2(w + 10.0, 17.0));
+                painter.rect_filled(pill, 8.0, Color32::from_rgba_unmultiplied(20, 18, 14, 215));
+                painter.rect_stroke(pill, 8.0, Stroke::new(1.0, rim.gamma_multiply(0.7)));
+                painter.text(pill.center(), Align2::CENTER_CENTER, text, font, rim);
+            }
+        };
+        for (q, &lvl) in war.fort.iter().enumerate() {
+            if lvl > 0.01 && !g.state.fortifying.iter().any(|b| b.0 == me && b.1 == q) {
+                fort_mark(q, lvl, None);
+            }
+        }
+        for &(side, q, ready) in &g.state.fortifying {
+            if side == me {
+                fort_mark(q, war.fort.get(q).copied().unwrap_or(0.0), Some(ready));
+            }
+        }
         self.lay_lines(g);
         let t_dash = self.t();
         for (k, wk) in g.state.works.iter().enumerate() {
@@ -600,6 +657,10 @@ impl MapView {
             } else if self.build == Build::Muster {
                 if q != NO && g.h.war.owner[q as usize] == me {
                     g.act(crate::tools::saves::Act::Form(vec![("muster".into(), p.to_string())]));
+                    self.build = Build::None;
+                }
+            } else if self.build == Build::Fort {
+                if q != NO && g.act(crate::tools::saves::Act::Fort(q as usize)) {
                     self.build = Build::None;
                 }
             } else if self.build == Build::Depot {

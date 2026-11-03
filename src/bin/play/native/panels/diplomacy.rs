@@ -128,10 +128,10 @@ pub fn diplomacy(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         rc.on = picked == Some(c);
         rc.pacts = g.diplo.pacts_of(c).iter().filter(|p| p.has(me_c)).map(|p| pact_icon(p.kind)).collect();
         let (resp, _) = super::super::realm::card(ui, &rc);
-        let name = g.countries[c].0.clone();
+        let _name = g.countries[c].0.clone();
         let reasons = g.reasons_words(c, me_c);
         let card = || {
-            let mut cd = Card::new(name.clone()).sub(format!("{} к нам: {:+.0}", stand_word(op), op * 100.0));
+            let mut cd = Card::new(_name.clone()).sub(format!("{} к нам: {:+.0}", stand_word(op), op * 100.0));
             for (why, x) in reasons.iter().take(6) {
                 cd = cd.row(*why, format!("{:+.0}", x * 100.0));
             }
@@ -158,7 +158,7 @@ pub fn diplomacy(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
 fn country(ui: &mut egui::Ui, s: &Skin, g: &mut Game, c: usize) {
     let me_c = g.country(g.me);
     let op = g.diplo.of(c, me_c);
-    let name = g.countries[c].0.clone();
+    let _name = g.countries[c].0.clone();
     kit::framed(ui, Some(tone(op)), true, |ui| {
         let p = g.polity.of.get(c).cloned();
         let gdp = |x: usize| g.h.world.nations.get(x).map_or(1e-6, |n| n.gdp.max(1e-6));

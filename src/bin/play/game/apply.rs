@@ -469,6 +469,9 @@ impl Game {
         if let (Some(id), Some(k)) = (get("ev").and_then(|v| v.parse::<u64>().ok()), get("k").and_then(|v| v.parse::<usize>().ok())) {
             self.answer(id, k);
         }
+        if let Some(q) = get("fort").and_then(|v| v.parse::<usize>().ok()).and_then(|p| self.h.war.th.at.get(p).copied()).filter(|&q| q != front::NO) {
+            self.build_fort(q as usize);
+        }
         if let Some(q) = get("hub").and_then(|v| v.parse::<usize>().ok()).and_then(|p| self.h.war.th.at.get(p).copied()).filter(|&q| q != front::NO) {
             self.build_depot(q as usize);
         }

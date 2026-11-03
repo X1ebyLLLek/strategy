@@ -210,6 +210,7 @@ impl Game {
         self.state.grudge = [holds(a, b, self), holds(b, a, self)];
         self.state.claim = [None, None];
         self.state.building.clear();
+        self.state.fortifying.clear();
         self.state.works = works;
         self.state.stability[foe] = 0.8;
         self.state.mods[foe] = 0.0;

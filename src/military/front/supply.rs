@@ -126,7 +126,7 @@ impl Campaign {
     /// `fed`) against the defenders it believes are there: `seen` worth of the enemy's army
     /// as it sees its make-up.
     pub(crate) fn odds(&self, pack: &Pack, s: usize, q: usize, group: &[f32], fed: f32, seen: f32, foe_fed: f32, seed: u64) -> f32 {
-        let foe_dug = self.dug[1 - s][q];
+        let foe_dug = cover_of(self.dug[1 - s][q], self.fort[q]);
         let staff = &self.sides[s];
         let nu = pack.units.len();
         let per: f32 = (0..nu).map(|u| staff.foe_mix[u] * pack.units[u].cost).sum::<f32>().max(1e-9);

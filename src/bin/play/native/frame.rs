@@ -101,6 +101,10 @@ impl App {
                         let (pts, _, _) = g.land.rivers.iter().max_by(|a, b| a.2.total_cmp(&b.2).then(a.0.len().cmp(&b.0.len())))?;
                         let q = if c == "mouth" { *pts.last()? } else { pts[pts.len() / 2] };
                         Some((q[0].rem_euclid(g.world.w as f32), q[1]))
+                    } else if c == "fort" {
+                        let w = &g.h.war;
+                        let q = (0..w.fort.len()).find(|&q| w.owner[q] == g.me && w.fort[q] > 0.01).or_else(|| g.state.fortifying.iter().find(|b| b.0 == g.me).map(|b| b.1))?;
+                        Some(at(th.provs[q]))
                     } else if c == "depot" {
                         // (the first depot of ours, standing or being laid)
                         let w = &g.h.war;

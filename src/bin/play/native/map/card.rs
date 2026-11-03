@@ -47,6 +47,13 @@ impl MapView {
                 }
             }
             card = card.row("людей", format!("{:.2} млн", war.th.pop[q]));
+            let ft = war.fort.get(q).copied().unwrap_or(0.0);
+            if ft > 0.01 {
+                card = card.row(g.fort_name(), format!("{:.0}%", ft * 100.0));
+            }
+            if let Some(&(_, _, ready)) = g.state.fortifying.iter().find(|b| b.1 == q) {
+                card = card.row("строятся укрепления", format!("{} мес.", ready.saturating_sub(g.month()).max(1)));
+            }
             if self.mode == Mode::Supply && war.owner[q] == me {
                 let s = war.supply(me)[q];
                 card = card.tone("снабжение", format!("{:.0}%", s * 100.0), if s > 0.85 { Tone::Good } else { Tone::Bad });
@@ -159,6 +166,13 @@ impl MapView {
                     }
                 }
                 Some(_) => card = card.note("только по своей земле"),
+            }
+        } else if self.build == Build::Fort {
+            if q != NO && war.owner[q as usize] == me {
+                let (cost, months) = g.fort_terms(me, q as usize);
+                card = card.head(g.fort_name()).row("стоит", format!("{cost:.2}")).row("месяцев", months.to_string()).note("щёлкните — укрепить провинцию; правой — отмена");
+            } else {
+                card = card.note("щёлкните по своей провинции — там встанут укрепления");
             }
         } else if self.build == Build::Depot {
             card = card.note("щёлкните по своей провинции — там встанет склад");

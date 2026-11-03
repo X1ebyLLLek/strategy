@@ -229,6 +229,15 @@ fn main() {
             }
         }
         // (for pictures: two depots of supply — one standing, one laid now — in the provinces of ours at 4 and 8 steps from the capital)
+        if args.iter().any(|a| a == "--forts") {
+            let me = game.me;
+            let front = game.h.war.front(me);
+            if let (Some(&a), Some(&b)) = (front.first(), front.get(1)) {
+                game.h.war.fort[a] = 1.0;
+                game.h.home_mut(me).treasury += 1e3;
+                game.build_fort(b);
+            }
+        }
         if args.iter().any(|a| a == "--depots") {
             let me = game.me;
             let cap = game.h.war.th.capital[me];

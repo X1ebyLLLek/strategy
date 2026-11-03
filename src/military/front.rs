@@ -65,6 +65,16 @@ pub const CAPITULATE: f32 = 0.35;
 /// province just taken starts from nothing). Without it nothing slowed a war between equals:
 /// provinces of the front changed hands every half year, mountains hardly slower than plains.
 pub(crate) const DIG_PACE: f32 = 0.25;
+/// How much of the harm that is left a fully fortified province keeps off a defender on top of
+/// his trenches (the two work as one cover: `1 - (1 - dug)(1 - FORT_COVER fort)`).
+pub const FORT_COVER: f32 = 0.6;
+/// The share of a province's fortifications that survives its fall to the enemy.
+pub const FORT_SPOIL: f32 = 0.5;
+
+/// How dug in a defender is behind a province's fortifications `fort` when his trenches are `dug`.
+pub fn cover_of(dug: f32, fort: f32) -> f32 {
+    1.0 - (1.0 - dug.clamp(0.0, 1.0)) * (1.0 - FORT_COVER * fort.clamp(0.0, 1.0))
+}
 /// Share of troops cut off from the capital that melt away each month (desertion, hunger,
 /// surrender): on their own land and on the enemy's. (Without it pockets dug in and held for
 /// years, and a defeated country's land was a leopard's skin of islands; at a tenth and three
@@ -416,6 +426,9 @@ pub struct Campaign {
     pub reserve: [Vec<f32>; 2],
     /// How dug in each side is in each province, 0 to 1.
     pub dug: [Vec<f32>; 2],
+    /// How fortified each province is, 0 to 1 (built by the state's money; whoever holds the province
+    /// defends behind it; half is lost with the province).
+    pub fort: Vec<f32>,
     /// Province-months on the front, and provinces taken, by terrain.
     pub exposed: [f32; 11],
     pub taken: [f32; 11],
@@ -553,6 +566,7 @@ impl Campaign {
             exposed: [0.0; 11],
             taken: [0.0; 11],
             dug: [vec![0.0; n], vec![0.0; n]],
+            fort: vec![0.0; n],
             made: [None, None],
             stores: [1.0; 2],
             cover: [f32::INFINITY; 2],

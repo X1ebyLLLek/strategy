@@ -71,6 +71,7 @@ pub enum Build {
     #[default]
     None,
     Depot,
+    Fort,
     /// Where the new divisions gather.
     Muster,
     /// A railway (or a road), from this province of the theatre once it is chosen.
