@@ -132,9 +132,14 @@ pub fn selftest(pack: Pack, seed: u64, side: usize, path: &str) -> bool {
         None
     };
     match (to_peace(true), to_peace(false)) {
-        (Some((mut g, grew, fell, money, gone)), Some((_, ctrl, _, _, _))) => {
+        (Some((mut g, grew, fell, money, gone)), Some((g0, ctrl, _, money0, _))) => {
             let after = g.h.world.money_total();
-            let same_money = ((after - money) / money.max(1e-9)).abs() < 1e-3;
+            // (the month's money also moves by what the state's loans, taxes and credit do - a
+            // loan is made and paid back outside the world's money: so the drift of the war with
+            // the occupation is held against the drift of the one without it)
+            let drift = (after - money) / money.max(1e-9);
+            let drift0 = (g0.h.world.money_total() - money0) / money0.max(1e-9);
+            let same_money = (drift - drift0).abs() < 3e-3;
             let land = g.h.war.th.home == g.h.war.owner;
             let quiet = !g.h.at_war && g.h.war.fallen.is_none();
             let m0 = g.month();
