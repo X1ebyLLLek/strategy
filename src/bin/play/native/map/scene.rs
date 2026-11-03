@@ -211,8 +211,10 @@ pub fn paint(scene: Arc<Mutex<Scene>>, rect: egui::Rect, f: Frame) -> egui::Pain
                     }
                 }
                 if let Some(h) = s.houses.take() {
-                    if let Some(o) = s.gpu.as_mut().unwrap().objects.as_mut() {
-                        objects::upload_houses(gl, o, &h);
+                    let g = s.gpu.as_mut().unwrap();
+                    let sz = g.size;
+                    if let Some(o) = g.objects.as_mut() {
+                        objects::upload_houses(gl, o, &h, sz);
                     }
                 }
                 if let Some(v) = s.lines.take() {

@@ -246,11 +246,14 @@ pub struct Gpu {
     builds: Vec<Mesh>,
     built: Vec<[f32; 3]>,
     build_shades: Vec<Mesh>,
+    /// Each kind of building as a plain box with a roof (drawn far from the middle of the view).
+    far_builds: Vec<Mesh>,
     /// The trees' pictures (none if the card could not draw them: the cards are left out).
     atlas: Option<glow::Texture>,
     /// The materials' photographs (`materials`), one layer each.
     mats: glow::Texture,
     tiles: [Vec<(u32, u32)>; KINDS],
+    btiles: Vec<Vec<(u32, u32)>>,
     tiles_x: usize,
     tiles_y: usize,
 }
@@ -319,22 +322,27 @@ pub unsafe fn make(gl: &glow::Context) -> Result<Gpu, String> {
     let mut build_shades = Vec::new();
     let mut built: Vec<[f32; 3]> = MADE.to_vec();
     let mut models: Vec<Model> = vec![cottage(), townhouse(), barn(), hiphouse(), church(), flats(), factory(), mill()];
+    let mut fars: Vec<Model> = models.clone();
     for k in 8..BUILDS {
         match baked::load(k) {
             Some(b) => {
                 built.push([b.top, b.height, (b.hx + b.hy) / 2.0]);
                 models.push(b.model);
+                fars.push(b.far);
             }
             None => {
                 // (a baked file that cannot be read: a made house stands there)
                 built.push(MADE[1]);
                 models.push(townhouse());
+                fars.push(townhouse());
             }
         }
     }
-    for m in &models {
+    let mut far_builds = Vec::new();
+    for (m, f) in models.iter().zip(&fars) {
         let b = mesh(gl, m)?;
         build_shades.push(mesh_on(gl, &shade(), b.inst)?);
+        far_builds.push(mesh_on(gl, f, b.inst)?);
         builds.push(b);
     }
     let mats = gl.create_texture()?;
@@ -354,7 +362,7 @@ pub unsafe fn make(gl: &glow::Context) -> Result<Gpu, String> {
         gl.generate_mipmap(glow::TEXTURE_2D_ARRAY);
         gl.bind_texture(glow::TEXTURE_2D_ARRAY, None);
     }
-    let mut g = Gpu { program, trees, cards, shades, builds, built, build_shades, atlas: None, mats, tiles: Default::default(), tiles_x: 0, tiles_y: 0 };
+    let mut g = Gpu { program, trees, cards, shades, builds, built, build_shades, far_builds, atlas: None, mats, tiles: Default::default(), btiles: vec![Vec::new(); BUILDS], tiles_x: 0, tiles_y: 0 };
     match bake(gl, &g) {
         Ok(t) => g.atlas = Some(t),
         Err(e) => eprintln!("карта: картинки дальних деревьев не нарисовать: {e}"),
@@ -459,14 +467,33 @@ pub unsafe fn upload_trees(gl: &glow::Context, g: &mut Gpu, t: &Trees) {
         g.shades[k].copies = g.trees[k].copies;
     }
     g.tiles = t.tiles.clone();
-    g.tiles_x = t.tiles_x;
-    g.tiles_y = t.tiles_y;
+    if t.tiles_x > 0 {
+        g.tiles_x = t.tiles_x;
+        g.tiles_y = t.tiles_y;
+    }
 }
 
-pub unsafe fn upload_houses(gl: &glow::Context, g: &mut Gpu, t: &Towns) {
+pub unsafe fn upload_houses(gl: &glow::Context, g: &mut Gpu, t: &Towns, size: (usize, usize)) {
+    let (tx, ty) = (size.0.div_ceil(TILE).max(1), size.1.div_ceil(TILE).max(1));
+    g.tiles_x = tx;
+    g.tiles_y = ty;
+    let tile_of = |b: &[f32; 4]| ((b[1].max(0.0) as usize / TILE).min(ty - 1)) * tx + (b[0].max(0.0) as usize / TILE).min(tx - 1);
     for (k, list) in t.builds.iter().enumerate() {
-        fill(gl, &mut g.builds[k], list);
+        let mut sorted = list.clone();
+        sorted.sort_by_key(|b| tile_of(b));
+        let mut tiles = vec![(0u32, 0u32); tx * ty];
+        let mut i = 0;
+        for cell in 0..tx * ty {
+            let start = i;
+            while i < sorted.len() && tile_of(&sorted[i]) == cell {
+                i += 1;
+            }
+            tiles[cell] = (start as u32, (i - start) as u32);
+        }
+        g.btiles[k] = tiles;
+        fill(gl, &mut g.builds[k], &sorted);
         g.build_shades[k].copies = g.builds[k].copies;
+        g.far_builds[k].copies = g.builds[k].copies;
     }
 }
 
@@ -533,9 +560,9 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View) {
     let tile = TILE as f32;
     // the runs of copies of a kind in view: (first, count) — whole near the middle of the view
     // (`inner`), cards beyond it, or both (`None`: the shadows)
-    let runs = |k: usize, shift: f32, inner: Option<bool>| -> Vec<(u32, u32)> {
+    let runs_in = |tiles: &[(u32, u32)], shift: f32, inner: Option<bool>, full: f32| -> Vec<(u32, u32)> {
         let mut out = Vec::new();
-        if g.tiles_x == 0 || g.tiles[k].is_empty() {
+        if g.tiles_x == 0 || tiles.is_empty() {
             return out;
         }
         let x0 = (((v.seen[0] - shift) / tile).floor().max(0.0)) as usize;
@@ -550,7 +577,7 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View) {
         let near = |tx: usize, ty: usize| {
             let (x, y) = (tx as f32 * tile + tile / 2.0 + shift, ty as f32 * tile + tile / 2.0);
             let d = (x - v.focus[0]).hypot(y - v.focus[1]);
-            let whole = v.full > 0.0 && d <= v.focus[2] * v.full + tile * 0.71;
+            let whole = full > 0.0 && d <= v.focus[2] * full + tile * 0.71;
             d <= v.focus[2] + tile * 0.71 && inner.map_or(true, |i| i == whole)
         };
         for ty in y0..=y1 as usize {
@@ -564,7 +591,7 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View) {
                 while tx < x1 as usize && near(tx + 1, ty) {
                     tx += 1;
                 }
-                let (a, b) = (g.tiles[k][ty * g.tiles_x + first], g.tiles[k][ty * g.tiles_x + tx]);
+                let (a, b) = (tiles[ty * g.tiles_x + first], tiles[ty * g.tiles_x + tx]);
                 let (start, end) = (a.0, b.0 + b.1);
                 tx += 1;
                 if end > start {
@@ -574,6 +601,8 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View) {
         }
         out
     };
+    let runs = |k: usize, shift: f32, inner: Option<bool>| runs_in(&g.tiles[k], shift, inner, v.full);
+    let bruns = |k: usize, shift: f32, inner: Option<bool>| runs_in(&g.btiles[k], shift, inner, 0.45);
     let draw_runs = |mesh: &Mesh, list: &[(u32, u32)]| {
         gl.bind_vertex_array(Some(mesh.vao));
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(mesh.inst));
@@ -611,7 +640,7 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View) {
             for k in 0..BUILDS {
                 gl.uniform_1_f32(u("uKind").as_ref(), BUILT + k as f32);
                 gl.uniform_3_f32_slice(u("uBuilt").as_ref(), &g.built[k]);
-                all(&g.build_shades[k]);
+                draw_runs(&g.build_shades[k], &bruns(k, *shift, None));
             }
         }
         gl.disable(glow::POLYGON_OFFSET_FILL);
@@ -641,7 +670,8 @@ pub unsafe fn draw(gl: &glow::Context, g: &Gpu, v: &View) {
             for k in 0..BUILDS {
                 gl.uniform_1_f32(u("uKind").as_ref(), BUILT + k as f32);
                 gl.uniform_3_f32_slice(u("uBuilt").as_ref(), &g.built[k]);
-                all(&g.builds[k]);
+                draw_runs(&g.builds[k], &bruns(k, *shift, Some(true)));
+                draw_runs(&g.far_builds[k], &bruns(k, *shift, Some(false)));
             }
         }
     }

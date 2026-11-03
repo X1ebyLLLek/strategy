@@ -25,6 +25,70 @@ pub struct Baked {
     pub top: f32,
     pub height: f32,
     pub model: Model,
+    pub far: Model,
+}
+
+fn face_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
+    let (u, v) = ([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
+    norm([u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]])
+}
+
+fn far_box(hx: f32, hy: f32, top: f32, height: f32, model: &[f32]) -> Model {
+    let (mut wr, mut wg, mut wb, mut ww) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+    let (mut rr, mut rg, mut rb, mut rw) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+    for tri in model.chunks_exact(24) {
+        let ax = tri[8] - tri[0];
+        let ay = tri[9] - tri[1];
+        let az = tri[10] - tri[2];
+        let bx = tri[16] - tri[0];
+        let by = tri[17] - tri[1];
+        let bz = tri[18] - tri[2];
+        let area = ((ay * bz - az * by).powi(2) + (az * bx - ax * bz).powi(2) + (ax * by - ay * bx).powi(2)).sqrt().max(1e-6);
+        let nz = tri[5];
+        let v = (tri[6] - 100.0).max(0.0);
+        let r = (v / 256.0).floor();
+        let g = v - r * 256.0;
+        let bl = tri[7].floor();
+        if nz > 0.35 {
+            rr += r * area;
+            rg += g * area;
+            rb += bl * area;
+            rw += area;
+        } else {
+            wr += r * area;
+            wg += g * area;
+            wb += bl * area;
+            ww += area;
+        }
+    }
+    let w_rgb = if ww > 0.0 { [wr / ww, wg / ww, wb / ww] } else { [185.0, 175.0, 160.0] };
+    let r_rgb = if rw > 0.0 { [rr / rw, rg / rw, rb / rw] } else { [140.0, 85.0, 65.0] };
+    let pack = |c: [f32; 3], ao: f32| (100.0 + c[0].round().clamp(0.0, 255.0) * 256.0 + c[1].round().clamp(0.0, 255.0), c[2].round().clamp(0.0, 255.0) + ao);
+    let (wp, wl) = pack(w_rgb, 0.84);
+    let (rp, rl) = pack(r_rgb, 0.94);
+    let mut m = Model::with_capacity(12 * 24);
+    let quad = |m: &mut Model, a: [f32; 3], b: [f32; 3], c: [f32; 3], d: [f32; 3], p: f32, l: f32| {
+        let n = face_normal(a, b, c);
+        for v in [a, b, c, a, c, d] {
+            push(m, v, n, p, l);
+        }
+    };
+    let tri3 = |m: &mut Model, a: [f32; 3], b: [f32; 3], c: [f32; 3], p: f32, l: f32| {
+        let n = face_normal(a, b, c);
+        for v in [a, b, c] {
+            push(m, v, n, p, l);
+        }
+    };
+    quad(&mut m, [-hx, -hy, 0.0], [hx, -hy, 0.0], [hx, -hy, top], [-hx, -hy, top], wp, wl);
+    quad(&mut m, [hx, hy, 0.0], [-hx, hy, 0.0], [-hx, hy, top], [hx, hy, top], wp, wl);
+    quad(&mut m, [hx, -hy, 0.0], [hx, hy, 0.0], [hx, hy, top], [hx, -hy, top], wp, wl);
+    quad(&mut m, [-hx, hy, 0.0], [-hx, -hy, 0.0], [-hx, -hy, top], [-hx, hy, top], wp, wl);
+    let ztop = height.max(top + 0.04);
+    quad(&mut m, [-hx, -hy, top], [hx, -hy, top], [hx, 0.0, ztop], [-hx, 0.0, ztop], rp, rl);
+    quad(&mut m, [hx, hy, top], [-hx, hy, top], [-hx, 0.0, ztop], [hx, 0.0, ztop], rp, rl);
+    tri3(&mut m, [hx, -hy, top], [hx, hy, top], [hx, 0.0, ztop], wp, wl);
+    tri3(&mut m, [-hx, hy, top], [-hx, -hy, top], [-hx, 0.0, ztop], wp, wl);
+    m
 }
 
 fn f32_at(b: &[u8], i: usize) -> f32 {
@@ -47,7 +111,8 @@ pub fn load(kind: usize) -> Option<Baked> {
         return None;
     }
     let model: Model = (0..n * 8).map(|i| f32_at(b, 24 + i * 4)).collect();
-    Some(Baked { hx, hy, top, height, model })
+    let far = far_box(hx, hy, top, height, &model);
+    Some(Baked { hx, hy, top, height, model, far })
 }
 
 /// A baked kind's footprint (half the length along the street, half the depth) — the header only.
