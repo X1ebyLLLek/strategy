@@ -209,16 +209,22 @@ pub fn society(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
             });
         }
         kit::words(ui, "Щёлкните по соседней ступени — начнётся реформа (на одну ступень за раз). Наведите — кто выиграет, кто проиграет, что изменится.", 12.5, s.soft);
+        let pend_law = g.realm.pending[me].as_ref().map(|x| x.law);
         for law in 0..LAWS {
             let lv = p.laws[law];
-            // (the law's name on its own line, its three levels under it across the folder)
-            ui.add_space(3.0);
-            ui.horizontal(|ui| {
-                let icons = chrome::icons(ui.ctx());
-                let (r, _) = ui.allocate_exact_size(vec2(20.0, 20.0), egui::Sense::hover());
-                super::super::look::icon(&icons, LAW[law].icon, 18.0, s.soft).paint_at(ui, r);
-                kit::bold(ui, LAW[law].name, 13.5, s.ink);
-            });
+            let reforming = pend_law == Some(law);
+            kit::framed(ui, Some(if reforming { kit::MIXED } else { s.accent }), reforming, |ui| {
+                ui.horizontal(|ui| {
+                    let (ir, _) = ui.allocate_exact_size(vec2(26.0, 26.0), egui::Sense::hover());
+                    if ui.is_rect_visible(ir) {
+                        kit::socket(ui, ir.center(), 12.0, LAW[law].icon, if reforming { kit::MIXED } else { s.accent }, 0.3);
+                    }
+                    kit::bold(ui, LAW[law].name, 14.0, s.ink);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        kit::words(ui, LAW[law].levels[lv as usize], 12.5, s.soft);
+                    });
+                });
+                ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 let w = ((ui.available_width() - 2.0 * 4.0) / 3.0).floor();
@@ -275,6 +281,7 @@ pub fn society(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
                     }
                 }
             });
+            });
         }
     }
     if page == 2 {
@@ -282,12 +289,32 @@ pub fn society(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
         kit::ribbon(ui, "Движения", Some("revolt"));
         let mut mv: Vec<usize> = (0..MOVES).collect();
         mv.sort_by(|&a, &b| p.moves[b].total_cmp(&p.moves[a]));
-        let items: Vec<(String, f32, Color32)> = mv.iter().map(|&m| (MOVE[m].name.to_string(), p.moves[m], if p.moves[m] > 0.5 { kit::BAD } else if p.moves[m] > 0.3 { kit::MIXED } else { kit::PLAIN })).collect();
-        let resps = charts::bars(ui, &items, &|x| charts::pct(x));
-        for (r, &m) in resps.into_iter().zip(mv.iter()) {
-            r.tip(|| {
-                let aims: Vec<String> = MOVE[m].aims.iter().map(|&(l, v)| format!("{}: {}", LAW[l].name.to_lowercase(), LAW[l].levels[v as usize])).collect();
-                let mut cd = Card::new(MOVE[m].name).icon(MOVE[m].icon).row("поддержка", charts::pct(p.moves[m])).text(MOVE[m].about);
+        for &m in &mv {
+            let sup = p.moves[m];
+            let col = if sup > 0.5 { kit::BAD } else if sup > 0.3 { kit::MIXED } else { kit::PLAIN };
+            let aims: Vec<String> = MOVE[m].aims.iter().map(|&(l, v)| format!("{}: {}", LAW[l].name.to_lowercase(), LAW[l].levels[v as usize])).collect();
+            let row = kit::framed(ui, Some(col), sup > 0.5, |ui| {
+                ui.horizontal(|ui| {
+                    let (ir, _) = ui.allocate_exact_size(vec2(28.0, 28.0), egui::Sense::hover());
+                    if ui.is_rect_visible(ir) {
+                        kit::socket(ui, ir.center(), 13.0, MOVE[m].icon, col, 0.35);
+                    }
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            kit::bold(ui, MOVE[m].name, 14.5, s.ink);
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                kit::bold(ui, charts::pct(sup), 14.0, if sup > 0.3 { kit::ink(s, col) } else { s.ink });
+                            });
+                        });
+                        if !aims.is_empty() {
+                            kit::words(ui, format!("Добиваются: {}", aims.join("; ")), 12.0, s.soft);
+                        }
+                    });
+                });
+                let _ = kit::gauge(ui, ui.available_width(), 9.0, sup, col);
+            });
+            row.response.tip(|| {
+                let mut cd = Card::new(MOVE[m].name).icon(MOVE[m].icon).row("поддержка", charts::pct(sup)).text(MOVE[m].about);
                 if !aims.is_empty() {
                     cd = cd.head("Добиваются").text(aims.join("; "));
                 }
@@ -306,10 +333,22 @@ pub fn society(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
         // decisions
         kit::ribbon(ui, "Решения власти", Some("pen"));
         let cr = g.realm.crackdown[me];
-        let b = kit::act_button(ui, if cr > 0 { "Твёрдая рука действует" } else { "Твёрдая рука (на год)" }, "fist", cr == 0, cr > 0);
-        if b.tip(|| Card::new("Твёрдая рука").icon("fist").text("Год жёсткого порядка: смута быстро спадает, вольнодумцы, уравнители и отделенцы слабеют. Интеллигенция −30, рабочие −20, купцы −10, офицеры +10; законность −5; наука −5%.").note(if cr > 0 { format!("ещё {cr} мес.") } else { "щёлкните — ввести".into() })).clicked() && cr == 0 {
-            act(g, &[("crackdown", "1".into())]);
-        }
+        kit::framed(ui, Some(if cr > 0 { kit::BAD } else { s.accent }), cr > 0, |ui| {
+            ui.horizontal(|ui| {
+                let (ir, _) = ui.allocate_exact_size(vec2(28.0, 28.0), egui::Sense::hover());
+                if ui.is_rect_visible(ir) {
+                    kit::socket(ui, ir.center(), 13.0, "fist", if cr > 0 { kit::BAD } else { s.accent }, 0.35);
+                }
+                ui.vertical(|ui| {
+                    kit::bold(ui, if cr > 0 { format!("Твёрдая рука действует (ещё {cr} мес.)") } else { "Твёрдая рука".to_string() }, 14.5, s.ink);
+                    kit::words(ui, "Год жёсткого порядка: смута и движения спадают, законность −5, наука −5%.", 12.0, s.soft);
+                });
+            });
+            let b = kit::act_button(ui, if cr > 0 { "Твёрдая рука действует" } else { "Твёрдая рука (на год)" }, "fist", cr == 0, cr > 0);
+            if b.tip(|| Card::new("Твёрдая рука").icon("fist").text("Год жёсткого порядка: смута быстро спадает, вольнодумцы, уравнители и отделенцы слабеют. Интеллигенция −30, рабочие −20, купцы −10, офицеры +10; законность −5; наука −5%.").note(if cr > 0 { format!("ещё {cr} мес.") } else { "щёлкните — ввести".into() })).clicked() && cr == 0 {
+                act(g, &[("crackdown", "1".into())]);
+            }
+        });
         kit::words(ui, "Сменить строй сверху (раз в пять лет; законность упадёт до 40%):", 12.5, s.soft);
         ui.horizontal_wrapped(|ui| {
             for (k, (to, word)) in FROM_ABOVE.iter().enumerate() {
@@ -434,7 +473,14 @@ fn faith_block(ui: &mut egui::Ui, s: &Skin, g: &Game, shares: &[(usize, f32)]) {
     };
     let age = ((now - fa.founded).max(0) / 12) as u32;
     kit::framed(ui, Some(Color32::from_rgb(fa.hue[0], fa.hue[1], fa.hue[2])), false, |ui| {
-        kit::bold(ui, fa.name.clone(), 16.0, s.ink);
+        let hue_col = Color32::from_rgb(fa.hue[0], fa.hue[1], fa.hue[2]);
+        ui.horizontal(|ui| {
+            let (ir, _) = ui.allocate_exact_size(vec2(30.0, 30.0), egui::Sense::hover());
+            if ui.is_rect_visible(ir) {
+                kit::socket(ui, ir.center(), 14.0, "faith", hue_col, 0.4);
+            }
+            kit::bold(ui, fa.name.clone(), 16.0, s.ink);
+        });
         let from = fa.parent.and_then(|x| g.polity.faiths.get(x)).map_or(String::new(), |x| format!(", отделилась от «{}»", x.name));
         kit::words(ui, format!("{} {} назад; основатель — {}{from}. Закон: {}.", age, crate::words::years_word(age), fa.founder, p.law_word(polity::CHURCH)), 12.5, s.soft);
         let creed = fa.creed();

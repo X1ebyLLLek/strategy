@@ -131,7 +131,7 @@ impl App {
                 let count = g.h.war.corps.as_ref().map(|c| {
                     let n = acc[k].1 as usize;
                     let size = g.h.war.army_size(c, g.me);
-                    (n, size, format!("{n}/{size}"))
+                    (n, size, format!("{:.0}% · {n}/{size}", fed * 100.0))
                 });
                 let count_w = count.as_ref().map_or(0.0, |c| ui.painter().layout_no_wrap(c.2.clone(), egui::FontId::proportional(12.5), s.desk_ink).size().x);
                 let foot_y = at2.max.y - 14.0;

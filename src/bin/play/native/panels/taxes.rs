@@ -9,7 +9,7 @@ use super::*;
 use super::super::charts::{num, pct};
 use super::super::hud;
 use super::super::kit::{self, Stat};
-use crate::country::fiscal::{duty_of, estate_of, kept_k, sales_of, tax_k, Choice, ESTATE, PROFIT, PROFIT_RATE, SALES, TARIFFS, TAXES};
+use crate::country::fiscal::{duty_of, estate_of, evasion_of, kept_k, profit_kept, sales_kept, sales_of, tax_k, Choice, ESTATE, PROFIT, PROFIT_RATE, SALES, TARIFFS, TAXES};
 use crate::country::policy::role;
 
 /// The kinds of tax, by colour: income, purchases, profit, property, duties.
@@ -298,7 +298,10 @@ pub(super) fn taxes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     );
 
     // ---- the tax at the till
-    let at = |k: usize| -> f32 { (0..ng).map(|gr| (0..nk).map(|j| n.spent[gr][j] * sales_of(&pack, k, j)).sum::<f32>()).sum() };
+    let sales_paper = |k: usize| -> f32 { (0..ng).map(|gr| (0..nk).map(|j| n.spent[gr][j] * sales_of(&pack, k, j)).sum::<f32>()).sum() };
+    let sp0 = sales_paper(fx.sales[me]);
+    let sales_ev = |k: usize| -> f32 { evasion_of(tax + hide.extra + (sales_paper(k) - sp0) / gdp, hide.stability, hide.reach) };
+    let at = |k: usize| -> f32 { sales_paper(k) * sales_kept(sales_ev(k)) * laffer::base_k(sales_paper(k) / gdp, sp0 / gdp) };
     let now = at(fx.sales[me]);
     card(
         ui,
@@ -312,7 +315,12 @@ pub(super) fn taxes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         "собирается без суеты, трудно спрятать: богатые платят с роскоши",
         "бедные тратят на покупки всё, поэтому доля их дохода выше; покупают меньше — заводам хуже",
         |ui| {
-            let who = |k: usize| by_group(&n, &pack, &|gr| (0..nk).map(|j| n.spent[gr][j] * sales_of(&pack, k, j)).sum());
+            let who = |k: usize| {
+                let keep = sales_kept(sales_ev(k));
+                by_group(&n, &pack, &|gr| (0..nk).map(|j| n.spent[gr][j] * sales_of(&pack, k, j) * keep).sum())
+            };
+            let short = ["Нет", "Акциз 5%", "Акциз 12%", "На всё 10%"];
+            laffer::steps_plot(ui, s, KIND[1].1, short, [at(0), at(1), at(2), at(3)], [sales_paper(0), sales_paper(1), sales_paper(2), sales_paper(3)], fx.sales[me]);
             if let Some(k) = tiles(ui, "Налог с покупок", &SALES, ["Нет", "Акциз 5%", "Акциз 12%", "На всё 10%"], fx.sales[me], 0, &at, &who, gdp, now) {
                 act(g, &[("fx_sales", k.to_string())]);
             }
@@ -320,7 +328,10 @@ pub(super) fn taxes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     );
 
     // ---- the tax on profit
-    let at = |k: usize| -> f32 { n.payout * PROFIT_RATE[k] };
+    let profit_paper = |k: usize| -> f32 { n.payout * PROFIT_RATE[k] };
+    let pp0 = profit_paper(fx.profit[me]);
+    let profit_ev = |k: usize| -> f32 { evasion_of(tax + hide.extra + (profit_paper(k) - pp0) / gdp, hide.stability, hide.reach) };
+    let at = |k: usize| -> f32 { profit_paper(k) * profit_kept(profit_ev(k)) * laffer::base_k(PROFIT_RATE[k], PROFIT_RATE[fx.profit[me]]) };
     let now = at(fx.profit[me]);
     card(
         ui,
@@ -338,16 +349,26 @@ pub(super) fn taxes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             let paid: f32 = n.taxed_by.iter().map(|t| t[2]).sum();
             let owners = (0..ng).filter(|&o| role(&pack, o) == 3).count().max(1) as f32;
             let who = |k: usize| -> Vec<(String, f32)> {
-                by_group(&n, &pack, &|gr| if role(&pack, gr) == 3 { n.payout * PROFIT_RATE[k] * if paid > 1e-6 { n.taxed_by[gr][2] / paid } else { 1.0 / owners } } else { 0.0 }).into_iter().filter(|x| x.1 > 0.0).collect()
+                let keep = profit_kept(profit_ev(k)) * laffer::base_k(PROFIT_RATE[k], PROFIT_RATE[fx.profit[me]]);
+                by_group(&n, &pack, &|gr| if role(&pack, gr) == 3 { n.payout * PROFIT_RATE[k] * keep * if paid > 1e-6 { n.taxed_by[gr][2] / paid } else { 1.0 / owners } } else { 0.0 }).into_iter().filter(|x| x.1 > 0.0).collect()
             };
-            if let Some(k) = tiles(ui, "Налог на прибыль", &PROFIT, ["Нет", "10%", "20%", "35%"], fx.profit[me], 0, &at, &who, gdp, now) {
+            let short = ["Нет", "10%", "20%", "35%"];
+            laffer::steps_plot(ui, s, KIND[2].1, short, [at(0), at(1), at(2), at(3)], [profit_paper(0), profit_paper(1), profit_paper(2), profit_paper(3)], fx.profit[me]);
+            if let Some(k) = tiles(ui, "Налог на прибыль", &PROFIT, short, fx.profit[me], 0, &at, &who, gdp, now) {
                 act(g, &[("fx_profit", k.to_string())]);
             }
         },
     );
 
     // ---- the tax on property
-    let at = |k: usize| -> f32 { (0..ng).map(|gr| n.money[gr].max(0.0) * estate_of(k, role(&pack, gr))).sum() };
+    let estate_paper = |k: usize| -> f32 { (0..ng).map(|gr| n.money[gr].max(0.0) * estate_of(k, role(&pack, gr))).sum() };
+    let ep0 = estate_paper(fx.estate[me]);
+    let estate_ev = |k: usize| -> f32 { evasion_of(tax + hide.extra + (estate_paper(k) - ep0) / gdp, hide.stability, hide.reach) };
+    let at = |k: usize| -> f32 {
+        let ev_k = estate_ev(k);
+        let raw: f32 = (0..ng).map(|gr| n.money[gr].max(0.0) * estate_of(k, role(&pack, gr)) * kept_k(ev_k, role(&pack, gr))).sum();
+        raw * laffer::base_k(estate_paper(k) / gdp, ep0 / gdp)
+    };
     let now = at(fx.estate[me]);
     card(
         ui,
@@ -361,7 +382,12 @@ pub(super) fn taxes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         "бьёт по накопленному, а не по заработанному: беднякам почти ничего",
         "собственники прячут и вывозят деньги; тяжёлый налог на всех — люди без сбережений на чёрный день",
         |ui| {
-            let who = |k: usize| by_group(&n, &pack, &|gr| n.money[gr].max(0.0) * estate_of(k, role(&pack, gr)));
+            let who = |k: usize| {
+                let ev_k = estate_ev(k);
+                by_group(&n, &pack, &|gr| n.money[gr].max(0.0) * estate_of(k, role(&pack, gr)) * kept_k(ev_k, role(&pack, gr)))
+            };
+            let short = ["Нет", "Капитал", "Тяжёлый", "На всех"];
+            laffer::steps_plot(ui, s, KIND[3].1, short, [at(0), at(1), at(2), at(3)], [estate_paper(0), estate_paper(1), estate_paper(2), estate_paper(3)], fx.estate[me]);
             if let Some(k) = tiles(ui, "Налог на имущество", &ESTATE, ["Нет", "Капитал", "Тяжёлый", "На всех"], fx.estate[me], 0, &at, &who, gdp, now) {
                 act(g, &[("fx_estate", k.to_string())]);
             }

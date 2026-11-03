@@ -206,15 +206,14 @@ pub(super) fn supply_rules(shared: &Arc<Mutex<Game>>, say: &mut dyn FnMut(bool, 
     if let Some(q) = far {
         g.h.war.fort[q] = 0.0;
         let laid = g.build_fort(q);
-        let ready = g.state.fortifying.iter().find(|b| b.0 == me && b.1 == q).map(|b| b.2).unwrap_or(0);
-        while g.month() < ready {
-            g.h. step(&g.pack.clone());
+        for _ in 0..crate::world::statecraft::FORT_MONTHS {
+            g.h.peace(&g.pack.clone());
             let _ = g.statecraft();
         }
         let stood = g.h.war.fort[q];
         let cov0 = strategy::military::front::cover_of(0.2, 0.0);
         let cov1 = strategy::military::front::cover_of(0.2, stood);
-        fort_ok = laid && (stood - 0.5).abs() < 1e-4 && cov1 > cov0 + 0.2 && !g.build_fort(q) == false;
+        fort_ok = laid && (stood - 0.5).abs() < 1e-4 && cov1 > cov0 + 0.2 && g.build_fort(q);
     }
     say(fort_refused && fort_ok, "укрепления: чужую не укрепить, ступень даёт 50% и усиливает укрытие, возможна вторая ступень", format!("чужая отказана {fort_refused}; построена и усиливает укрытие {fort_ok}"));
 }

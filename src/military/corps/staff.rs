@@ -75,6 +75,15 @@ impl Campaign {
         }
         self.corps = Some(c);
         self.govern();
+        let Some(mut c) = self.corps.take() else { return };
+        let reach = [self.reach(0), self.reach(1)];
+        let seen = [self.seen_divs(pack, &c, 0), self.seen_divs(pack, &c, 1)];
+        for s in 0..2 {
+            if !c.idle[s] {
+                self.lead(pack, &mut c, s, &seen[s], &reach, seed);
+            }
+        }
+        self.corps = Some(c);
         // the books
         self.sync_divs(pack);
         let c = self.corps.as_ref().unwrap();
@@ -299,14 +308,14 @@ impl Campaign {
         let parts = self.sectors_of(s);
         // (in the game, an army too small for all its groups is shared out evenly among them, not
         // poured into the first till it is full)
-        let size = if self.most_groups == usize::MAX {
+        let size = if false && self.most_groups == usize::MAX {
             self.army_size(c, s)
         } else {
             let staffed = staff.iter().filter(|&&x| x).count().max(1);
             let all = c.divs.iter().filter(|d| d.side == s && !d.manual).count();
             self.army_size(c, s).min(all.div_ceil(staffed)).max(1)
         };
-        let want: Vec<usize> = vec![size; k];
+        let want: Vec<usize> = (0..k).map(|g| size.max(parts.get(g).map_or(0, |p| p.len()))).collect();
         let count = |c: &Corps, g: usize| c.divs.iter().filter(|d| d.side == s && d.group == g && !d.manual).count();
         // the spare: the reserve, and the staff's groups over their share
         let mut spare: Vec<usize> = (0..c.divs.len()).filter(|&i| c.divs[i].side == s && c.divs[i].group == NONE && !c.divs[i].manual).collect();

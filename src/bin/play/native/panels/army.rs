@@ -395,7 +395,7 @@ fn armies(ui: &mut egui::Ui, s: &Skin, g: &mut Game, chosen: &mut Option<usize>,
             let groups_n = groups.len();
             let mut disbanded = false;
             let back = chrome::hold(ui);
-            let resp = egui::Frame::none().inner_margin(egui::Margin { left: 12.0, right: 8.0, top: 7.0, bottom: 7.0 }).show(ui, |ui| {
+            let resp = egui::Frame::none().inner_margin(egui::Margin { left: 14.0, right: 10.0, top: 8.0, bottom: 8.0 }).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     if let Some(img) = portrait(&g.face_of(&gen, "general"), 40.0) {
@@ -447,11 +447,14 @@ fn armies(ui: &mut egui::Ui, s: &Skin, g: &mut Game, chosen: &mut Option<usize>,
             let r = resp.response.rect;
             if let Some(ch) = &ch {
                 let mut v = chrome::Out::new();
-                ch.lay(&mut v, r, &ch.paper, 2.0);
-                ch.gloss(&mut v, r, Color32::from_white_alpha(if on { 20 } else { 45 }), Color32::from_black_alpha(if on { 45 } else { 30 }));
-                ch.bevel(&mut v, r, !on, 1.5);
-                v.push(egui::Shape::rect_filled(egui::Rect::from_min_size(r.min, vec2(5.0, r.height())), 1.0, hue));
-                v.push(egui::Shape::rect_stroke(r, 2.0, egui::Stroke::new(if on { 2.2 } else { 1.0 }, if on { ch.trim } else { Color32::from_black_alpha(130) })));
+                kit::leaf_at(&mut v, ch, s, r, Some(hue), on);
+                if on {
+                    v.push(egui::Shape::closed_line(super::super::hud::chamfer(r.shrink(1.5), 6.0), egui::Stroke::new(1.8, ch.trim)));
+                }
+
+
+
+
                 chrome::under(ui, back, v);
             }
             let fights = gr.general.as_ref().map(|x| (x.won, x.lost, x.took));

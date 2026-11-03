@@ -29,6 +29,12 @@ impl Hiding {
     }
 }
 
+/// How the tax base itself shrinks when the rate rises above the one in force (`now`): higher taxes leave less in purses and factory
+/// books, so incomes and output settle lower over the year.
+pub fn base_k(rate: f32, now: f32) -> f32 {
+    (((1.0 - rate.clamp(0.0, 0.85)) / (1.0 - now.clamp(0.0, 0.85)).max(0.2)).powf(0.38)).clamp(0.45, 1.35)
+}
+
 /// What the income tax at `rate`, its «who pays» being `kind`, brings in a month by last month's incomes, the hiding counted.
 pub fn yield_at(n: &Nation, pack: &Pack, kind: usize, rate: f32, hide: &Hiding) -> f32 {
     let ev = hide.at(rate);
@@ -57,6 +63,8 @@ const STEPS: usize = 60;
 
 pub struct Curve {
     pub points: Vec<f32>,
+    /// The immediate 1-month yield (hiding only, static incomes) for comparison.
+    pub static_points: Vec<f32>,
     pub peak: usize,
 }
 
@@ -73,16 +81,18 @@ impl Curve {
 }
 
 pub fn curve(n: &Nation, pack: &Pack, kind: usize, hide: &Hiding) -> Curve {
-    let points: Vec<f32> = (0..=STEPS).map(|i| yield_at(n, pack, kind, TOP * i as f32 / STEPS as f32, hide)).collect();
+    let now = n.tax;
+    let static_points: Vec<f32> = (0..=STEPS).map(|i| yield_at(n, pack, kind, TOP * i as f32 / STEPS as f32, hide)).collect();
+    let points: Vec<f32> = (0..=STEPS).map(|i| static_points[i] * base_k(TOP * i as f32 / STEPS as f32, now)).collect();
     // (the first of the highest: a flat top reads as its beginning — nobody gains by going further)
     let top = points.iter().copied().fold(0.0f32, f32::max);
     let peak = points.iter().position(|&y| y >= top * 0.999).unwrap_or(0);
-    Curve { points, peak }
+    Curve { points, static_points, peak }
 }
 
 /// What one more point of the rate is worth now (negative: the state already loses by raising it).
 pub fn point_worth(n: &Nation, pack: &Pack, kind: usize, rate: f32, hide: &Hiding) -> f32 {
-    yield_at(n, pack, kind, rate + 0.01, hide) - yield_at(n, pack, kind, rate, hide)
+    yield_at(n, pack, kind, rate + 0.01, hide) * base_k(rate + 0.01, rate) - yield_at(n, pack, kind, rate, hide)
 }
 
 /// The plot, into the room: a groove with the area under the curve filled, a mark for the peak, a line and a dot for the rate in force;
@@ -95,7 +105,8 @@ pub fn plot(ui: &mut egui::Ui, s: &Skin, c: &Curve, rate: f32, usual: f32, took:
         return;
     }
     let area = egui::Rect::from_min_max(r.min + vec2(6.0, 8.0), r.max - vec2(6.0, 18.0));
-    let top = c.points.iter().copied().fold(0.0f32, f32::max).max(1e-6) * 1.12;
+    let top = c.points.iter().chain(&c.static_points).copied().fold(0.0f32, f32::max).max(1e-6) * 1.12;
+    let at_static = |i: usize| egui::pos2(area.min.x + area.width() * i as f32 / STEPS as f32, area.max.y - area.height() * (c.static_points[i] / top).clamp(0.0, 1.0));
     let at = |i: usize| egui::pos2(area.min.x + area.width() * i as f32 / STEPS as f32, area.max.y - area.height() * (c.points[i] / top).clamp(0.0, 1.0));
     let x_of = |rate: f32| area.min.x + area.width() * (rate / TOP).clamp(0.0, 1.0);
     let mut v = chrome::Out::new();
@@ -121,6 +132,9 @@ pub fn plot(ui: &mut egui::Ui, s: &Skin, c: &Curve, rate: f32, usual: f32, took:
         }
     }
     v.push(egui::Shape::mesh(m));
+    for i in (0..STEPS).step_by(2) {
+        v.push(egui::Shape::line_segment([at_static(i), at_static(i + 1)], egui::Stroke::new(1.1, s.soft.gamma_multiply(0.55))));
+    }
     let line: Vec<egui::Pos2> = (0..=STEPS).map(at).collect();
     v.push(egui::Shape::line(line.clone(), egui::Stroke::new(3.0, Color32::from_black_alpha(120))));
     v.push(egui::Shape::line(line, egui::Stroke::new(1.8, hud::lighten(s.accent, 0.25))));
@@ -166,6 +180,7 @@ pub fn plot(ui: &mut egui::Ui, s: &Skin, c: &Curve, rate: f32, usual: f32, took:
             Card::new(format!("Ставка {:.0}%", rate_k * 100.0))
                 .icon("coins")
                 .row("в казну в месяц", num(y))
+                .row("в первый месяц (до сжатия базы)", num(c.static_points[k]))
                 .row("против нынешних", format!("{}{}", if y >= took { "+" } else { "−" }, num((y - took).abs())))
                 .note(if c.has_peak() { format!("вершина кривой — при {:.0}%", c.peak_rate() * 100.0) } else { "кривая ещё растёт".to_string() })
         });
@@ -174,7 +189,7 @@ pub fn plot(ui: &mut egui::Ui, s: &Skin, c: &Curve, rate: f32, usual: f32, took:
             Card::new("Сколько даст ставка")
                 .icon("coins")
                 .text("По высоте — деньги в казну в месяц при каждой ставке подоходного налога, по доходам прошлого месяца. Если есть ромб — это вершина: выше неё казна уже не прибавляет, люди прячут больше, чем налог берёт. Без ромба кривая растёт до конца, но всё медленнее. Белая линия — ваша ставка, треугольник на оси — обычная в эпохе.")
-                .note("кривая статична: на деле тяжёлая ставка ещё и сокращает сами доходы")
+                .note("сплошная кривая — с учётом уклонения и сжатия доходов; пунктир — первый месяц по прежним доходам")
         });
     }
 }
@@ -197,4 +212,76 @@ pub fn verdict(ui: &mut egui::Ui, s: &Skin, rate: f32, c: &Curve, worth: f32, pa
     if took > 1e-6 && ((modelled - took) / took).abs() > 0.15 {
         kit::words(ui, format!("Взято в прошлом месяце: {} (кривая считает {}: уклонение меняется вслед за ставкой не сразу).", num(took), num(modelled)), 12.0, s.soft);
     }
+}
+
+/// A compact 4-step curve for a 4-choice tax lever (sales, profit, property): compares the real yield (with evasion and base
+/// shrinkage) against the paper yield across the 4 levels, marking the chosen level and the peak.
+pub fn steps_plot(ui: &mut egui::Ui, s: &Skin, col: Color32, short: [&str; 4], real: [f32; 4], paper: [f32; 4], chosen: usize) {
+    let (ch, _) = chrome::dress(ui);
+    let w = ui.available_width().min(ui.clip_rect().max.x - ui.cursor().min.x - 2.0);
+    let (r, resp) = ui.allocate_exact_size(vec2(w, 60.0), egui::Sense::hover());
+    if !ui.is_rect_visible(r) {
+        return;
+    }
+    let area = egui::Rect::from_min_max(r.min + vec2(18.0, 7.0), r.max - vec2(18.0, 16.0));
+    let top = real.iter().chain(&paper).copied().fold(0.0f32, f32::max).max(1e-6) * 1.15;
+    let pt = |k: usize, y: f32| egui::pos2(area.min.x + area.width() * k as f32 / 3.0, area.max.y - area.height() * (y / top).clamp(0.0, 1.0));
+    let mut v = chrome::Out::new();
+    v.push(egui::Shape::rect_filled(r, 3.0, Color32::from_black_alpha(40)));
+    ch.bevel(&mut v, r, false, 1.0);
+    for k in 0..4 {
+        let x = area.min.x + area.width() * k as f32 / 3.0;
+        v.push(egui::Shape::line_segment([egui::pos2(x, area.min.y), egui::pos2(x, area.max.y)], egui::Stroke::new(1.0, Color32::from_black_alpha(28))));
+    }
+    v.push(egui::Shape::line_segment([area.left_bottom(), area.right_bottom()], egui::Stroke::new(1.1, Color32::from_black_alpha(120))));
+    let mut m = egui::epaint::Mesh::default();
+    let (a, b) = (col.gamma_multiply(0.55), col.gamma_multiply(0.08));
+    for k in 0..4 {
+        let p = pt(k, real[k]);
+        m.colored_vertex(p, a);
+        m.colored_vertex(egui::pos2(p.x, area.max.y), b);
+        if k > 0 {
+            let idx = 2 * k as u32;
+            m.add_triangle(idx - 2, idx - 1, idx);
+            m.add_triangle(idx - 1, idx + 1, idx);
+        }
+    }
+    v.push(egui::Shape::mesh(m));
+    let pline: Vec<egui::Pos2> = (0..4).map(|k| pt(k, paper[k])).collect();
+    v.push(egui::Shape::line(pline, egui::Stroke::new(1.1, s.soft.gamma_multiply(0.55))));
+    let rline: Vec<egui::Pos2> = (0..4).map(|k| pt(k, real[k])).collect();
+    v.push(egui::Shape::line(rline.clone(), egui::Stroke::new(2.6, Color32::from_black_alpha(120))));
+    v.push(egui::Shape::line(rline, egui::Stroke::new(1.7, hud::lighten(col, 0.25))));
+    let best = real.iter().copied().fold(0.0f32, f32::max);
+    let peak = (0..4).find(|&k| real[k] >= best * 0.999).unwrap_or(0);
+    for k in 0..4 {
+        let p = pt(k, real[k]);
+        if k == chosen {
+            v.push(egui::Shape::circle_filled(p, 4.8, Color32::from_black_alpha(190)));
+            v.push(egui::Shape::circle_filled(p, 3.4, Color32::from_rgb(250, 244, 226)));
+        } else if k == peak && best > 1e-6 {
+            hud::diamond(&mut v, p, 4.6, Color32::from_black_alpha(190));
+            hud::diamond(&mut v, p, 3.3, ch.trim);
+        } else {
+            v.push(egui::Shape::circle_filled(p, 3.0, hud::lighten(col, 0.2)));
+        }
+    }
+    ui.painter().extend(v);
+    for k in 0..4 {
+        let x = area.min.x + area.width() * k as f32 / 3.0;
+        let al = match k {
+            0 => egui::Align2::LEFT_TOP,
+            3 => egui::Align2::RIGHT_TOP,
+            _ => egui::Align2::CENTER_TOP,
+        };
+        ui.painter().text(egui::pos2(x, area.max.y + 3.0), al, short[k], egui::FontId::new(11.0, egui::FontFamily::Proportional), if k == chosen { s.ink } else { s.soft });
+    }
+    resp.tip(|| {
+        let mut c = Card::new("Кривая ступеней налога").icon("coins").text("Высота — сбор в казну в месяц по ступеням (сплошная — с учётом уклонения и сжатия базы, бледная линия — на бумаге без уклонения). Белая точка — выбранная ступень, ромб — наибольший сбор.");
+        for k in 0..4 {
+            let hidden = if paper[k] > 1e-6 { ((1.0 - real[k] / paper[k]).max(0.0) * 100.0).round() } else { 0.0 };
+            c = c.row(short[k], if hidden > 0.5 { format!("{} (прячут и теряется {:.0}%)", num(real[k]), hidden) } else { num(real[k]) });
+        }
+        c
+    });
 }

@@ -207,6 +207,15 @@ pub fn kept_k(evasion: f32, r: usize) -> f32 {
     (1.0 - evasion * hide).max(0.3)
 }
 
+/// The share of the profit tax owners still pay when `evasion` is hidden (`business`), and of the till tax buyers pay.
+pub fn profit_kept(evasion: f32) -> f32 {
+    if evasion > 0.005 { (1.0 - 1.5 * evasion).max(0.3) } else { 1.0 }
+}
+
+pub fn sales_kept(evasion: f32) -> f32 {
+    if evasion > 0.005 { 1.0 - 0.4 * evasion } else { 1.0 }
+}
+
 /// The tax of a group of role `r` (0 the people of the land … 3 owners), times the custom, by scale.
 pub fn tax_k(scale: usize, r: usize) -> f32 {
     const K: [[f32; 4]; 4] = [[1.0, 1.0, 1.0, 1.0], [0.7, 0.85, 1.15, 1.8], [0.5, 0.7, 1.4, 3.0], [1.25, 1.1, 0.8, 0.5]];
@@ -452,12 +461,12 @@ impl Game {
         // (what is hidden is hidden from the newer taxes too: owners from the one on profit, the rich from the one
         // on property, everybody a little from the one at the till)
         if evasion > 0.005 {
-            n.profit_tax *= (1.0 - 1.5 * evasion).max(0.3);
+            n.profit_tax *= profit_kept(evasion);
             for (g, t) in n.estate_tax.iter_mut().enumerate() {
                 *t *= kept_k(evasion, role(&pack, g));
             }
             for t in n.sales_tax.iter_mut() {
-                *t *= 1.0 - 0.4 * evasion;
+                *t *= sales_kept(evasion);
             }
         }
         // capital flight and its return

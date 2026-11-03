@@ -78,7 +78,8 @@ impl Campaign {
         let parts = self.sectors_of(s);
         let staff = self.staff_led[s];
         for (g, gr) in groups.iter().enumerate() {
-            if c.day > 1 && (c.day + g as u32) % PLAN_EVERY != 1 {
+            let line: Vec<usize> = parts.get(g).map_or(Vec::new(), |p| p.iter().copied().filter(|&x| reach[s][x] != NO).collect());
+            if c.day > 1 && c.day % 30 != 0 && (c.day + g as u32) % PLAN_EVERY != 1 && !line.iter().any(|&p| !c.divs.iter().any(|d| d.side == s && (d.at == p || d.way.first() == Some(&p)))) {
                 continue;
             }
             let line: Vec<usize> = parts.get(g).map_or(Vec::new(), |p| p.iter().copied().filter(|&x| reach[s][x] != NO).collect());
@@ -495,6 +496,8 @@ impl Campaign {
             fed.saturating_sub(others[p]).max((others[p] == 0) as usize)
         };
         // (how many a province of the line takes: its battle's width, a line and its relief)
+        let keep_line = line.iter().filter(|&&p| others[p] == 0).count();
+        strike_n = strike_n.min(avail.len().saturating_sub(keep_line));
         let war = pack.war.as_ref().unwrap();
         let wide: f32 = avail
             .iter()
@@ -569,7 +572,7 @@ impl Campaign {
             Order::Deep => crate::military::front::LINE_DEEP,
             Order::Attack(_) => 1.0,
         };
-        let on_line = ((first * avail.len() as f32).round() as usize).min(avail.len());
+        let on_line = ((first * avail.len() as f32).round() as usize).max(keep_line).min(avail.len());
         let threat: Vec<f32> = line.iter().map(|&p| self.threat(s, p, seen)).collect();
         let all: f32 = threat.iter().sum();
         let weight: Vec<f32> = (0..line.len()).map(|i| if all > 0.0 { 0.8 * threat[i] / all + 0.2 / line.len() as f32 } else { 1.0 / line.len() as f32 }).collect();

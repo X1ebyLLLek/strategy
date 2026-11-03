@@ -1,4 +1,4 @@
-//! The folder of politics: the country's leaders, its neighbours (treaties, claims, war),
+﻿//! The folder of politics: the country's leaders, its neighbours (treaties, claims, war),
 //! the war's controls.
 
 use super::*;
@@ -212,7 +212,10 @@ pub fn war_controls(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     let w = ui.available_width();
     if g.h.at_war {
         let who = g.state.aggressor.map_or(String::new(), |x| format!(" Войну {} {}.", strategy::world::names::agree(&g.h.home(x).name, "начала"), g.h.home(x).name));
-        ui.label(format!("Идёт война.{who}"));
+        super::super::kit::framed(ui, Some(super::super::kit::BAD), true, |ui| {
+            super::super::kit::bold(ui, format!("Идёт война.{who}"), 14.0, s.ink);
+        });
+
         if widgets::plate(ui, "Предложить мир", w, false, true).tip(|| Card::new("Предложить мир").icon("scroll").text("Мир на том, что каждый держит. Враг согласится, если не побеждает.")).clicked() {
             g.act(crate::tools::saves::Act::Peace);
         }
@@ -234,7 +237,15 @@ pub fn war_controls(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
                 }
             }
             Some(c) if now < c.ready => {
-                ui.label(format!("Цель войны обосновывается — ещё {}.", crate::words::tenure(c.ready - now)));
+                let left = c.ready - now;
+                let total = crate::world::statecraft::JUSTIFY.max(1);
+                let frac = (1.0 - left as f32 / total as f32).clamp(0.05, 0.98);
+                super::super::kit::framed(ui, Some(super::super::kit::MIXED), true, |ui| {
+                    super::super::kit::bold(ui, format!("Цель войны обосновывается — ещё {}.", crate::words::tenure(left)), 14.0, s.ink);
+                    let r = super::super::kit::gauge(ui, ui.available_width(), 12.0, frac, super::super::kit::MIXED);
+                    r.tip(|| Card::new("Повод к войне").icon("scroll").row("осталось", crate::words::tenure(left)));
+                });
+
             }
             Some(_) => {
                 if widgets::plate(ui, "Объявить войну", w, true, true).tip(|| Card::new("Объявить войну").icon("army").text("Цель войны готова. Генштаб и группы армий начнут, как только война будет объявлена.")).clicked() {
