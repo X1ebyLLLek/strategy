@@ -98,7 +98,7 @@ const LEAD_SEASONED: f32 = 0.1;
 pub(crate) const BOLD_PUSH: f32 = 0.3;
 /// How fast a staff learns how far its war games flatter its attacks (per attack, of the gap
 /// between the odds promised and what came of it).
-pub(crate) const WARY: f32 = 0.05;
+pub(crate) const WARY: f32 = 0.08;
 /// Share of its reserve a staff sends to the stretches of its front where it sees the enemy
 /// gathering a strike (through fog): the rest stays back to help wherever an attack comes.
 const REACT: f32 = 0.5;

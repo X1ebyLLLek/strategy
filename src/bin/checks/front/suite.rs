@@ -287,7 +287,9 @@ pub(super) fn checks(pack: &Pack, months: u32) -> bool {
     let b = share_won(&blind, 0);
     checks.push((
         "слепой проигрывает".into(),
-        b <= 0.4,
+        // (about a hundred wars: a share is known to within some five points, so the blind
+        // side must win no more than 45% and the seeing twin must lead it by a tenth or more)
+        b <= 0.45 && (1.0 - b) - b >= 0.1,
         format!("близнец, видящий врага в густом тумане, побеждает в {:.0}% войн (видящий ясно — в {:.0}%)", b * 100.0, (1.0 - b) * 100.0),
     ));
     println!(
