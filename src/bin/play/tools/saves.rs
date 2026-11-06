@@ -607,6 +607,9 @@ pub fn savetest(pack: strategy::pack::Pack, path: &str, seed: u64) -> bool {
             (0..war.owner.len()).filter(|&q| war.owner[q] == x.me && !front.contains(&q)).count()
         };
         let mut w = if rear(&g) >= 2 { g.clone() } else { fresh.clone() };
+        while let Some((id, _)) = w.ev.waiting.first().map(|e| (e.id, ())) {
+            w.act(Act::Answer(id, 0));
+        }
         if !w.h.at_war {
             w.act(Act::Form(vec![("declare".into(), "1".into())]));
             w.advance();

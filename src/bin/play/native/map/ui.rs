@@ -398,34 +398,48 @@ impl MapView {
                 return;
             }
             let own = war.owner[q] == me;
+            let tier_two = lvl >= 0.75 || (building.is_some() && lvl > 0.01);
+            let breached = (lvl > 0.01 && lvl < 0.42) || (lvl > 0.50 && lvl < 0.88);
             let rim = if building.is_some() {
-                Color32::from_rgb(232, 199, 106)
+                Color32::from_rgb(235, 205, 110)
+            } else if breached {
+                Color32::from_rgb(230, 130, 60)
             } else if own {
-                Color32::from_rgb(138, 188, 224)
+                Color32::from_rgb(140, 190, 235)
             } else {
-                Color32::from_rgb(214, 126, 108)
+                Color32::from_rgb(220, 115, 100)
             };
-            painter.circle_filled(p + vec2(0.0, 1.5), 11.0, Color32::from_black_alpha(110));
-            painter.circle_filled(p, 10.0, Color32::from_rgba_unmultiplied(20, 18, 14, 235));
-            painter.circle_stroke(p, 10.0, Stroke::new(if building.is_some() { 1.4 } else { 1.8 }, rim));
+            painter.circle_filled(p + vec2(0.0, 1.5), 11.5, Color32::from_black_alpha(110));
+            painter.circle_filled(p, 10.5, Color32::from_rgba_unmultiplied(18, 16, 12, 235));
+            painter.circle_stroke(p, 10.5, Stroke::new(if building.is_some() { 1.4 } else { 1.8 }, rim));
             if building.is_some() {
                 for k in 0..12 {
                     let a = k as f32 / 12.0 * std::f32::consts::TAU + self.t();
-                    painter.circle_filled(p + vec2(a.cos(), a.sin()) * 13.5, 1.2, rim);
+                    painter.circle_filled(p + vec2(a.cos(), a.sin()) * 14.0, 1.2, rim);
                 }
             }
-            // bastion with three merlons
-            let wall = Rect::from_center_size(p + vec2(0.0, 2.0), vec2(10.0, 5.0));
+            // bastion wall and merlons
+            let wall = Rect::from_center_size(p + vec2(0.0, 2.2), vec2(11.0, 5.2));
             painter.rect_filled(wall, 0.5, rim.gamma_multiply(if lvl >= 0.99 { 0.85 } else { 0.45 }));
             painter.rect_stroke(wall, 0.5, Stroke::new(1.1, rim));
-            for dx in [-3.6f32, 0.0, 3.6] {
-                let m = Rect::from_center_size(p + vec2(dx, -2.2), vec2(2.4, 3.2));
-                painter.rect_filled(m, 0.3, rim);
+
+            // merlons (4 for tier II, 3 for tier I)
+            let merlons: &[f32] = if tier_two { &[-3.9f32, -1.3, 1.3, 3.9] } else { &[-3.6f32, 0.0, 3.6] };
+            let mw = if tier_two { 1.8f32 } else { 2.4f32 };
+            for (idx, &dx) in merlons.iter().enumerate() {
+                let broken = breached && idx == 0;
+                let mh = if broken { 1.6f32 } else { 3.2f32 };
+                let my = if broken { -1.4f32 } else { -2.2f32 };
+                let m = Rect::from_center_size(p + vec2(dx, my), vec2(mw, mh));
+                let m_col = if broken { Color32::from_rgb(220, 70, 50) } else { rim };
+                painter.rect_filled(m, 0.3, m_col);
             }
             if near {
+                let tier_str = if tier_two { "II ст." } else { "I ст." };
                 let text = match building {
-                    Some(r) => format!("{fname} · {} мес.", r.saturating_sub(now).max(1)),
-                    None => format!("{fname} · {:.0}%", lvl * 100.0),
+                    Some(r) => format!("{fname} {tier_str} · {} мес.", r.saturating_sub(now).max(1)),
+                    None if breached => format!("{fname} {tier_str} · {:.0}% (брешь)", lvl * 100.0),
+                    None => format!("{fname} {tier_str} · {:.0}%", lvl * 100.0),
                 };
                 let font = FontId::new(12.5, FontFamily::Name("bold".into()));
                 let w = painter.layout_no_wrap(text.clone(), font.clone(), rim).size().x;
@@ -812,6 +826,12 @@ impl MapView {
                 }
                 let at = self.world_at(pp);
                 tip_at(&ctx, egui::Id::new("province"), Rect::from_center_size(pp, vec2(14.0, 14.0)), || self.province_card(g, p, chosen, at));
+            } else if self.mode == Mode::Seas {
+                if let Some(p) = self.province_at(g, pp).filter(|&p| g.world.provinces[p].sea) {
+                    if let Some(c) = self.sea_card(g, p) {
+                        tip_at(&ctx, egui::Id::new("sea_zone"), Rect::from_center_size(pp, vec2(14.0, 14.0)), move || c.clone());
+                    }
+                }
             }
         }
     }

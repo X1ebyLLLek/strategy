@@ -24,6 +24,9 @@ pub const HUB_COST: f32 = 0.5;
 pub const FORT_MONTHS: u32 = 3;
 pub const FORT_COST: f32 = 0.35;
 pub const FORT_STEP: f32 = 0.5;
+/// How much of a breached fortification's strength engineers mend in a quiet month (up to the
+/// tier's ceiling: 0.5 for the first tier, 1.0 for the second).
+pub const FORT_MEND: f32 = 0.05;
 /// Below this stability a government does not dare to make a claim.
 pub const SHAKY: f32 = 0.3;
 /// What a province of a railway and of a road costs, in months of the army's money; how many
@@ -162,6 +165,23 @@ impl Game {
                 if s == me {
                     self.news.push(Note::new(now, &format!("построены укрепления ({fname}, {pct}%)"), false, "army"));
                 }
+            }
+        }
+        // field engineers mend breached fortifications in quiet provinces reached from the capital
+        let reach_both = [self.h.war.reach(0), self.h.war.reach(1)];
+        for q in 0..self.h.war.fort.len() {
+            let lvl = self.h.war.fort[q];
+            if lvl <= 0.01 {
+                continue;
+            }
+            let ceil = if lvl > 0.501 { 1.0 } else { 0.5 };
+            if lvl >= ceil - 1e-4 {
+                continue;
+            }
+            let s = self.h.war.owner[q];
+            let under_attack = self.h.war.corps.as_ref().is_some_and(|c| c.fight_at(q).is_some());
+            if !under_attack && reach_both[s].get(q).copied().unwrap_or(strategy::military::front::NO) != strategy::military::front::NO {
+                self.h.war.fort[q] = (lvl + FORT_MEND).min(ceil);
             }
         }
         if self.adviser.is_none() && !self.state.queue.is_empty() {

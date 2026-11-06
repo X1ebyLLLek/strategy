@@ -70,6 +70,11 @@ pub(crate) const DIG_PACE: f32 = 0.25;
 pub const FORT_COVER: f32 = 0.6;
 /// The share of a province's fortifications that survives its fall to the enemy.
 pub const FORT_SPOIL: f32 = 0.5;
+/// How much of a province's fortifications a full unit of supplied artillery (`Line::Support`) or
+/// aviation (`Line::Air`) batters down in a day of battle (more with sappers and artillery
+/// preparation); and the rubble floor bombardment alone leaves standing before the province falls.
+pub const FORT_BOMB: f32 = 0.025;
+pub const FORT_RUBBLE: f32 = 0.08;
 
 /// How dug in a defender is behind a province's fortifications `fort` when his trenches are `dug`.
 pub fn cover_of(dug: f32, fort: f32) -> f32 {
@@ -395,9 +400,11 @@ pub struct Fought {
     pub men: [f32; 2],
     pub captured: f32,
     /// Units of each kind each side lost for good (the war of divisions; empty in the front's
-    /// battles); the days each side used each tactic (`corps::TACTICS`).
+    /// battles); the days each side used each tactic (`corps::TACTICS`); the province's
+    /// fortifications as the battle began and as it ended.
     pub lost_kinds: [Vec<f32>; 2],
     pub tactics: [[u16; 8]; 2],
+    pub fort: [f32; 2],
 }
 
 #[derive(Clone)]

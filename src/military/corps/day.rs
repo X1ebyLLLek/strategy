@@ -234,6 +234,7 @@ impl Campaign {
                         lost_kinds: [Vec::new(), Vec::new()],
                         tactic: [0, 4],
                         tactics: [[0; 8]; 2],
+                        fort: [self.fort[next], self.fort[next]],
                     });
                 }
                 continue;

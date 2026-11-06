@@ -15,7 +15,11 @@ pub(super) fn folders(shared: &Arc<Mutex<Game>>, app: &mut App, ctx: &egui::Cont
         if g.h.labs[g.me].is_some() {
             folders.push((Tab::Science, "наука"));
         }
-        folders.extend([(Tab::Army, "армия"), (Tab::Politics, "политика"), (Tab::Society, "общество"), (Tab::Ledger, "сводка"), (Tab::News, "события")]);
+        folders.push((Tab::Army, "армия"));
+        if !g.pack.ships.is_empty() {
+            folders.push((Tab::Navy, "флот"));
+        }
+        folders.extend([(Tab::Politics, "политика"), (Tab::People, "деятели"), (Tab::Society, "общество"), (Tab::Ledger, "сводка"), (Tab::News, "события")]);
         let mut v: Vec<(Option<Tab>, usize, String)> = vec![(None, 0, "без папки".into())];
         for (tab, name) in folders {
             let pages = super::super::panels::pages(tab);

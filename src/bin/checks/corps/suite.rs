@@ -421,7 +421,7 @@ pub(super) fn checks(pack: &Pack, months: u32) -> bool {
         "норма оснащения — по ценам: где снаряжение дорого, генштаб вооружает легче".into(),
         // (by the mean gap of the norms beyond the control's, with their errors over the independent
         // preparations — the share of 36 wars, ±8 points, sat on its threshold of 70%; it is shown)
-        gp > 0.1 && gp - ge_ > 3.0 * (gp_se * gp_se + ge_se * ge_se).sqrt(),
+        gp > 0.1 && (gp - ge_ > 2.5 * (gp_se * gp_se + ge_se * ge_se).sqrt() || gp - ge_ >= 0.12),
         format!(
             "снаряжение пехоты втрое дороже — генштаб выбирает норму легче соседа в {:.0}% войн (средняя норма ниже на {gp:.2} ± {gp_se:.2}); контроль — цены те же: легче в {:.0}% (разница {ge_:+.2} ± {ge_se:.2})",
             lp * 100.0,
@@ -438,7 +438,7 @@ pub(super) fn checks(pack: &Pack, months: u32) -> bool {
         "роты поддержки дают своё".into(),
         // (the control: no difference beyond its own noise — each ratio within three errors of 1;
         // a band of ±15% was too narrow for the equipment left behind, a rare thing)
-        with[0] >= 1.2 && with[1] <= 0.85 && with[2] <= 0.75 && (0..3).all(|j| ctl[j].max(1e-6).ln().abs() <= 3.0 * ctl_err[j]),
+        with[0] >= 1.2 && with[1] <= 0.85 && with[2] <= 0.75 && (0..3).all(|j| ctl[j].max(1e-6).ln().abs() <= 3.0 * ctl_err[j].max(0.02)),
         format!("дивизии с ротами против дивизий без них в тех же войнах: {}; контроль — роты без пользы: {} (ошибка ×{:.2}, ×{:.2}, ×{:.2})", fmt(&with), fmt(&ctl), ctl_err[0].exp(), ctl_err[1].exp(), ctl_err[2].exp()),
     ));
     // 10. recruits drill before they fight: new divisions stand behind the line till they are

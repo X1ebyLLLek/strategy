@@ -1,12 +1,16 @@
 //! The folder of science: the spheres the scientists work in, their focus and progress.
 
 use super::*;
+use super::super::kit;
 use super::economy::lever;
+
+/// The pages of the folder «Наука».
+pub const PAGES: [&str; 2] = ["Технологии", "Разработки"];
 
 /// Science: its share, who heads it; its spheres as cards — each kind of troops and the economy:
 /// how far the next design is, how much of science's strength goes to it (the player who heads
 /// science himself sets it by a click), how the staff rates what we have; the last designs.
-pub fn science(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
+pub fn science(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
     let me = g.me;
     if g.h.labs[me].is_none() {
         ui.label("В этой эпохе науки нет.");
@@ -14,8 +18,11 @@ pub fn science(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     }
     let pack = g.pack.clone();
     let n = g.h.home(me);
-    lever(ui, s, "Науке из трат казны:", n.science_share, 50.0, pack.science.as_ref().map_or(0.05, |x| x.share), ["Крохи", "Скупо", "Как водится", "Щедро", "Очень щедро"], ["quill", "pen", "science", "graduate", "binoculars"], [0.3, 0.6, 1.0, 1.6, 2.4], false, "science", g);
-    super::techs::techs(ui, s, g);
+    if page == 0 {
+        lever(ui, s, "Науке из трат казны:", n.science_share, 50.0, pack.science.as_ref().map_or(0.05, |x| x.share), ["Крохи", "Скупо", "Как водится", "Щедро", "Очень щедро"], ["quill", "pen", "science", "graduate", "binoculars"], [0.3, 0.6, 1.0, 1.6, 2.4], false, "science", g);
+        super::techs::techs(ui, s, g);
+        return;
+    }
     head(ui, s, "Направления");
     let led = g.scholar.is_none();
     say(ui, s, if led { "Учёные работают над каждым направлением; щёлкните — сделать упор на нём. Что выйдет, неизвестно до [trials]испытаний." } else { "Упор выбирает глава науки. Что выйдет, неизвестно до [trials]испытаний." });
@@ -121,31 +128,35 @@ pub fn science(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
                 Some(u) => (pack.units[u].name.clone(), pack.units[u].icon.clone()),
                 None => ("хозяйство".to_string(), "gears".to_string()),
             };
-            let (good, bad) = (ink_of(s, Color32::from_rgb(70, 130, 60)), ink_of(s, Color32::from_rgb(170, 60, 46)));
-            let (word, col) = match (wk.kind, wk.adopted) {
+            let (good, bad) = (kit::GOOD, kit::BAD);
+            let (word, edge_col) = match (wk.kind, wk.adopted) {
                 (None, _) if wk.gain.0 >= 0.0 => ("удалось", good),
                 (None, _) => ("неудача", bad),
                 (Some(_), true) => ("принята", good),
                 (Some(_), false) => ("отвергнута", bad),
             };
-            // (a row of two lines: the sphere and what came of it; the date under them)
-            let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), egui::Sense::hover());
-            let p = ui.painter();
-            super::super::look::icon(&icons, &icon, 22.0, s.ink).paint_at(ui, egui::Rect::from_min_size(r.min + vec2(0.0, 4.0), vec2(22.0, 22.0)));
-            let name_g = p.layout_no_wrap(name.clone(), egui::FontId::new(14.5, egui::FontFamily::Proportional), s.ink);
-            let nw = name_g.size().x;
-            p.galley(egui::pos2(r.min.x + 30.0, r.min.y + 1.0), name_g, s.ink);
-            p.text(egui::pos2(r.min.x + 38.0 + nw, r.min.y + 10.0), egui::Align2::LEFT_CENTER, word, egui::FontId::new(14.0, egui::FontFamily::Name("bold".into())), col);
-            p.text(egui::pos2(r.min.x + 30.0, r.min.y + 29.0), egui::Align2::LEFT_CENTER, crate::words::date_words(wk.month), egui::FontId::new(12.5, egui::FontFamily::Proportional), s.soft);
-            let row = resp;
             let claim = wk.claim;
-            row.tip(|| {
+            let resp = kit::framed(ui, Some(edge_col), false, |ui| {
+                ui.horizontal(|ui| {
+                    kit::socket(ui, egui::pos2(ui.cursor().min.x + 14.0, ui.cursor().min.y + 16.0), 13.0, &icon, edge_col, 0.4);
+                    ui.add_space(28.0);
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(&name).family(egui::FontFamily::Name("bold".into())).size(14.5).color(s.ink));
+                            ui.label(RichText::new(word).family(egui::FontFamily::Name("bold".into())).size(13.0).color(edge_col));
+                        });
+                        ui.label(RichText::new(crate::words::date_words(wk.month)).size(12.5).color(s.soft));
+                    });
+                });
+            });
+            resp.response.tip(|| {
                 Card::new(name.clone())
                     .icon(icon.clone())
                     .row("конструкторы обещают огонь", format!("{:+.0}%", (claim.0.exp() - 1.0) * 100.0))
                     .row("и стойкость", format!("{:+.0}%", (claim.1.exp() - 1.0) * 100.0))
                     .note("что разработка стоит на деле, покажут учения и бои")
             });
+            ui.add_space(2.0);
         }
     }
     if let Some(p) = pick {

@@ -153,6 +153,15 @@ pub fn battle(ui: &mut egui::Ui, s: &Skin, g: &Game, i: usize) {
         tug(ui, "Охват", f.sides.max(1) as f32, 1.0, from);
         tug(ui, "Снабжение", f.supply[0], f.supply[1], format!("{} у наступавших, {} у оборонявшихся", pct(f.supply[0]), pct(f.supply[1])));
         tug(ui, "Окопы обороны", 1.0 - f.dug, f.dug, format!("окопались на {}", pct(f.dug)));
+        if f.fort[0] > 0.01 {
+            let drop = (f.fort[0] - f.fort[1]).max(0.0);
+            let said = if drop >= 0.01 {
+                format!("{} → {} (осадный огонь снёс −{:.0}%)", pct(f.fort[0]), pct(f.fort[1]), drop * 100.0)
+            } else {
+                format!("{} — бастионы выдержали обстрел", pct(f.fort[0]))
+            };
+            tug(ui, "Укрепления провинции", 1.0 - f.fort[1], f.fort[1], said);
+        }
         tug(ui, "Генералы (как ведут бой)", f.lead[0], f.lead[1], format!("×{:.2} и ×{:.2}", f.lead[0], f.lead[1]));
         if f.odds != 0.5 {
             tug(ui, "Штаб обещал успех", f.odds, 1.0 - f.odds, pct(f.odds));

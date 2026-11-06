@@ -51,14 +51,19 @@ pub use politics::politics;
 pub use science::science;
 pub use society::society;
 
+pub const NEWS_PAGES: [&str; 2] = ["Вестник", "Летопись"];
+
 /// The pages of a folder (none: one page).
 pub(super) fn pages(tab: super::Tab) -> &'static [&'static str] {
     match tab {
         super::Tab::Econ => &economy::PAGES,
         super::Tab::Army => &army::PAGES,
         super::Tab::Nation => &nation::PAGES,
+        super::Tab::Navy => &navy::PAGES,
+        super::Tab::Science => &science::PAGES,
         super::Tab::Politics => &politics::PAGES,
         super::Tab::Society => &society::PAGES,
+        super::Tab::News => &NEWS_PAGES,
         _ => &[],
     }
 }
@@ -172,61 +177,64 @@ fn masthead(theme: &str) -> &'static str {
 /// The news as a newspaper — its name over a double rule, the country and the date; the latest
 /// story as the lead, the rest under their dates divided by thin rules — and the world's chronicle
 /// as a line of years.
-pub fn news(ui: &mut egui::Ui, s: &Skin, g: &Game) {
+pub fn news(ui: &mut egui::Ui, s: &Skin, g: &Game, page: usize) {
     let Some(ch) = chrome::of(ui.ctx()) else { return };
     let theme = g.pack.theme.clone();
     let w = ui.available_width();
-    // the masthead
-    ui.vertical_centered(|ui| {
-        ui.label(RichText::new(masthead(&theme).to_uppercase()).family(egui::FontFamily::Name("head".into())).size(30.0).color(s.ink));
-    });
-    let (r, _) = ui.allocate_exact_size(vec2(w, 6.0), egui::Sense::hover());
-    ui.painter().line_segment([pos2(r.min.x, r.min.y + 1.0), pos2(r.max.x, r.min.y + 1.0)], egui::Stroke::new(2.0, s.ink));
-    ui.painter().line_segment([pos2(r.min.x, r.max.y - 1.0), pos2(r.max.x, r.max.y - 1.0)], egui::Stroke::new(0.8, s.ink));
-    ui.horizontal(|ui| {
-        let (fr, _) = ui.allocate_exact_size(vec2(24.0, 16.0), egui::Sense::hover());
-        if let Some(fl) = super::flags::get(ui.ctx(), g.h.war.th.countries[g.me]) {
-            let icons = chrome::icons(ui.ctx());
-            super::flags::paint(ui.ctx(), ui.painter(), fr.shrink(1.0), &fl, s.ink, Some(&icons));
-        }
-        words(ui, g.h.home(g.me).name.to_uppercase(), 12.5, s.soft);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            words(ui, g.date(), 12.5, s.soft);
+    if page == 0 {
+        // the masthead
+        ui.vertical_centered(|ui| {
+            ui.label(RichText::new(masthead(&theme).to_uppercase()).family(egui::FontFamily::Name("head".into())).size(30.0).color(s.ink));
         });
-    });
-    let (r, _) = ui.allocate_exact_size(vec2(w, 4.0), egui::Sense::hover());
-    ui.painter().line_segment([pos2(r.min.x, r.center().y), pos2(r.max.x, r.center().y)], egui::Stroke::new(0.8, s.ink));
-    ui.add_space(4.0);
-    if g.news.is_empty() {
-        words(ui, "Пока тихо: вестей нет.", 15.0, s.soft);
-    }
-    for (i, e) in g.news.iter().rev().take(40).enumerate() {
-        let resp = ui
-            .vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 1.0;
-                ui.label(RichText::new(date_words(e.month).to_uppercase()).family(egui::FontFamily::Name("head".into())).size(12.5).color(s.soft));
-                let (size, family) = if i == 0 { (18.0, "bold") } else if e.hot { (15.5, "bold") } else { (15.0, "") };
-                let text = RichText::new(&e.text).size(size).color(if e.hot || i == 0 { s.ink } else { s.soft });
-                let text = if family.is_empty() { text } else { text.family(egui::FontFamily::Name(family.into())) };
-                ui.label(text);
-            })
-            .response;
-        if !e.tip.is_empty() {
-            resp.tip(|| Card::new(date_words(e.month)).icon("news").text(e.text.clone()).rule().note(e.tip.clone()));
+        let (r, _) = ui.allocate_exact_size(vec2(w, 6.0), egui::Sense::hover());
+        ui.painter().line_segment([pos2(r.min.x, r.min.y + 1.0), pos2(r.max.x, r.min.y + 1.0)], egui::Stroke::new(2.0, s.ink));
+        ui.painter().line_segment([pos2(r.min.x, r.max.y - 1.0), pos2(r.max.x, r.max.y - 1.0)], egui::Stroke::new(0.8, s.ink));
+        ui.horizontal(|ui| {
+            let (fr, _) = ui.allocate_exact_size(vec2(24.0, 16.0), egui::Sense::hover());
+            if let Some(fl) = super::flags::get(ui.ctx(), g.h.war.th.countries[g.me]) {
+                let icons = chrome::icons(ui.ctx());
+                super::flags::paint(ui.ctx(), ui.painter(), fr.shrink(1.0), &fl, s.ink, Some(&icons));
+            }
+            words(ui, g.h.home(g.me).name.to_uppercase(), 12.5, s.soft);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                words(ui, g.date(), 12.5, s.soft);
+            });
+        });
+        let (r, _) = ui.allocate_exact_size(vec2(w, 4.0), egui::Sense::hover());
+        ui.painter().line_segment([pos2(r.min.x, r.center().y), pos2(r.max.x, r.center().y)], egui::Stroke::new(0.8, s.ink));
+        ui.add_space(4.0);
+        if g.news.is_empty() {
+            words(ui, "Пока тихо: вестей нет.", 15.0, s.soft);
         }
-        // (a thin rule between stories; under the lead, a double one)
-        let (r, _) = ui.allocate_exact_size(vec2(w, 7.0), egui::Sense::hover());
-        let y = r.center().y;
-        if i == 0 {
-            ui.painter().line_segment([pos2(r.min.x, y - 1.5), pos2(r.max.x, y - 1.5)], egui::Stroke::new(1.2, s.ink));
-            ui.painter().line_segment([pos2(r.min.x, y + 1.5), pos2(r.max.x, y + 1.5)], egui::Stroke::new(0.6, s.ink));
-        } else {
-            ui.painter().line_segment([pos2(r.min.x + w * 0.3, y), pos2(r.max.x - w * 0.3, y)], egui::Stroke::new(0.8, s.soft.gamma_multiply(0.6)));
+        for (i, e) in g.news.iter().rev().take(40).enumerate() {
+            let resp = ui
+                .vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 1.0;
+                    ui.label(RichText::new(date_words(e.month).to_uppercase()).family(egui::FontFamily::Name("head".into())).size(12.5).color(s.soft));
+                    let (size, family) = if i == 0 { (18.0, "bold") } else if e.hot { (15.5, "bold") } else { (15.0, "") };
+                    let text = RichText::new(&e.text).size(size).color(if e.hot || i == 0 { s.ink } else { s.soft });
+                    let text = if family.is_empty() { text } else { text.family(egui::FontFamily::Name(family.into())) };
+                    ui.label(text);
+                })
+                .response;
+            if !e.tip.is_empty() {
+                resp.tip(|| Card::new(date_words(e.month)).icon("news").text(e.text.clone()).rule().note(e.tip.clone()));
+            }
+            // (a thin rule between stories; under the lead, a double one)
+            let (r, _) = ui.allocate_exact_size(vec2(w, 7.0), egui::Sense::hover());
+            let y = r.center().y;
+            if i == 0 {
+                ui.painter().line_segment([pos2(r.min.x, y - 1.5), pos2(r.max.x, y - 1.5)], egui::Stroke::new(1.2, s.ink));
+                ui.painter().line_segment([pos2(r.min.x, y + 1.5), pos2(r.max.x, y + 1.5)], egui::Stroke::new(0.6, s.ink));
+            } else {
+                ui.painter().line_segment([pos2(r.min.x + w * 0.3, y), pos2(r.max.x - w * 0.3, y)], egui::Stroke::new(0.8, s.soft.gamma_multiply(0.6)));
+            }
         }
+        return;
     }
+    // Chronicle page
     if !g.past.is_empty() {
         head(ui, s, "Летопись мира");
-        // the years down a line on the left, a dot for each war; who struck whom, how it ended
         for w in g.past.iter().rev() {
             let resp = ui
                 .horizontal(|ui| {
@@ -250,8 +258,6 @@ pub fn news(ui: &mut egui::Ui, s: &Skin, g: &Game) {
             ui.add_space(2.0);
         }
     }
-    // the chronicle of societies: revolutions and coups, reforms, houses, faiths founded and split
-    // (of our country and the rival's first, then the world's)
     if !g.polity.chronicle.is_empty() {
         head(ui, s, "Летопись обществ и вер");
         let pair = [g.country(0), g.country(1)];

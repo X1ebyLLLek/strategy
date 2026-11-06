@@ -17,63 +17,107 @@ pub(super) fn builds(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     let me = g.me;
     let pack = g.pack.clone();
     let (ch, _) = chrome::dress(ui);
-    let icons = chrome::icons(ui.ctx());
     kit::ribbon(ui, "Что строит казна", Some("anvil"));
     kit::words(ui, "Отмеченные отрасли казна строит по очереди; ничего не отмечено — строит, где людям хуже всего. Сверху те, чего не хватает: там завод окупится скорее.", 13.0, s.soft);
-    ui.add_space(3.0);
+    ui.add_space(4.0);
     let mut order: Vec<usize> = (0..pack.sectors.len()).collect();
     order.sort_by(|&a, &b| dearness(g, b).total_cmp(&dearness(g, a)));
     let queue = g.state.queue.clone();
     let mut toggled: Option<usize> = None;
-    let w = ui.available_width().min(ui.clip_rect().max.x - ui.cursor().min.x - 2.0);
+    let full_w = ui.available_width().min(ui.clip_rect().max.x - ui.cursor().min.x - 2.0);
+
     for k in order {
         let sec = &pack.sectors[k];
         let n = g.h.home(me);
         let ratio = dearness(g, k);
         let (jobs, busy) = (n.cap.get(k).copied().unwrap_or(0.0), n.worked.get(k).copied().unwrap_or(0.0));
         let now_building = n.build_focus == Some(k);
-        let on = queue.contains(&k);
-        let (r, resp) = ui.allocate_exact_size(vec2(w, 28.0), egui::Sense::click());
-        let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
-        if ui.is_rect_visible(r) {
-            let mut v = chrome::Out::new();
-            if resp.hovered() {
-                v.push(egui::Shape::rect_filled(r, 2.0, Color32::from_black_alpha(14)));
+        let pos_in_queue = queue.iter().position(|&x| x == k);
+        let on = pos_in_queue.is_some();
+
+        let edge = if now_building {
+            Some(Color32::from_rgb(220, 175, 60))
+        } else if on {
+            Some(s.accent)
+        } else {
+            None
+        };
+
+        let card_res = kit::framed(ui, edge, now_building, |ui| {
+            let (r, resp) = ui.allocate_exact_size(vec2(full_w.max(280.0) - 16.0, 38.0), egui::Sense::click());
+            let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+            if ui.is_rect_visible(r) {
+                let mut v = chrome::Out::new();
+                if resp.hovered() {
+                    v.push(egui::Shape::rect_filled(r, 2.0, Color32::from_black_alpha(16)));
+                }
+
+                // queue box (shows #1, #2... when queued)
+                let b = egui::Rect::from_min_size(egui::pos2(r.min.x + 4.0, r.center().y - 10.0), vec2(20.0, 20.0));
+                ch.lay(&mut v, b, &ch.paper, 2.0);
+                if on {
+                    v.push(egui::Shape::rect_filled(b, 2.0, s.accent));
+                    let q_num = format!("#{}", pos_in_queue.unwrap() + 1);
+                    let q_gal = ui.painter().layout_no_wrap(q_num, egui::FontId::new(11.0, egui::FontFamily::Name("bold".into())), Color32::WHITE);
+                    v.push(egui::Shape::galley(b.center() - q_gal.size() / 2.0, q_gal, Color32::WHITE));
+                } else {
+                    v.push(egui::Shape::rect_filled(b, 2.0, Color32::from_black_alpha(24)));
+                    ch.bevel(&mut v, b, false, 1.0);
+                    v.push(egui::Shape::rect_stroke(b, 2.0, egui::Stroke::new(if resp.hovered() { 1.5 } else { 1.0 }, if resp.hovered() { ch.trim } else { Color32::from_black_alpha(120) })));
+                }
+
+                // goods icon in socket
+                let icon = sec.outputs.first().map_or("gears".to_string(), |o| pack.goods[o.0].icon.clone());
+                let sock_pos = egui::pos2(r.min.x + 38.0, r.center().y);
+                let tone = if ratio > 1.3 { kit::BAD } else if ratio < 0.77 { kit::GOOD } else { kit::MIXED };
+                kit::socket(ui, sock_pos, 13.0, &icon, kit::ink(s, tone), 0.25);
+
+                // gauge and status on the right
+                let gw = 56.0f32;
+                let right_edge = r.max.x - 4.0;
+                let word = if now_building { "строится" } else if ratio > 1.3 { "дефицит" } else if ratio < 0.8 { "избыток" } else { "норма" };
+                let wcol = if now_building { kit::ink(s, kit::MIXED) } else if ratio > 1.3 { kit::ink(s, kit::BAD) } else if ratio < 0.8 { kit::ink(s, kit::GOOD) } else { s.soft };
+                let word_font = egui::FontId::new(12.0, if ratio > 1.3 || now_building { egui::FontFamily::Name("bold".into()) } else { egui::FontFamily::Proportional });
+                let w_gal = ui.painter().layout_no_wrap(word.to_string(), word_font, wcol);
+                let word_w = w_gal.size().x;
+                v.push(egui::Shape::galley(egui::pos2(right_edge - word_w, r.center().y - w_gal.size().y / 2.0), w_gal, wcol));
+
+                // price ratio text
+                let ratio_text = format!("×{:.2}", ratio);
+                let r_gal = ui.painter().layout_no_wrap(ratio_text, egui::FontId::new(11.5, egui::FontFamily::Name("bold".into())), kit::ink(s, tone));
+                let r_w = r_gal.size().x;
+                let r_pos = egui::pos2(right_edge - word_w - r_w - 8.0, r.center().y - r_gal.size().y / 2.0);
+                v.push(egui::Shape::galley(r_pos, r_gal, kit::ink(s, tone)));
+
+                // mini price gauge
+                let bar = egui::Rect::from_min_size(egui::pos2(r_pos.x - gw - 6.0, r.center().y - 3.5), vec2(gw, 7.0));
+                v.push(egui::Shape::rect_filled(bar, 1.5, Color32::from_black_alpha(32)));
+                ch.bevel(&mut v, bar, false, 0.8);
+                let x = ((ratio.max(1e-3).ln() / 4f32.ln()).clamp(-1.0, 1.0) + 1.0) / 2.0;
+                let (mid, at) = (bar.center().x, bar.min.x + bar.width() * x);
+                v.push(egui::Shape::rect_filled(egui::Rect::from_min_max(egui::pos2(mid.min(at), bar.min.y + 0.5), egui::pos2(mid.max(at).max(mid.min(at) + 2.0), bar.max.y - 0.5)), 1.0, tone));
+                v.push(egui::Shape::line_segment([egui::pos2(mid, bar.min.y - 1.5), egui::pos2(mid, bar.max.y + 1.5)], egui::Stroke::new(1.0, ch.trim)));
+
+                ui.painter().extend(v);
+
+                // title and jobs text in the middle
+                let title_x = r.min.x + 58.0;
+                let avail_title_w = (bar.min.x - title_x - 6.0).max(60.0);
+                let mut title_job = egui::text::LayoutJob::simple_singleline(sec.name.clone(), egui::FontId::new(13.0, egui::FontFamily::Name("bold".into())), s.ink);
+                title_job.wrap = egui::text::TextWrapping::truncate_at_width(avail_title_w);
+                let t_gal = ui.painter().layout_job(title_job);
+                ui.painter().galley(egui::pos2(title_x, r.center().y - 11.0), t_gal, s.ink);
+
+                let sub_text = format!("{jobs:.2} млн мест · занято {:.0}%", busy / jobs.max(1e-9) * 100.0);
+                let mut sub_job = egui::text::LayoutJob::simple_singleline(sub_text, egui::FontId::proportional(11.0), s.soft);
+                sub_job.wrap = egui::text::TextWrapping::truncate_at_width(avail_title_w);
+                let s_gal = ui.painter().layout_job(sub_job);
+                ui.painter().galley(egui::pos2(title_x, r.center().y + 1.0), s_gal, s.soft);
             }
-            // (the box)
-            let b = egui::Rect::from_min_size(egui::pos2(r.min.x + 3.0, r.center().y - 9.0), vec2(18.0, 18.0));
-            ch.lay(&mut v, b, &ch.paper, 2.0);
-            v.push(egui::Shape::rect_filled(b, 2.0, Color32::from_black_alpha(26)));
-            ch.bevel(&mut v, b, false, 1.2);
-            v.push(egui::Shape::rect_stroke(b, 2.0, egui::Stroke::new(if resp.hovered() { 1.6 } else { 1.0 }, if resp.hovered() { ch.trim } else { Color32::from_black_alpha(140) })));
-            if on {
-                let p = |x: f32, y: f32| egui::pos2(b.min.x + x, b.min.y + y);
-                v.push(egui::Shape::line(vec![p(3.5, 9.0), p(7.5, 13.5), p(15.0, 3.5)], egui::Stroke::new(2.8, s.accent)));
-            }
-            // (the gauge from cheap to dear, the usual price at its middle, on a scale of ×¼ … ×4)
-            let gw = (w * 0.30).clamp(80.0, 120.0);
-            let bar = egui::Rect::from_min_size(egui::pos2(r.max.x - gw - 70.0, r.center().y - 4.0), vec2(gw, 8.0));
-            v.push(egui::Shape::rect_filled(bar, 2.0, Color32::from_black_alpha(34)));
-            ch.bevel(&mut v, bar, false, 1.0);
-            let x = ((ratio.max(1e-3).ln() / 4f32.ln()).clamp(-1.0, 1.0) + 1.0) / 2.0;
-            let col = if ratio > 1.3 { kit::BAD } else if ratio < 0.77 { kit::GOOD } else { kit::MIXED };
-            let (mid, at) = (bar.center().x, bar.min.x + bar.width() * x);
-            v.push(egui::Shape::rect_filled(egui::Rect::from_min_max(egui::pos2(mid.min(at), bar.min.y + 1.0), egui::pos2(mid.max(at).max(mid.min(at) + 2.0), bar.max.y - 1.0)), 1.0, col));
-            v.push(egui::Shape::line_segment([egui::pos2(mid, bar.min.y - 2.0), egui::pos2(mid, bar.max.y + 2.0)], egui::Stroke::new(1.0, ch.trim)));
-            ui.painter().extend(v);
-            // (its icon and name)
-            let icon = sec.outputs.first().map_or("gears".to_string(), |o| pack.goods[o.0].icon.clone());
-            super::super::look::icon(&icons, &icon, 18.0, s.ink).paint_at(ui, egui::Rect::from_min_size(egui::pos2(r.min.x + 28.0, r.center().y - 9.0), vec2(18.0, 18.0)));
-            let name_w = bar.min.x - (r.min.x + 52.0) - 6.0;
-            let mut job = egui::text::LayoutJob::simple_singleline(sec.name.clone(), egui::FontId::proportional(14.0), s.ink);
-            job.wrap = egui::text::TextWrapping::truncate_at_width(name_w);
-            let gal = ui.painter().layout_job(job);
-            ui.painter().galley(egui::pos2(r.min.x + 52.0, r.center().y - gal.size().y / 2.0), gal, s.ink);
-            // (the word at the right: how short it is; «строится» when the treasury builds it now)
-            let word = if now_building { "строится" } else if ratio > 1.3 { "не хватает" } else if ratio < 0.8 { "в избытке" } else { "как обычно" };
-            let wcol = if now_building { kit::ink(s, kit::MIXED) } else if ratio > 1.3 { kit::ink(s, kit::BAD) } else { s.soft };
-            ui.painter().text(egui::pos2(r.max.x - 2.0, r.center().y), egui::Align2::RIGHT_CENTER, word, egui::FontId::new(12.5, if ratio > 1.3 || now_building { egui::FontFamily::Name("bold".into()) } else { egui::FontFamily::Proportional }), wcol);
-        }
+            resp
+        });
+
+        let resp = card_res.inner;
         let name = sec.name.clone();
         let resp = resp.tip(|| {
             Card::new(name)
@@ -86,6 +130,7 @@ pub(super) fn builds(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         if resp.clicked() {
             toggled = Some(k);
         }
+        ui.add_space(2.0);
     }
     if let Some(k) = toggled {
         let mut queue = queue;

@@ -2,7 +2,7 @@
 //! squadrons with their missions and zones, the shipyards and what they build, the trade by sea and
 //! what threatens it, the battles at sea.
 
-use eframe::egui::{self, vec2, Color32, RichText};
+use eframe::egui::{self, Color32, RichText};
 
 use strategy::military::navy::{self, MISSIONS};
 
@@ -41,13 +41,29 @@ fn zones_of_note(g: &Game) -> Vec<usize> {
     v
 }
 
-pub fn navy(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
-    let me = g.me;
+/// The pages of the folder «Флот».
+pub const PAGES: [&str; 4] = ["Обзор", "Эскадры", "Верфи", "Торговля и бои"];
+
+pub fn navy(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
     let pack = g.pack.clone();
     if pack.ships.is_empty() {
         say(ui, s, "В эту эпоху у стран нет флотов.");
         return;
     }
+    match page {
+        0 => overview(ui, s, g),
+        1 => squadrons(ui, s, g),
+        2 => yards(ui, s, g),
+        _ => {
+            trade(ui, s, g);
+            battles(ui, s, g);
+        }
+    }
+}
+
+/// The navy's overview: strengths, comparative standing, money.
+fn overview(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
+    let me = g.me;
     let (ours, ours_w) = g.navy_power(me);
     let (theirs, theirs_w) = g.navy_power(1 - me);
     head(ui, s, "Флот и море");
@@ -113,10 +129,6 @@ pub fn navy(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     if let Some(k) = pick.inner {
         act(g, &[("navy_share", format!("{:.0}", levels[k] * 100.0))]);
     }
-    squadrons(ui, s, g);
-    yards(ui, s, g);
-    trade(ui, s, g);
-    battles(ui, s, g);
 }
 
 /// The squadrons: ships by kind, how whole, the mission (tiles) and the zone (arrows).
@@ -145,16 +157,33 @@ fn squadrons(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         let health = q.ships.iter().map(|v| v.health).sum::<f32>() / q.ships.len() as f32;
         let power: f32 = q.ships.iter().map(|v| navy::power(&pack, v)).sum();
         let zone = g.navy.seas.zones.get(q.zone).map_or("—".to_string(), |z| z.name.clone());
-        kit::framed(ui, None, false, |ui| {
+        let mission_col = match q.mission {
+            strategy::military::navy::Mission::Port => Color32::from_rgb(140, 140, 140),
+            strategy::military::navy::Mission::Patrol => Color32::from_rgb(70, 140, 220),
+            strategy::military::navy::Mission::Escort => kit::GOOD,
+            strategy::military::navy::Mission::Raid => kit::BAD,
+            strategy::military::navy::Mission::Blockade => kit::MIXED,
+        };
+        kit::framed(ui, Some(mission_col), false, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label(RichText::new(&q.name).family(egui::FontFamily::Name("head".into())).size(16.0).color(s.ink));
-                ui.label(RichText::new(format!("· адмирал {}", q.admiral)).size(13.5).color(s.soft));
+                kit::socket(ui, egui::pos2(ui.cursor().min.x + 14.0, ui.cursor().min.y + 14.0), 12.0, q.mission.icon(), mission_col, 0.4);
+                ui.add_space(26.0);
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(&q.name).family(egui::FontFamily::Name("head".into())).size(16.0).color(s.ink));
+                        ui.label(RichText::new(format!("· адмирал {}", q.admiral)).size(13.0).color(s.soft));
+                    });
+                    ui.label(RichText::new(what.join(", ")).size(13.0).color(s.ink));
+                });
             });
-            ui.label(RichText::new(what.join(", ")).size(13.5).color(s.ink));
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("{} · {zone}{}", q.mission.name(), if q.staff { " · ведёт адмиралтейство" } else { " · ведёте вы" })).size(13.5).color(s.ink));
-                widgets::meter(ui, health, ui.available_width().min(120.0)).tip(|| Card::new("Целость кораблей").icon("spanner").row("в среднем", format!("{:.0}%", health * 100.0)).row("сила в бою", format!("{power:.0}")).note("в порту корабли чинятся быстро, в море — едва"));
+                ui.label(RichText::new(format!("{} · {zone}{}", q.mission.name(), if q.staff { " · ведёт адмиралтейство" } else { " · ведёте вы" })).size(13.0).color(s.ink));
+            });
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Целость:").size(12.5).color(s.soft));
+                let r = kit::gauge(ui, ui.available_width() - 2.0, 10.0, health, if health > 0.75 { kit::GOOD } else if health > 0.4 { kit::MIXED } else { kit::BAD });
+                r.tip(|| Card::new("Целость кораблей").icon("spanner").row("в среднем", format!("{:.0}%", health * 100.0)).row("сила в бою", format!("{power:.0}")).note("в порту корабли чинятся быстро, в море — едва"));
             });
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -170,11 +199,10 @@ fn squadrons(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
                     let at = zones.iter().position(|&z| z == q.zone);
                     let prev = at.map_or(zones[0], |i| zones[(i + zones.len() - 1) % zones.len()]);
                     let next = at.map_or(zones[0], |i| zones[(i + 1) % zones.len()]);
-                    // (the fonts have no arrows: guillemets)
                     if widgets::small(ui, "«").tip(|| Card::new("Другая зона").icon("compass").row("туда", g.navy.seas.zones[prev].name.clone())).clicked() {
                         act(g, &[("sq", k.to_string()), ("zone", prev.to_string())]);
                     }
-                    ui.label(RichText::new(format!("Зона: {zone}")).size(14.0).color(s.ink)).tip(|| zone_card(g, q.zone));
+                    ui.label(RichText::new(format!("Зона: {zone}")).size(13.5).color(s.ink)).tip(|| zone_card(g, q.zone));
                     if widgets::small(ui, "»").tip(|| Card::new("Другая зона").icon("compass").row("туда", g.navy.seas.zones[next].name.clone())).clicked() {
                         act(g, &[("sq", k.to_string()), ("zone", next.to_string())]);
                     }
@@ -231,16 +259,29 @@ fn yards(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     let queue = g.navy.yards[me].clone();
     for (i, b) in queue.iter().enumerate() {
         let k = &pack.ships[b.kind];
-        ui.horizontal(|ui| {
-            let busy = i < ways;
-            let name = format!("{} {}{}", k.name, b.name, if busy { "" } else { " · ждёт стапеля" });
-            ui.label(RichText::new(name).size(14.0).color(if busy { s.ink } else { s.soft }));
-            let left = ((1.0 - b.done) * k.months as f32).ceil();
-            widgets::meter(ui, b.done, ui.available_width() - 34.0).tip(|| Card::new(k.name.clone()).icon(k.icon.clone()).row("построен", format!("{:.0}%", b.done * 100.0)).row("ещё месяцев (если хватит стали)", format!("{left:.0}")));
-            if widgets::small(ui, "×").tip(|| Card::new("Снять со стапеля").icon("stop").text("Корабль разберут: потраченное не вернуть.")).clicked() {
-                act(g, &[("unlay", i.to_string())]);
-            }
+        let busy = i < ways;
+        let left = ((1.0 - b.done) * k.months as f32).ceil();
+        let border_col = if busy { kit::GOOD } else { Color32::from_rgb(140, 140, 140) };
+        kit::framed(ui, Some(border_col), false, |ui| {
+            ui.horizontal(|ui| {
+                kit::socket(ui, egui::pos2(ui.cursor().min.x + 14.0, ui.cursor().min.y + 16.0), 12.0, &k.icon, border_col, 0.4);
+                ui.add_space(26.0);
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        let name = format!("{} {}{}", k.name, b.name, if busy { "" } else { " · ждёт стапеля" });
+                        ui.label(RichText::new(name).family(egui::FontFamily::Name("bold".into())).size(14.0).color(if busy { s.ink } else { s.soft }));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if widgets::small(ui, "×").tip(|| Card::new("Снять со стапеля").icon("stop").text("Корабль разберут: потраченное не вернуть.")).clicked() {
+                                act(g, &[("unlay", i.to_string())]);
+                            }
+                        });
+                    });
+                    let r = kit::gauge(ui, ui.available_width() - 4.0, 9.0, b.done, if busy { kit::GOOD } else { kit::MIXED });
+                    r.tip(|| Card::new(k.name.clone()).icon(k.icon.clone()).row("построен", format!("{:.0}%", b.done * 100.0)).row("ещё месяцев (если хватит стали)", format!("{left:.0}")));
+                });
+            });
         });
+        ui.add_space(2.0);
     }
     if !staff && widgets::small(ui, "Верфи — адмиралтейству").tip(|| Card::new("Верфи — адмиралтейству").icon("compass").text("Адмиралтейство само будет решать, что закладывать.")).clicked() {
         act(g, &[("yards", "staff".into())]);
@@ -293,20 +334,28 @@ fn trade(ui: &mut egui::Ui, s: &Skin, g: &Game) {
     for &z in lanes.iter().take(8) {
         let raid = g.navy.raids[1 - me].get(z).copied().unwrap_or(0.0);
         let name = g.navy.seas.zones[z].name.clone();
-        ui.horizontal(|ui| {
-            let (lr, _) = ui.allocate_exact_size(vec2(180.0, 20.0), egui::Sense::hover());
-            let mut job = egui::text::LayoutJob::simple_singleline(name.clone(), egui::FontId::new(14.0, egui::FontFamily::Proportional), s.ink);
-            job.wrap = egui::text::TextWrapping::truncate_at_width(176.0);
-            let gal = ui.painter().layout_job(job);
-            ui.painter().galley(egui::pos2(lr.min.x, lr.center().y - gal.size().y / 2.0), gal, s.ink);
-            widgets::meter(ui, t[z] / most, ui.available_width() - 4.0).tip(|| {
-                let c = zone_card(g, z);
-                if raid > 0.0 { c.note("здесь охотятся рейдеры врага: охрана конвоев сбережёт грузы") } else { c }
+        let border_col = if raid > 0.0 { kit::BAD } else { Color32::from_rgb(70, 140, 220) };
+        kit::framed(ui, Some(border_col), raid > 0.0, |ui| {
+            ui.horizontal(|ui| {
+                kit::socket(ui, egui::pos2(ui.cursor().min.x + 14.0, ui.cursor().min.y + 14.0), 12.0, if raid > 0.0 { "broken" } else { "route" }, border_col, 0.4);
+                ui.add_space(26.0);
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(&name).family(egui::FontFamily::Name("bold".into())).size(14.0).color(s.ink));
+                        if raid > 0.0 {
+                            ui.label(RichText::new("· рейдеры врага!").size(12.5).color(kit::BAD));
+                        }
+                    });
+                    let frac = (t[z] / most).clamp(0.0, 1.0);
+                    let r = kit::gauge(ui, ui.available_width() - 4.0, 8.0, frac, border_col);
+                    r.tip(|| {
+                        let c = zone_card(g, z);
+                        if raid > 0.0 { c.note("здесь охотятся рейдеры врага: охрана конвоев сбережёт грузы") } else { c }
+                    });
+                });
             });
         });
-        if raid > 0.0 {
-            ui.label(RichText::new("   здесь рейдеры врага").size(12.5).color(Color32::from_rgb(196, 70, 50)));
-        }
+        ui.add_space(2.0);
     }
 }
 
@@ -320,14 +369,27 @@ fn battles(ui: &mut egui::Ui, s: &Skin, g: &Game) {
     for b in g.navy.clashes.iter().rev().take(6) {
         let ours = b.clash.sunk[me].len();
         let theirs = b.clash.sunk[1 - me].len();
-        let held = match b.clash.held {
-            Some(x) if x == me => "море за нами",
-            Some(_) => "море за врагом",
-            None => "без победителя",
+        let (held, border_col) = match b.clash.held {
+            Some(x) if x == me => ("море за нами", kit::GOOD),
+            Some(_) => ("море за врагом", kit::BAD),
+            None => ("без победителя", kit::MIXED),
         };
-        let line = format!("{} — {}: потоплено наших {ours}, вражеских {theirs}; {held}", crate::words::date_words(b.month), b.zone);
         let pack = g.pack.clone();
-        ui.label(RichText::new(line).size(13.5).color(s.ink)).tip(|| {
+        let resp = kit::framed(ui, Some(border_col), false, |ui| {
+            ui.horizontal(|ui| {
+                kit::socket(ui, egui::pos2(ui.cursor().min.x + 14.0, ui.cursor().min.y + 16.0), 12.0, "clash", border_col, 0.4);
+                ui.add_space(26.0);
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(&b.zone).family(egui::FontFamily::Name("bold".into())).size(14.0).color(s.ink));
+                        ui.label(RichText::new(held).size(13.0).color(border_col));
+                    });
+                    let line = format!("{} · потоплено: наших {ours}, врага {theirs}", crate::words::date_words(b.month));
+                    ui.label(RichText::new(line).size(12.5).color(s.soft));
+                });
+            });
+        });
+        resp.response.tip(|| {
             Card::new(format!("Бой: {}", b.zone))
                 .icon("anchor")
                 .row("сила флотов перед боем", format!("{:.0} к {:.0}", b.clash.weight[me], b.clash.weight[1 - me]))
@@ -335,5 +397,6 @@ fn battles(ui: &mut egui::Ui, s: &Skin, g: &Game) {
                 .row("потери врага", crate::navy::sunk_words(&pack, &b.clash.sunk[1 - me]))
                 .row("ушли с повреждениями", format!("наших {}, вражеских {}", b.clash.hurt[me], b.clash.hurt[1 - me]))
         });
+        ui.add_space(2.0);
     }
 }

@@ -215,5 +215,48 @@ pub(super) fn supply_rules(shared: &Arc<Mutex<Game>>, say: &mut dyn FnMut(bool, 
         let cov1 = strategy::military::front::cover_of(0.2, stood);
         fort_ok = laid && (stood - 0.5).abs() < 1e-4 && cov1 > cov0 + 0.2 && g.build_fort(q);
     }
-    say(fort_refused && fort_ok, "укрепления: чужую не укрепить, ступень даёт 50% и усиливает укрытие, возможна вторая ступень", format!("чужая отказана {fort_refused}; построена и усиливает укрытие {fort_ok}"));
+    // siege bombardment: artillery/air batters down a province's fortifications during a fight
+    let siege_ok = {
+        let mut hs = shared.lock().unwrap().clone();
+        let pack = hs.pack.clone();
+        let me = hs.me;
+        let o = 1 - me;
+        if let Some((q, from)) = (0..hs.h.war.owner.len()).find_map(|q| {
+            (hs.h.war.owner[q] == o).then(|| hs.h.war.th.nbr[q].iter().copied().find(|&r| hs.h.war.owner[r] == me).map(|r| (q, r))).flatten()
+        }) {
+            hs.h.war.fort[q] = 1.0;
+            if let Some(c) = hs.h.war.corps.as_mut() {
+                c.peace = false;
+                c.idle = [true, true];
+                let nu = pack.units.len();
+                let mut att_u = vec![0.2f32; nu];
+                for u in 0..nu {
+                    if matches!(pack.units[u].line, strategy::pack::Line::Support | strategy::pack::Line::Air) {
+                        att_u[u] = 1.2;
+                    }
+                }
+                for d in c.divs.iter_mut() {
+                    d.way.clear();
+                    d.rest = 0.0;
+                }
+                if let Some(d) = c.divs.iter_mut().find(|d| d.side == o) {
+                    d.at = q;
+                    d.org = 1.0;
+                    d.has = vec![1.0; nu];
+                }
+                if let Some(d) = c.divs.iter_mut().find(|d| d.side == me) {
+                    d.at = from;
+                    d.org = 1.0;
+                    d.has = att_u;
+                    d.way = vec![q];
+                }
+            }
+            hs.h.war.day(&pack);
+            hs.h.war.day(&pack);
+            hs.h.war.fort[q] < 1.0
+        } else {
+            false
+        }
+    };
+    say(fort_refused && fort_ok && siege_ok, "укрепления: чужую не укрепить, ступень даёт 50% и усиливает укрытие, осадный огонь разрушает бастионы", format!("чужая отказана {fort_refused}; построена и усиливает укрытие {fort_ok}; осадный обстрел {siege_ok}"));
 }

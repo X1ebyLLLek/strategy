@@ -69,6 +69,9 @@ fn page_id(tab: Tab) -> egui::Id {
         Tab::Nation => 3,
         Tab::Politics => 4,
         Tab::Society => 5,
+        Tab::Navy => 6,
+        Tab::Science => 7,
+        Tab::News => 8,
         _ => 0,
     }))
 }
@@ -370,7 +373,9 @@ pub fn run(shared: Arc<Mutex<Game>>, shot: Option<Shot>, start: bool) -> eframe:
         Box::new(move |cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
             let tab = shot.as_ref().and_then(|s| s.tab.as_deref()).and_then(Tab::of);
-            let page = shot.as_ref().and_then(|s| s.tab.as_deref()).and_then(|x| x.split_once(':')).and_then(|x| x.1.parse::<usize>().ok());
+            let sub = shot.as_ref().and_then(|s| s.tab.as_deref()).and_then(|x| x.split_once(':')).map(|x| x.1);
+            let page = sub.and_then(|x| x.parse::<usize>().ok());
+            let tree = sub == Some("tree");
             let with_menu = shot.as_ref().is_some_and(|s| s.menu);
             let with_guide = shot.as_ref().and_then(|s| s.guide);
             let edit = shot.as_ref().and_then(|s| s.design).and_then(|k| {
@@ -389,6 +394,9 @@ pub fn run(shared: Arc<Mutex<Game>>, shot: Option<Shot>, start: bool) -> eframe:
             app.tab = tab;
             if let (Some(t), Some(k)) = (tab, page) {
                 set_page(&cc.egui_ctx, t, k);
+            }
+            if tree {
+                techtree::set_open(&cc.egui_ctx, true);
             }
             app.menu = with_menu;
             if let Some(p) = with_guide {
@@ -544,9 +552,11 @@ impl eframe::App for App {
             self.tour.pop_front();
             if let Some(t) = Tab::of(&next) {
                 self.tab = Some(t);
-                if let Some(k) = next.split_once(':').and_then(|x| x.1.parse::<usize>().ok()) {
+                let sub = next.split_once(':').map(|x| x.1);
+                if let Some(k) = sub.and_then(|x| x.parse::<usize>().ok()) {
                     set_page(ctx, t, k);
                 }
+                techtree::set_open(ctx, sub == Some("tree"));
             }
             self.tour_now = Some(next);
             self.frame = 0;

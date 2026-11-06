@@ -154,7 +154,7 @@ pub(super) fn techs(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         ui.painter().galley(egui::pos2(tx, top), name_gal, s.ink);
         ui.painter().galley(egui::pos2(tx, top + name_h + 2.0), sub_gal, s.soft);
         let brect = egui::Rect::from_min_size(egui::pos2(row.max.x - button_w - 6.0, row.center().y - 14.0), vec2(button_w, 28.0));
-        ui.allocate_ui_at_rect(brect, |ui| {
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(brect), |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if on {
                     ui.label(RichText::new("в работе").size(13.0).color(s.accent));
@@ -186,19 +186,41 @@ pub(super) fn techs(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     // what the rival knows and we do not
     let (ours, theirs) = g.tech_gap(me);
     if !theirs.is_empty() || !ours.is_empty() {
-        kit::words(ui, "СРАВНЕНИЕ С СОСЕДОМ", 12.0, s.soft);
+        kit::ribbon(ui, "Сравнение с соседом", Some("binoculars"));
         if !theirs.is_empty() {
             let names: Vec<String> = theirs.iter().map(|&t| pack.techs[t].name.clone()).collect();
-            kit::words(ui, format!("У соседа есть, у нас нет: {}", names.join(", ")), 13.5, kit::ink(s, kit::BAD));
+            kit::framed(ui, Some(kit::BAD), false, |ui| {
+                ui.horizontal(|ui| {
+                    let icons = chrome::icons(ui.ctx());
+                    let (ir, _) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::hover());
+                    super::super::look::icon(&icons, "alarm", 18.0, kit::BAD).paint_at(ui, ir);
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new("У соседа есть, у нас нет:").family(egui::FontFamily::Name("bold".into())).size(13.0).color(s.ink));
+                        ui.label(RichText::new(names.join(", ")).size(12.5).color(s.soft));
+                    });
+                });
+            });
+            ui.add_space(2.0);
         }
         if !ours.is_empty() {
             let names: Vec<String> = ours.iter().map(|&t| pack.techs[t].name.clone()).collect();
-            kit::words(ui, format!("У нас есть, у соседа нет: {}", names.join(", ")), 13.5, kit::ink(s, kit::GOOD));
+            kit::framed(ui, Some(kit::GOOD), false, |ui| {
+                ui.horizontal(|ui| {
+                    let icons = chrome::icons(ui.ctx());
+                    let (ir, _) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::hover());
+                    super::super::look::icon(&icons, "medal", 18.0, kit::GOOD).paint_at(ui, ir);
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new("У нас есть, у соседа нет:").family(egui::FontFamily::Name("bold".into())).size(13.0).color(s.ink));
+                        ui.label(RichText::new(names.join(", ")).size(12.5).color(s.soft));
+                    });
+                });
+            });
+            ui.add_space(2.0);
         }
     }
     // what it knows
-    kit::words(ui, "СТРАНА ЗНАЕТ", 12.0, s.soft);
     let known: Vec<usize> = (0..pack.techs.len()).filter(|&t| know.known[t]).collect();
+    kit::ribbon(ui, &format!("Страна знает · {}", known.len()), Some("graduate"));
     let side = 38.0;
     let cols = (((ui.available_width() + 5.0) / (side + 5.0)).floor() as usize).max(1);
     let rows = known.len().div_ceil(cols);

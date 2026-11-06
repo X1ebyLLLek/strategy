@@ -135,9 +135,25 @@ impl Campaign {
                 army.tough.iter_mut().for_each(|t| *t *= k);
             }
             let kinds = [g.clone(), self.troops[o][q].clone()];
-            let dug_then = cover_of(self.dug[o][q], self.fort[q]);
+            let fort0 = self.fort[q];
+            let dug_then = cover_of(self.dug[o][q], fort0);
             let ratio = Campaign::worth(pack, &g) / Campaign::worth(pack, &self.troops[o][q]).max(1e-6);
             let out = battle(pack, self.th.terrain[q], [&att, &def], Kind::Attack, &mut rng, false);
+            if self.fort[q] > FORT_RUBBLE {
+                let siege: f32 = (0..pack.units.len())
+                    .map(|u| {
+                        let w = match pack.units[u].line {
+                            crate::pack::Line::Support | crate::pack::Line::Air => 1.0,
+                            crate::pack::Line::Front if pack.units[u].pierce > 0.0 => 0.25,
+                            _ => 0.04,
+                        };
+                        g[u] * w * (0.3 + 0.7 * att.supplied)
+                    })
+                    .sum();
+                let drop = (siege * FORT_BOMB * out.days.max(1) as f32).min(0.35);
+                self.fort[q] = (self.fort[q] - drop).max(FORT_RUBBLE);
+            }
+            let fort1 = self.fort[q];
             let won = out.winner == Some(0);
             let lost = [
                 Campaign::worth(pack, &g) - Campaign::worth(pack, &out.left[0].count),
@@ -160,7 +176,7 @@ impl Campaign {
                     }
                 }
             }
-            self.fought.push(Fought { month: self.month, attacker: s, province: q, from, terrain: self.th.terrain[q], ratio, odds, won, supply: [att.supplied, def.supplied], lost, cut: reach[o][q] == NO, plan: [Campaign::worth(pack, &group), def_then, Campaign::worth(pack, &g), Campaign::worth(pack, &def.count)], kinds, lead, dug: dug_then, days: out.days, divs: [0; 2], kit: [1.0; 2], exp: [0.0; 2], companies: [0.0; 2], sides: 1, men: [0.0; 2], captured: 0.0, lost_kinds: [Vec::new(), Vec::new()], tactics: [[0; 8]; 2] });
+            self.fought.push(Fought { month: self.month, attacker: s, province: q, from, terrain: self.th.terrain[q], ratio, odds, won, supply: [att.supplied, def.supplied], lost, cut: reach[o][q] == NO, plan: [Campaign::worth(pack, &group), def_then, Campaign::worth(pack, &g), Campaign::worth(pack, &def.count)], kinds, lead, dug: dug_then, days: out.days, divs: [0; 2], kit: [1.0; 2], exp: [0.0; 2], companies: [0.0; 2], sides: 1, men: [0.0; 2], captured: 0.0, lost_kinds: [Vec::new(), Vec::new()], tactics: [[0; 8]; 2], fort: [fort0, fort1] });
             // the staff compares what its games promised with what happened
             let w = &mut self.sides[s].wariness;
             *w = (*w + WARY * (odds - if won { 1.0 } else { 0.0 })).clamp(-1.0, 2.0);

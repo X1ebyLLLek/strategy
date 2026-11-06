@@ -97,6 +97,7 @@ impl Campaign {
                     f.companies[x] = sides[x].iter().map(|&i| c.shapes[c.divs[i].side].get(c.divs[i].shape).map_or(0, |sh| sh.support.len()) as f32).sum::<f32>() / k;
                 }
                 f.dug = dug.iter().sum::<f32>() / dug.len() as f32;
+                f.fort = [self.fort[q], self.fort[q]];
             }
             for x in 0..2 {
                 f.divs[x] = f.divs[x].max(sides[x].len() as u32);
@@ -232,6 +233,39 @@ impl Campaign {
                                 }
                             }
                         }
+                    }
+                }
+            }
+            // siege bombardment: the attacker's artillery (Support), bombers (Air), assault armour
+            // and sappers batter down the province's fortifications day by day
+            if self.fort[q] > crate::military::front::FORT_RUBBLE {
+                let mut siege = 0.0f32;
+                for j in 0..fu[0].len() {
+                    let fed_k = battle::UNSUPPLIED + (1.0 - battle::UNSUPPLIED) * fed[0][j];
+                    for u in 0..nu {
+                        let n_ = fu[0][j][u];
+                        if n_ <= 0.0 {
+                            continue;
+                        }
+                        let unit = &units[u];
+                        let w = match unit.line {
+                            Line::Support | Line::Air => 1.0,
+                            Line::Front if unit.pierce > 0.0 => 0.25,
+                            Line::Front => 0.08 * (gift[0][j].dig - 0.85).max(0.0),
+                        };
+                        if w > 0.0 {
+                            let fd = if unit.supply.is_empty() { 1.0 } else { fed_k };
+                            siege += n_ * w * fd * tac_fire(0, u) * norm::fire(qk[0][j][u]) * gift[0][j].dig;
+                        }
+                    }
+                }
+                if siege > 0.0 {
+                    let before = self.fort[q];
+                    let drop = (siege * crate::military::front::FORT_BOMB).min(0.06);
+                    self.fort[q] = (before - drop).max(crate::military::front::FORT_RUBBLE);
+                    f.fort[1] = self.fort[q];
+                    if (before >= 0.88 && self.fort[q] < 0.88) || (before >= 0.42 && self.fort[q] < 0.42) {
+                        c.news.push((c.day, o, format!("артиллерия и авиация пробили брешь в укреплениях ({:.0}%)", self.fort[q] * 100.0)));
                     }
                 }
             }
@@ -403,6 +437,7 @@ impl Campaign {
             captured: f.captured,
             lost_kinds: f.lost_kinds.clone(),
             tactics: f.tactics,
+            fort: [f.fort[0], f.fort[1]],
         });
         // the generals whose divisions fought it
         for (side, w) in [(s, won), (o, !won)] {

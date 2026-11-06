@@ -513,9 +513,11 @@ pub struct Fight {
     pub captured: f32,
     /// Units of each kind each side lost for good in it (empty until it is fought).
     pub lost_kinds: [Vec<f32>; 2],
-    /// Each side's tactic today (`TACTICS`), and the days each tactic was used.
+    /// Each side's tactic today (`TACTICS`), and the days each tactic was used; the province's
+    /// fortifications as the fight began and now.
     pub tactic: [u8; 2],
     pub tactics: [[u16; 8]; 2],
+    pub fort: [f32; 2],
 }
 
 /// A blow a general gathers: his divisions march to `from`, and when they are there and ready
@@ -653,7 +655,7 @@ impl Corps {
         (Corps::worth(pack, &d.has) / full).clamp(0.0, 1.0)
     }
 
-    fn fight_at(&self, q: usize) -> Option<usize> {
+    pub fn fight_at(&self, q: usize) -> Option<usize> {
         self.fights.iter().position(|f| f.at == q)
     }
 }

@@ -49,10 +49,18 @@ impl MapView {
             card = card.row("людей", format!("{:.2} млн", war.th.pop[q]));
             let ft = war.fort.get(q).copied().unwrap_or(0.0);
             if ft > 0.01 {
-                card = card.row(g.fort_name(), format!("{:.0}%", ft * 100.0));
+                let tier = if ft >= 0.75 { "II ст." } else { "I ст." };
+                let breached = (ft < 0.42) || (ft > 0.50 && ft < 0.88);
+                let state_str = if breached {
+                    format!("{:.0}% (брешь)", ft * 100.0)
+                } else {
+                    format!("{:.0}%", ft * 100.0)
+                };
+                card = card.row(format!("{} ({tier})", g.fort_name()), state_str);
             }
             if let Some(&(_, _, ready)) = g.state.fortifying.iter().find(|b| b.1 == q) {
-                card = card.row("строятся укрепления", format!("{} мес.", ready.saturating_sub(g.month()).max(1)));
+                let next_tier = if ft > 0.01 { "II ст." } else { "I ст." };
+                card = card.row("строятся укрепления", format!("{next_tier} · {} мес.", ready.saturating_sub(g.month()).max(1)));
             }
             if self.mode == Mode::Supply && war.owner[q] == me {
                 let s = war.supply(me)[q];
@@ -170,7 +178,8 @@ impl MapView {
         } else if self.build == Build::Fort {
             if q != NO && war.owner[q as usize] == me {
                 let (cost, months) = g.fort_terms(me, q as usize);
-                card = card.head(g.fort_name()).row("стоит", format!("{cost:.2}")).row("месяцев", months.to_string()).note("щёлкните — укрепить провинцию; правой — отмена");
+                let tier_name = if war.fort.get(q as usize).copied().unwrap_or(0.0) > 0.01 { "II ступень" } else { "I ступень" };
+                card = card.head(format!("{} ({tier_name})", g.fort_name())).row("стоит", format!("{cost:.2}")).row("месяцев", months.to_string()).note("щёлкните — укрепить провинцию; правой — отмена");
             } else {
                 card = card.note("щёлкните по своей провинции — там встанут укрепления");
             }
@@ -182,5 +191,41 @@ impl MapView {
             card = card.note(if war.owner[q as usize] != me { "правой кнопкой — наступать сюда" } else { "правой кнопкой — держать здесь" });
         }
         card
+    }
+
+    /// The card of a sea zone in the map's mode «Моря».
+    pub(super) fn sea_card(&self, g: &Game, p: usize) -> Option<Card> {
+        let z = g.navy.seas.zone_of.get(p).copied().unwrap_or(u32::MAX) as usize;
+        let zone = g.navy.seas.zones.get(z)?;
+        let me = g.me;
+        let ours = g.trade_by_zone(me).get(z).copied().unwrap_or(0.0);
+        let theirs = g.trade_by_zone(1 - me).get(z).copied().unwrap_or(0.0);
+        let mut card = Card::new(zone.name.clone()).icon("anchor").sub("морская акватория");
+        if ours > 0.005 {
+            card = card.row("наша торговля через зону", format!("{ours:.2}"));
+        }
+        if theirs > 0.005 {
+            card = card.row("торговля соперника", format!("{theirs:.2}"));
+        }
+        let my_ships: usize = g.navy.fleets[me].iter().filter(|q| q.zone == z).map(|q| q.ships.len()).sum();
+        if my_ships > 0 {
+            let missions: Vec<&str> = g.navy.fleets[me].iter().filter(|q| q.zone == z && !q.ships.is_empty()).map(|q| q.mission.name()).collect();
+            card = card.row("наши корабли", format!("{my_ships} вымп. ({})", missions.join(", ")));
+        }
+        if g.h.at_war {
+            let c = g.navy.control[me].get(z).copied().unwrap_or(0.0);
+            let e = g.navy.control[1 - me].get(z).copied().unwrap_or(0.0);
+            if c + e > 0.0 {
+                let share = c / (c + e) * 100.0;
+                card = card.tone("господство на море", format!("{share:.0}% за нами"), if share >= 50.0 { Tone::Good } else { Tone::Bad });
+            }
+            if g.navy.raids[1 - me].get(z).copied().unwrap_or(0.0) > 0.0 && ours > 0.0 {
+                card = card.bad("рейдеры врага", "перехватывают наши конвои");
+            }
+            if let Some(b) = g.navy.clashes.iter().rev().find(|b| b.zone == zone.name) {
+                card = card.row("последний морской бой", format!("{}, потоплено {} и {}", crate::words::date_words(b.month), b.clash.sunk[0].len(), b.clash.sunk[1].len()));
+            }
+        }
+        Some(card)
     }
 }
