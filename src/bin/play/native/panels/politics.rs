@@ -58,8 +58,8 @@ fn war_support(ui: &mut egui::Ui, s: &Skin, g: &Game) {
     }
 }
 
-/// The pages of the folder «Политика» (28th session).
-pub const PAGES: [&str; 3] = ["Соседи", "Война и мир", "Решения"];
+/// The pages of the folder «Политика» (28th session; 38th session: diplomacy on its own page).
+pub const PAGES: [&str; 4] = ["Соседи", "Дипломатия", "Война и мир", "Решения"];
 
 pub fn politics(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
     let me = g.me;
@@ -86,9 +86,11 @@ pub fn politics(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
             x.tip(|| Card::new("Напряжённость").icon("alarm").row("в мире", format!("{tension:.2}")).note("растёт, когда кто-то готовит войну"));
         }
         neighbours(ui, s, g);
-        super::diplomacy::diplomacy(ui, s, g);
     }
     if page == 1 {
+        super::diplomacy::diplomacy(ui, s, g);
+    }
+    if page == 2 {
         head(ui, s, "Война и мир");
         war_controls(ui, s, g);
         war_support(ui, s, g);
@@ -100,7 +102,7 @@ pub fn politics(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
             words(ui, format!("{} считает своими часть наших земель.", g.h.home(foe).name), 15.0, s.soft);
         }
     }
-    if page == 2 {
+    if page == 3 {
         head(ui, s, "Трудные решения");
         let mine: Vec<(u32, String, String, bool)> = g.news.iter().rev().filter(|e| e.tab == "politics").take(12).map(|e| (e.month, e.text.clone(), e.tip.clone(), e.hot)).collect();
         if mine.is_empty() {

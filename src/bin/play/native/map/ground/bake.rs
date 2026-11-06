@@ -454,9 +454,8 @@ pub fn layers(world: &World, extra: &Extra) -> Layers {
             c * smoothstep(0.22, 0.45, dc) * smoothstep(0.12, 0.28, road) * (1.0 - d[1] as f32 / 255.0 * 1.6).max(0.0) * (1.0 - d[3] as f32 / 255.0 * 2.0).max(0.0)
         })
         .collect();
-    // (the forests are the photographs of the canopy on the land; trees one by one only to
-    // compare, with `MAPTREES=1`: beside a photograph a model reads as a toy)
-    let trees = if std::env::var("MAPTREES").is_ok() { super::super::objects::trees(world, &sea, &forest, &cold, &rugged, &canopy, &clear) } else { super::super::objects::Trees::default() };
+    // (the forests are the photographs of the canopy on the land; 3D trees drawn close up along the edges and in the open)
+    let trees = if std::env::var("MAPTREES").map_or(true, |v| v != "0") { super::super::objects::trees(world, &sea, &forest, &cold, &rugged, &canopy, &clear) } else { super::super::objects::Trees::default() };
     let t0 = std::time::Instant::now();
     let mut light = light(&fine, &wetf, w2, h2);
     // (the canopy; the basins below the sea: their slopes up to a half, their flat floors above)

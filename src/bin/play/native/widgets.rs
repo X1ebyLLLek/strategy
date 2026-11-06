@@ -282,20 +282,71 @@ pub fn switch(ui: &mut Ui, options: &[&str], chosen: usize) -> Option<usize> {
     out
 }
 
+/// The icon of a page/tab by its heading.
+fn tab_icon(name: &str) -> &'static str {
+    let t = name.to_lowercase();
+    if t.contains("обзор") {
+        "binoculars"
+    } else if t.contains("хозяйств") {
+        "econ"
+    } else if t.contains("стройк") || t.contains("верфи") || t.contains("строит") {
+        "anvil"
+    } else if t.contains("рынок") {
+        "shop"
+    } else if t.contains("деньги") || t.contains("бюджет") || t.contains("казна") || t.contains("по карману") {
+        "coins"
+    } else if t.contains("сводк") || t.contains("летопис") || t.contains("истори") {
+        "scroll"
+    } else if t.contains("корпус") || t.contains("дивизи") || t.contains("армия") {
+        "army"
+    } else if t.contains("снабжен") || t.contains("склад") {
+        "supply"
+    } else if t.contains("штаб") || t.contains("направлен") {
+        "compass"
+    } else if t.contains("шаблон") || t.contains("закон") {
+        "stamper"
+    } else if t.contains("оснащен") || t.contains("отрасл") {
+        "gears"
+    } else if t.contains("эскадр") {
+        "rally"
+    } else if t.contains("торговл") || t.contains("война") || t.contains("бои") {
+        "clash"
+    } else if t.contains("технолог") || t.contains("наук") {
+        "science"
+    } else if t.contains("разработ") || t.contains("вестник") || t.contains("дипломат") {
+        "quill"
+    } else if t.contains("сосед") {
+        "castle"
+    } else if t.contains("решени") {
+        "pen"
+    } else if t.contains("строй") || t.contains("сила") || t.contains("власт") {
+        "crown"
+    } else if t.contains("вера") || t.contains("завет") {
+        "medal"
+    } else {
+        "flag"
+    }
+}
+
 /// The pages of a folder as the tabs of a ledger (33rd session: they were a row of flat white boxes, a spreadsheet's sheets):
 /// each a plate cut at its top corners, the chosen one raised, in the colour of the page and open into it, a bar of the
 /// accent along its top; the rest sunk a little, darker, under a rule of trim. The tab clicked, if another.
 pub fn tabs(ui: &mut Ui, options: &[&str], chosen: usize) -> Option<usize> {
     let (ch, s) = chrome::dress(ui);
+    let icons = chrome::icons(ui.ctx());
     let room = ui.available_width() - 2.0;
-    let widest = |font: f32| options.iter().map(|o| ui.painter().layout_no_wrap(o.to_string(), FontId::new(font, FontFamily::Name("head".into())), s.ink).size().x).fold(0.0f32, f32::max);
+    let icon_sz = 13.0;
+    let widest = |font: f32| options.iter().map(|o| {
+        let tw = ui.painter().layout_no_wrap(o.to_string(), FontId::new(font, FontFamily::Name("head".into())), s.ink).size().x;
+        tw + icon_sz + 8.0
+    }).fold(0.0f32, f32::max);
     let n = options.len().max(1);
     let (font, per_row) = if widest(15.0) + 16.0 <= room / n as f32 {
         (15.0, n)
     } else if widest(13.0) + 12.0 <= room / n as f32 {
         (13.0, n)
     } else {
-        (14.0, n.div_ceil(2))
+        (13.5, n.div_ceil(2))
     };
     let mut out = None;
     for row in options.chunks(per_row).enumerate() {
@@ -324,12 +375,21 @@ pub fn tabs(ui: &mut Ui, options: &[&str], chosen: usize) -> Option<usize> {
             let cut = 6.0;
             let pts = vec![pos2(t.min.x, t.max.y), pos2(t.min.x, t.min.y + cut), pos2(t.min.x + cut, t.min.y), pos2(t.max.x - cut, t.min.y), pos2(t.max.x, t.min.y + cut), pos2(t.max.x, t.max.y)];
             let mut v = Out::new();
-            super::hud::lay_poly(&mut v, &pts, &ch.paper, Color32::from_gray(if resp.hovered() { 205 } else { 168 }));
-            v.push(Shape::line(pts, Stroke::new(1.0, s.edge)));
-            v.push(Shape::line_segment([pos2(t.min.x + cut, t.min.y + 1.0), pos2(t.max.x - cut, t.min.y + 1.0)], Stroke::new(1.0, Color32::from_white_alpha(70))));
+            super::hud::lay_poly(&mut v, &pts, &ch.paper, Color32::from_gray(if resp.hovered() { 216 } else { 168 }));
+            v.push(Shape::line(pts, Stroke::new(1.0, if resp.hovered() { s.accent.linear_multiply(0.7) } else { s.edge })));
+            v.push(Shape::line_segment([pos2(t.min.x + cut, t.min.y + 1.0), pos2(t.max.x - cut, t.min.y + 1.0)], Stroke::new(1.0, Color32::from_white_alpha(if resp.hovered() { 120 } else { 70 }))));
             ui.painter().extend(v);
             let g = ui.painter().layout_no_wrap(name.to_string(), FontId::new(font, FontFamily::Name("head".into())), if resp.hovered() { s.ink } else { s.soft });
-            ui.painter().galley(pos2(t.center().x - g.size().x / 2.0, t.center().y - g.size().y / 2.0 + 1.0), g, s.ink);
+            let ico = tab_icon(name);
+            let total = icon_sz + 5.0 + g.size().x;
+            if total + 6.0 <= t.width() {
+                let left = (t.center().x - total / 2.0).round();
+                let ic_r = Rect::from_center_size(pos2(left + icon_sz / 2.0, t.center().y + 1.0), vec2(icon_sz, icon_sz));
+                super::look::icon(&icons, ico, icon_sz, if resp.hovered() { s.ink } else { s.soft }).paint_at(ui, ic_r);
+                ui.painter().galley(pos2(left + icon_sz + 5.0, t.center().y - g.size().y / 2.0 + 1.0), g, s.ink);
+            } else {
+                ui.painter().galley(pos2(t.center().x - g.size().x / 2.0, t.center().y - g.size().y / 2.0 + 1.0), g, s.ink);
+            }
         }
         // (the chosen tab last: over its neighbours and over the rule, one piece with the page)
         if let Some((t, name, hot)) = raised {
@@ -338,14 +398,24 @@ pub fn tabs(ui: &mut Ui, options: &[&str], chosen: usize) -> Option<usize> {
             let mut v = Out::new();
             v.push(epaint_shadow(t));
             super::hud::lay_poly(&mut v, &pts, &ch.paper, Color32::WHITE);
-            super::hud::plaque(&mut v, Rect::from_min_max(pts[2], pts[5]), 0.0, Color32::from_white_alpha(if hot { 90 } else { 60 }), Stroke::NONE, 0);
+            super::hud::plaque(&mut v, Rect::from_min_max(pts[2], pts[5]), 0.0, Color32::from_white_alpha(if hot { 100 } else { 70 }), Stroke::NONE, 0);
             v.push(Shape::line(pts.clone(), Stroke::new(1.4, ch.trim)));
-            // (the bar of the accent along its top, and the paper laid over the rule under it)
+            // (the bar of the accent along its top, and a fine brass glow beneath)
             v.push(Shape::rect_filled(Rect::from_min_max(pos2(t.min.x + cut, t.min.y + 1.0), pos2(t.max.x - cut, t.min.y + 4.0)), 1.0, s.accent));
+            v.push(Shape::rect_filled(Rect::from_min_max(pos2(t.min.x + cut + 2.0, t.min.y + 4.0), pos2(t.max.x - cut - 2.0, t.min.y + 5.5)), 0.5, Color32::from_white_alpha(50)));
             v.push(Shape::rect_filled(Rect::from_min_max(pos2(t.min.x, base - 0.5), pos2(t.max.x, base + 2.5)), 0.0, ch.paper.mean));
             ui.painter().extend(v);
             let g = ui.painter().layout_no_wrap(name.to_string(), FontId::new(font, FontFamily::Name("head".into())), s.accent);
-            ui.painter().galley(pos2(t.center().x - g.size().x / 2.0, t.center().y - g.size().y / 2.0 + 2.0), g, s.accent);
+            let ico = tab_icon(name);
+            let total = icon_sz + 5.0 + g.size().x;
+            if total + 6.0 <= t.width() {
+                let left = (t.center().x - total / 2.0).round();
+                let ic_r = Rect::from_center_size(pos2(left + icon_sz / 2.0, t.center().y + 2.0), vec2(icon_sz, icon_sz));
+                super::look::icon(&icons, ico, icon_sz, s.accent).paint_at(ui, ic_r);
+                ui.painter().galley(pos2(left + icon_sz + 5.0, t.center().y - g.size().y / 2.0 + 2.0), g, s.accent);
+            } else {
+                ui.painter().galley(pos2(t.center().x - g.size().x / 2.0, t.center().y - g.size().y / 2.0 + 2.0), g, s.accent);
+            }
         }
     }
     out

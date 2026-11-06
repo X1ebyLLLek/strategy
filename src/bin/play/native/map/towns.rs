@@ -379,5 +379,55 @@ pub fn lay(towns: &[(f32, f32, u8)], ways: &[Line], rivers: &[(Vec<[f32; 2]>, f3
             made += 1;
         }
     }
+    // rural homesteads, barns and mills along countryside ways outside towns
+    for (wi, way) in ways.iter().enumerate() {
+        if way.kind == RAIL {
+            continue;
+        }
+        let mut hh = mix64(wi as u64 ^ 0x8F13);
+        let mut rnd = || {
+            hh = mix64(hh);
+            unit(hh)
+        };
+        for i in 0..way.pts.len().saturating_sub(1) {
+            let (a, b) = (way.pts[i], way.pts[i + 1]);
+            let len = (b[0] - a[0]).hypot(b[1] - a[1]);
+            if len < 0.6 {
+                continue;
+            }
+            let dir = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+            let nrm = [-dir[1], dir[0]];
+            // place occasionally along the countryside way
+            if rnd() > 0.14 {
+                continue;
+            }
+            let t = len * (0.35 + 0.35 * rnd());
+            let p = [a[0] + dir[0] * t, a[1] + dir[1] * t];
+            // must be well outside any town core
+            if out.cores.iter().any(|&(cx, cy, cr)| (p[0] - cx).hypot(p[1] - cy) < cr * 2.2) {
+                continue;
+            }
+            let side = if rnd() < 0.5 { -1.0f32 } else { 1.0f32 };
+            let kind = if era > 1.5 && rnd() < 0.20 {
+                objects::MILL
+            } else if rnd() < 0.35 {
+                objects::BARN
+            } else if rnd() < 0.65 {
+                objects::FARM_A
+            } else {
+                objects::COTTAGE_B
+            };
+            let kind = objects::baked_variant(kind, era, rnd());
+            let (_hx, hy) = footprint(kind);
+            let sz = 1.0 + 0.25 * rnd();
+            let off = 0.22 + hy * sz + 0.06 * rnd();
+            let q = [p[0] + nrm[0] * side * off, p[1] + nrm[1] * side * off];
+            if !dry(q[0], q[1]) {
+                continue;
+            }
+            let ang = dir[1].atan2(dir[0]) + if side < 0.0 { std::f32::consts::PI } else { 0.0 };
+            out.built.builds[kind].push([q[0], q[1], sz, ang / std::f32::consts::TAU]);
+        }
+    }
     out
 }

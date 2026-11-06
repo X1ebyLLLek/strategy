@@ -594,6 +594,49 @@ void main() {
                 col *= 1.0 - 0.20 * (4.0 * ck * (1.0 - ck)) * smoothstep(0.05, 0.9, uK);
             }
         }
+        // (38th session: close-up richness: agricultural field patchwork, furrows, meadow wildflowers, rock talus)
+        {
+            float pxd = max(px.x, px.y);
+            float closeD = smoothstep(0.14, 0.028, pxd);
+            if (closeD > 0.01 && (uDbg & 2) == 0 && water < 0.5) {
+                // (1) Rural field patchwork & oriented furrows on gentle open plains outside forest & towns
+                float open_plains = wk[0] * (1.0 - ck) * (1.0 - wk[4]) * (1.0 - wk[5]) * (1.0 - wk[6]) * (1.0 - wk[7]);
+                float gentle = smoothstep(0.18, 0.06, steep);
+                float rural = open_plains * gentle * (1.0 - farm) * (1.0 - town) * (1.0 - basin);
+                if (rural > 0.02) {
+                    vec2 fuv = vWorld * 0.16;
+                    vec2 fcell = floor(fuv);
+                    vec2 ff = fract(fuv);
+                    float frnd = hash(fcell);
+                    // hedgerows / field boundaries
+                    float hedge = smoothstep(0.025, 0.07, min(ff.x, min(ff.y, min(1.0 - ff.x, 1.0 - ff.y))));
+                    // furrows direction for this parcel
+                    float fa = frnd * 3.14159;
+                    vec2 fdir = vec2(cos(fa), sin(fa));
+                    float furrow = sin(dot(vWorld, fdir) * 24.0) * 0.5 + 0.5;
+                    // crop tone: golden wheat, green rye, tilled soil, rich pasture
+                    vec3 crop_tone = frnd < 0.28 ? vec3(1.18, 1.10, 0.82) : frnd < 0.55 ? vec3(0.92, 1.06, 0.86) : frnd < 0.78 ? vec3(0.82, 0.76, 0.64) : vec3(1.12, 1.18, 0.78);
+                    float furrow_amt = mix(0.88, 1.12, furrow) * mix(0.78, 1.0, hedge);
+                    col = mix(col, col * crop_tone * furrow_amt, rural * 0.68 * closeD);
+                }
+                // (2) Meadow wildflowers & pasture micro-mottling (clover, buttercups, dry straw)
+                float meadow_ground = (wk[0] + 0.6 * wk[2]) * (1.0 - wk[4]) * (1.0 - town) * (1.0 - ck);
+                if (meadow_ground > 0.05) {
+                    float m_pat = vnoise(vWorld * 12.0, uSize.x * 12.0);
+                    float gold_bloom = smoothstep(0.80, 0.94, vnoise(vWorld * 28.0, uSize.x * 28.0) + 0.15 * m_pat);
+                    float white_bloom = smoothstep(0.83, 0.95, vnoise(vWorld * 34.0 + 17.1, uSize.x * 34.0) - 0.15 * m_pat);
+                    vec3 bloom_col = mix(vec3(1.35, 1.25, 0.65), vec3(1.30, 1.30, 1.25), white_bloom / max(gold_bloom + white_bloom, 1e-4));
+                    col = mix(col, col * bloom_col, (gold_bloom + white_bloom) * 0.45 * meadow_ground * closeD);
+                }
+                // (3) Gravel & stone talus on hills and slopes
+                float hill_rock = (wk[2] * 0.8 + wk[3] * 0.5 + steep * 0.7) * (1.0 - farm) * (1.0 - ck);
+                if (hill_rock > 0.08) {
+                    float stones = smoothstep(0.72, 0.88, vnoise(vWorld * 18.0, uSize.x * 18.0) + 0.25 * grain);
+                    vec3 st_tone = mix(vec3(0.80, 0.76, 0.70), vec3(1.15, 1.12, 1.08), hash(floor(vWorld * 18.0)));
+                    col = mix(col, st_tone * dot(col, vec3(0.33)) * 1.35, stones * 0.45 * hill_rock * closeD);
+                }
+            }
+        }
         // the sun, and the sky's light from above (a little less in the folds; the crests catch
         // more light, the gullies less)
         // (the sun warm, where no range shades it; the sky cool, less of it deep in the valleys:
