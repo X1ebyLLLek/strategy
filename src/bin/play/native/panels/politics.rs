@@ -214,12 +214,109 @@ pub fn war_controls(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     let now = g.month();
     let w = ui.available_width();
     if g.h.at_war {
+        let foe = 1 - me;
+        let foe_name = &g.h.home(foe).name;
         let who = g.state.aggressor.map_or(String::new(), |x| format!(" Войну {} {}.", strategy::world::names::agree(&g.h.home(x).name, "начала"), g.h.home(x).name));
-        super::super::kit::framed(ui, Some(super::super::kit::BAD), true, |ui| {
-            super::super::kit::bold(ui, format!("Идёт война.{who}"), 14.0, s.ink);
+        let war_m = g.h.war.month;
+        let tenure_str = if war_m < 12 {
+            format!("{war_m} {}", crate::words::plural(war_m as usize, "месяц", "месяца", "месяцев"))
+        } else {
+            let y = war_m / 12;
+            let m = war_m % 12;
+            if m == 0 {
+                format!("{y} {}", crate::words::plural(y as usize, "год", "года", "лет"))
+            } else {
+                format!("{y} г. {m} мес.")
+            }
+        };
+
+        // Header frame with war status & capital state
+        let fallen = g.h.war.fallen;
+        let (frame_tone, frame_title) = if fallen == Some(foe) {
+            (super::super::kit::GOOD, format!("Идёт война ({tenure_str}).{who} Столица врага пала!"))
+        } else if fallen == Some(me) {
+            (super::super::kit::BAD, format!("Идёт война ({tenure_str}).{who} Наша столица захвачена!"))
+        } else {
+            (super::super::kit::BAD, format!("Идёт война ({tenure_str}).{who}"))
+        };
+
+        super::super::kit::framed(ui, Some(frame_tone), true, |ui| {
+            super::super::kit::bold(ui, frame_title, 14.0, s.ink);
         });
 
-        if widgets::plate(ui, "Предложить мир", w, false, true).tip(|| Card::new("Предложить мир").icon("scroll").text("Мир на том, что каждый держит. Враг согласится, если не побеждает.")).clicked() {
+        // Theater stats: battles, casualties, provinces, population
+        let (mut my_wins, mut foe_wins) = (0usize, 0usize);
+        let (mut my_men_lost, mut foe_men_lost) = (0.0f32, 0.0f32);
+        for f in &g.h.war.fought {
+            if f.attacker == me {
+                my_men_lost += f.men[0];
+                foe_men_lost += f.men[1];
+                if f.won { my_wins += 1; } else { foe_wins += 1; }
+            } else {
+                my_men_lost += f.men[1];
+                foe_men_lost += f.men[0];
+                if !f.won { my_wins += 1; } else { foe_wins += 1; }
+            }
+        }
+        let total_battles = g.h.war.fought.len();
+        let took_from_foe = (0..g.h.war.owner.len()).filter(|&p| g.h.war.owner[p] == me && g.h.war.th.home[p] == foe).count();
+        let lost_to_foe = (0..g.h.war.owner.len()).filter(|&p| g.h.war.owner[p] == foe && g.h.war.th.home[p] == me).count();
+        let held_pop = g.h.war.people();
+
+        use super::super::kit::Stat;
+        let stat_items = vec![
+            Stat::new("clash", "Сражения", format!("Побед {my_wins} из {total_battles}"), if my_wins >= foe_wins { super::super::kit::GOOD } else { super::super::kit::MIXED }),
+            Stat::new("broken", "Потери войск", format!("{my_men_lost:.1} тыс. / {foe_men_lost:.1} тыс."), if my_men_lost <= foe_men_lost { super::super::kit::GOOD } else { super::super::kit::BAD }),
+            Stat::new("flag", "Земли театра", format!("+{took_from_foe} / -{lost_to_foe}"), if took_from_foe >= lost_to_foe { super::super::kit::GOOD } else { super::super::kit::BAD }),
+            Stat::new("people", "Люди под властью", format!("{:.0}% / {:.0}%", held_pop[me] * 100.0, held_pop[foe] * 100.0), if held_pop[me] >= held_pop[foe] { super::super::kit::GOOD } else { super::super::kit::MIXED }),
+        ];
+        let r_stats = super::super::kit::stats(ui, &stat_items, 2);
+        if let Some(r0) = r_stats.get(0) {
+            r0.clone().tip(|| Card::new("Сражения").icon("clash").row("наших побед", my_wins.to_string()).row("побед противника", foe_wins.to_string()).row("всего боёв", total_battles.to_string()));
+        }
+        if let Some(r1) = r_stats.get(1) {
+            r1.clone().tip(|| Card::new("Потери личного состава").icon("broken").row("наши безвозвратные потери", format!("{my_men_lost:.1} тыс. бойцов")).row("потери противника", format!("{foe_men_lost:.1} тыс. бойцов")).note("учитываются погибшие, раненые и пропавшие без вести"));
+        }
+        if let Some(r2) = r_stats.get(2) {
+            r2.clone().tip(|| Card::new("Контроль провинций").icon("flag").row("занято провинций врага", took_from_foe.to_string()).row("потеряно своих провинций", lost_to_foe.to_string()).row("всего в театре", g.h.war.owner.len().to_string()));
+        }
+        if let Some(r3) = r_stats.get(3) {
+            r3.clone().tip(|| Card::new("Население под контролем").icon("people").row("у нас осталось", format!("{:.1}%", held_pop[me] * 100.0)).row("у врага осталось", format!("{:.1}%", held_pop[foe] * 100.0)).note("утрата городов и населения истощает тыл и подрывает волю к войне"));
+        }
+
+        ui.add_space(4.0);
+
+        // Diplomatic peace assessment
+        let bot_takes = g.takes_peace(foe);
+        let stance_tone = if bot_takes { super::super::kit::GOOD } else { super::super::kit::MIXED };
+        let stance_text = if bot_takes {
+            format!("{foe_name} готова принять мир: потеря территорий и истощение вынуждают искать соглашения.")
+        } else {
+            format!("{foe_name} отвергает мир: правительство противника уверено в победе и продолжает наступление.")
+        };
+
+        super::super::kit::framed(ui, Some(stance_tone), false, |ui| {
+            ui.label(RichText::new("Дипломатическая оценка шансов на мир:").family(egui::FontFamily::Name("bold".into())).size(12.5).color(s.soft));
+            super::super::kit::words(ui, &stance_text, 13.0, s.ink);
+        });
+
+        ui.add_space(3.0);
+        let btn_label = if bot_takes {
+            "Предложить мир (враг примет)"
+        } else {
+            "Предложить мир (враг отвергнет)"
+        };
+        if widgets::plate(ui, btn_label, w, bot_takes, true).tip(|| {
+            let mut c = Card::new("Мирные переговоры").icon("scroll")
+                .row("условия соглашения", "фиксация фактической линии фронта")
+                .row("позиция противника", if bot_takes { "согласен на мир" } else { "отвергает мир" });
+            if bot_takes {
+                c = c.note("При заключении мира каждая сторона оставляет за собой все занятые на карте земли. Война закончится, начнётся перемирие.");
+            } else {
+                c = c.note("Противник считает своё положение выгодным. Чтобы заставить его просить мира, нанесите поражение его войскам или займите больше провинций.");
+            }
+            c
+        }).clicked() {
             g.act(crate::tools::saves::Act::Peace);
         }
         return;
