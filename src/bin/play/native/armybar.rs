@@ -144,12 +144,30 @@ impl App {
                 }
                 if on {
                     v.push(egui::Shape::rect_stroke(at2.expand(1.0), 3.0, egui::Stroke::new(2.0, hud::lighten(dress.trim, 0.3))));
+                    let tab_w = 26.0;
+                    let crown = egui::Rect::from_min_size(egui::pos2(at2.center().x - tab_w / 2.0, at2.min.y - 2.5), egui::vec2(tab_w, 3.5));
+                    v.push(egui::Shape::rect_filled(crown, 1.5, hud::lighten(dress.trim, 0.4)));
                 }
                 ui.painter().extend(v);
                 if let Some(img) = look::portrait(&g.face_of(&gen, "general"), 38.0) {
                     img.paint_at(ui, face);
                 }
                 ui.painter().rect_stroke(face.expand(1.0), 2.0, egui::Stroke::new(1.5, dress.trim));
+                if let Some(x) = &gr.general {
+                    if x.won > 0 {
+                        let n_stars = if x.won >= 5 { 3 } else if x.won >= 2 { 2 } else { 1 };
+                        let p = ui.painter();
+                        for i in 0..n_stars {
+                            let dc = face.left_top() + egui::vec2(5.0 + i as f32 * 6.5, 5.0);
+                            p.rect_filled(egui::Rect::from_center_size(dc, egui::vec2(5.0, 5.0)), 1.0, Color32::from_black_alpha(220));
+                            p.add(egui::Shape::convex_polygon(
+                                vec![dc + egui::vec2(-2.5, 0.0), dc + egui::vec2(0.0, -2.5), dc + egui::vec2(2.5, 0.0), dc + egui::vec2(0.0, 2.5)],
+                                Color32::from_rgb(255, 220, 90),
+                                egui::Stroke::new(0.6, Color32::from_rgb(180, 130, 40)),
+                            ));
+                        }
+                    }
+                }
                 // (in battle this month: crossed swords on the portrait's corner, flaring — gold if
                 // the fights went our way more than not, red if not)
                 if fights[k].0 > 0 {

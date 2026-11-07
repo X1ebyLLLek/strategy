@@ -48,6 +48,8 @@ pub fn order(ui: &mut Ui, ch: &Chrome, skin: &Skin, icon: &str, word: &str, key:
         v.push(egui::epaint::Shadow { offset: vec2(0.0, 0.0), blur: 10.0, spread: 0.0, color: gold.gamma_multiply(0.35) }.as_shape(r.shrink(3.0), 2.0).into());
         v.push(Shape::rect_stroke(r.shrink(1.5), 2.0, Stroke::new(2.0, gold)));
         v.push(Shape::rect_filled(Rect::from_min_max(pos2(r.min.x + 6.0, r.max.y - 4.0), pos2(r.max.x - 6.0, r.max.y - 2.0)), 1.0, gold));
+    } else if hot {
+        v.push(Shape::rect_stroke(r.shrink(1.0), 2.0, Stroke::new(1.0, Color32::from_white_alpha(35))));
     }
     if !enabled {
         v.push(Shape::rect_filled(r, 2.0, Color32::from_black_alpha(60)));
@@ -193,14 +195,72 @@ impl App {
                         img.paint_at(ui, face);
                     }
                     ui.painter().rect_stroke(face.expand(1.0), 2.0, Stroke::new(1.5, ch.trim));
+                    if let Some(g_rec) = &gr.general {
+                        if g_rec.won > 0 {
+                            let n_stars = if g_rec.won >= 5 { 3 } else if g_rec.won >= 2 { 2 } else { 1 };
+                            let p = ui.painter();
+                            for i in 0..n_stars {
+                                let dc = pos2(face.min.x + 5.0 + i as f32 * 6.5, face.min.y + 5.0);
+                                p.rect_filled(Rect::from_center_size(dc, vec2(5.0, 5.0)), 1.0, Color32::from_black_alpha(220));
+                                p.add(Shape::convex_polygon(
+                                    vec![dc + vec2(-2.5, 0.0), dc + vec2(0.0, -2.5), dc + vec2(2.5, 0.0), dc + vec2(0.0, 2.5)],
+                                    Color32::from_rgb(255, 220, 90),
+                                    Stroke::new(0.6, Color32::from_rgb(180, 130, 40)),
+                                ));
+                            }
+                        }
+                    }
+                    let (div_n, avg_org) = if let Some(c) = g.h.war.corps.as_ref() {
+                        let my: Vec<_> = c.divs.iter().filter(|d| d.side == me && d.group == k).collect();
+                        let n = my.len();
+                        if n > 0 {
+                            let org = my.iter().map(|d| d.org).sum::<f32>() / n as f32;
+                            (n, org)
+                        } else {
+                            (0, 0.0)
+                        }
+                    } else {
+                        (0, 0.0)
+                    };
                     ui.vertical(|ui| {
-                        ui.set_width(230.0);
+                        ui.set_width(260.0);
                         ui.add_space(2.0);
-                        ui.label(egui::RichText::new(crate::words::group_name(k).to_uppercase()).family(FontFamily::Name("head".into())).size(17.0).color(s.desk_ink));
-                        ui.label(egui::RichText::new(if gen.is_empty() { "без генерала".to_string() } else { format!("генерал {gen}") }).size(13.0).color(s.desk_ink.gamma_multiply(0.85)));
-                        let mut job = egui::text::LayoutJob::simple_singleline(status.clone(), FontId::proportional(13.0), hud::lighten(hue, 0.35));
-                        job.wrap = egui::text::TextWrapping::truncate_at_width(230.0);
-                        ui.label(job);
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(crate::words::group_name(k).to_uppercase()).family(FontFamily::Name("head".into())).size(16.0).color(s.desk_ink));
+                            if div_n > 0 {
+                                let badge_str = format!("{div_n} див · {:.0}% орг", avg_org * 100.0);
+                                let gal = ui.painter().layout_no_wrap(badge_str, FontId::proportional(12.0), Color32::from_rgb(225, 218, 195));
+                                let br = Rect::from_min_size(ui.cursor().min + vec2(4.0, 2.0), gal.size() + vec2(8.0, 2.0));
+                                ui.painter().rect_filled(br, 2.0, Color32::from_black_alpha(170));
+                                ui.painter().rect_stroke(br, 2.0, Stroke::new(1.0, ch.trim.gamma_multiply(0.75)));
+                                ui.painter().galley(br.min + vec2(4.0, 1.0), gal, Color32::from_rgb(225, 218, 195));
+                                ui.add_space(br.width() + 4.0);
+                            }
+                        });
+                        let gen_text = if gen.is_empty() {
+                            "без генерала".to_string()
+                        } else if let Some(g_rec) = &gr.general {
+                            if g_rec.won > 0 {
+                                format!("генерал {gen} · {} {}", g_rec.won, crate::words::plural(g_rec.won as usize, "победа", "победы", "побед"))
+                            } else {
+                                format!("генерал {gen}")
+                            }
+                        } else {
+                            format!("генерал {gen}")
+                        };
+                        ui.label(egui::RichText::new(gen_text).size(12.5).color(s.desk_ink.gamma_multiply(0.85)));
+                        if draft || attacking {
+                            let plan_pct = if attacking { 100 } else { 85 };
+                            let bonus = if attacking { 25 } else { 20 };
+                            let plan_str = format!("План: {plan_pct}% (+{bonus}% к атаке) · {status}");
+                            let mut job = egui::text::LayoutJob::simple_singleline(plan_str, FontId::proportional(12.0), Color32::from_rgb(130, 220, 140));
+                            job.wrap = egui::text::TextWrapping::truncate_at_width(260.0);
+                            ui.label(job);
+                        } else {
+                            let mut job = egui::text::LayoutJob::simple_singleline(status.clone(), FontId::proportional(12.5), hud::lighten(hue, 0.35));
+                            job.wrap = egui::text::TextWrapping::truncate_at_width(260.0);
+                            ui.label(job);
+                        }
                     });
                     let (sep, _) = ui.allocate_exact_size(vec2(10.0, H), Sense::hover());
                     let mut v = chrome::Out::new();

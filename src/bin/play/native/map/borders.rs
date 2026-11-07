@@ -342,6 +342,53 @@ impl MapView {
                             }
                         }
                     }
+
+                    // Полоса проволочных заграждений (колючая проволока на кольях) в нейтральной полосе
+                    if fort_lvl > 0.01 || dug_lvl > 0.25 {
+                        let wire_line = side(sgn * 0.95 * half);
+                        if wire_line.len() >= 2 {
+                            let wire_col = Color32::from_rgba_unmultiplied(162, 156, 146, (200.0 * trench_a) as u8);
+                            let post_col = Color32::from_rgba_unmultiplied(64, 52, 38, (220.0 * trench_a) as u8);
+                            // Продольные нити колючей проволоки
+                            painter.add(egui::Shape::line(wire_line.clone(), Stroke::new(0.7 * half, wire_col)));
+                            // Опорные деревянные и железные колья с диагональными растяжками
+                            for i in 0..wire_line.len() {
+                                let wp = wire_line[i];
+                                let slant = if i % 2 == 0 { vec2(0.8, -2.6) } else { vec2(-0.8, -2.6) } * half;
+                                painter.line_segment([wp + vec2(0.3, 0.8), wp + slant + vec2(0.3, 0.8)], Stroke::new(1.1 * half, Color32::from_black_alpha((110.0 * trench_a) as u8)));
+                                painter.line_segment([wp, wp + slant], Stroke::new(1.1 * half, post_col));
+                                // Крестообразные витки проволоки между кольями
+                                if i + 1 < wire_line.len() {
+                                    let next_wp = wire_line[i + 1];
+                                    let mid_p = pos2((wp.x + next_wp.x) * 0.5, (wp.y + next_wp.y) * 0.5) + vec2(0.0, -1.2 * half);
+                                    painter.line_segment([wp + slant * 0.8, mid_p], Stroke::new(0.65 * half, wire_col));
+                                    painter.line_segment([mid_p, next_wp + slant * 0.4], Stroke::new(0.65 * half, wire_col));
+                                }
+                            }
+                        }
+                    }
+
+                    // Воронки от разрывов снарядов и выжженная земля передовой
+                    if fort_lvl > 0.01 || dug_lvl > 0.35 {
+                        let crater_line = side(sgn * 1.8 * half);
+                        if crater_line.len() >= 3 {
+                            for i in (1..crater_line.len()).step_by(3) {
+                                let cp = crater_line[i] + vec2(((i * 7) % 5) as f32 - 2.0, ((i * 11) % 5) as f32 - 2.0) * half;
+                                let cr_r = (2.2 + ((i * 13) % 4) as f32 * 0.5) * half;
+                                // Выворот грунта вокруг воронки
+                                painter.circle_filled(cp, cr_r + 1.2 * half, Color32::from_rgba_unmultiplied(52, 44, 34, (190.0 * trench_a) as u8));
+                                // Тёмное обугленное дно воронки
+                                painter.circle_filled(cp + vec2(0.3, 0.4), cr_r * 0.72, Color32::from_rgba_unmultiplied(22, 18, 15, (225.0 * trench_a) as u8));
+                                // Струйки дыма над свежими воронками
+                                if (i + (t * 2.0) as usize) % 4 == 0 {
+                                    let ph = ((t * 0.4 + i as f32 * 0.3).fract()).powf(0.8);
+                                    let sm_pos = cp + vec2((t * 0.8 + i as f32).sin() * 3.5 + ph * 6.0, -ph * 16.0 * half);
+                                    let sm_a = ((1.0 - ph) * 90.0 * trench_a) as u8;
+                                    painter.circle_filled(sm_pos, (2.0 + ph * 4.5) * half, Color32::from_rgba_unmultiplied(75, 70, 64, sm_a));
+                                }
+                            }
+                        }
+                    }
                 };
 
                 let sgn_ours = if *ours_left { 1.0 } else { -1.0 };

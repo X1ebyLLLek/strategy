@@ -212,6 +212,11 @@ impl App {
                 hud::medallion(ui, &ch, &s, icon, r, hue, on, ("sphere", icon))
             };
             chrome::spot(ctx, "sphere", b.rect);
+            if on {
+                let gem_c = egui::pos2(b.rect.center().x, b.rect.max.y + 1.0);
+                ui.painter().circle_filled(gem_c, 2.5, hud::lighten(ch.trim, 0.4));
+                ui.painter().circle_stroke(gem_c, 2.5, egui::Stroke::new(1.0, Color32::from_black_alpha(180)));
+            }
             // (a mark on the sphere when something there wants the eye)
             let worst = alarms.iter().filter(|a| a.tab == tab).map(|a| a.tone).max();
             let mark = if tab == Tab::News && unread { Some(1) } else { worst.filter(|&t| t > 0) };
@@ -283,6 +288,9 @@ impl App {
             let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
             let c = egui::pos2(r.min.x + 18.0, r.center().y - 1.0);
             let mut v = chrome::Out::new();
+            if resp.hovered() {
+                v.push(egui::Shape::rect_stroke(r.shrink(1.0), 3.0, egui::Stroke::new(1.0, Color32::from_white_alpha(32))));
+            }
             v.push(egui::Shape::circle_filled(c + egui::vec2(0.0, 1.5), 17.0, Color32::from_black_alpha(110)));
             hud::ring(&mut v, c, 16.5, 2.5, ch.trim);
             hud::disc(&mut v, c, 14.0, Color32::from_rgb(54, 50, 42), Color32::from_rgb(14, 12, 10));
@@ -446,10 +454,31 @@ impl App {
             v.push(egui::Shape::line_segment([egui::pos2(x0, yb), egui::pos2(x1, yb)], egui::Stroke::new(2.0, Color32::from_black_alpha(160))));
             v.push(egui::Shape::line_segment([egui::pos2(x0, yb), egui::pos2(x0 + (x1 - x0) * run, yb)], egui::Stroke::new(2.0, ch.trim.gamma_multiply(0.85))));
             ui.painter().extend(v);
-            let d = ui.interact(dr, egui::Id::new("date"), egui::Sense::hover());
+            if g.paused {
+                let t = ctx.input(|i| i.time) as f32;
+                let pulse = 0.5 + 0.5 * (t * 3.2).sin();
+                ui.painter().rect_stroke(plate.expand(1.0), 3.0, egui::Stroke::new(1.2, Color32::from_rgb(240, 120, 80).gamma_multiply(0.4 + 0.3 * pulse)));
+            }
+            let d = ui.interact(dr, egui::Id::new("date"), egui::Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
             chrome::spot(ctx, "date", d.rect);
+            if d.clicked() {
+                g.paused = !g.paused;
+            }
             let month = g.month();
-            d.tip(|| Card::new("Сегодня").icon(sign).sub(date.clone()).row("время года", season).row("месяцев игры", month.to_string()).note("месяц мира проживается в конце месяца; черта под датой — сколько его прошло"));
+            d.tip(|| {
+                let mut c = Card::new(if g.paused { "Пауза" } else { "Сегодня" })
+                    .icon(if g.paused { "stop" } else { sign })
+                    .sub(date.clone())
+                    .row("время года", season)
+                    .row("месяцев игры", month.to_string())
+                    .row("скорость", format!("{} / 5", g.speed));
+                if g.paused {
+                    c = c.note("время остановлено — щёлкните по дате или нажмите Пробел, чтобы пустить");
+                } else {
+                    c = c.note("время идёт — щёлкните по дате или нажмите Пробел, чтобы остановить");
+                }
+                c
+            });
             // (the speeds: five bars under the date)
             let y = plate.max.y - 13.0;
             let x0 = plate.center().x - (5.0 * 14.0 + 4.0 * 4.0) / 2.0;

@@ -241,6 +241,10 @@ void main() {
         col = mix(col, vec3(0.30, 0.52, 0.55), smoothstep(-0.05, 0.0, hs) * 0.30);
         float foam = smoothstep(0.55, 0.9, fbm(q * 1.0 + vec2(t * 0.4, 0.0), 0.5, 2) + 0.35 * sin(t * 1.5 - depth * 900.0));
         col = mix(col, vec3(0.86, 0.90, 0.88), shore * foam * 0.5 * lod * smoothstep(1.5, 3.5, uK));
+        // (41st session: layered surf waves and wet shore foam highlights)
+        float surf_wave = sin(t * 2.2 + depth * 1400.0 + fbm(q * 0.5, 0.25, 2) * 4.0);
+        float crest = smoothstep(0.65, 0.95, surf_wave) * shore * lod;
+        col = mix(col, vec3(0.92, 0.96, 0.97), crest * 0.45 * smoothstep(1.2, 3.5, uK));
     } else {
         // the land: the photographs of its kinds of ground, each as much as lies there (the
         // borders between kinds broken by the photographs' own light and dark), at two scales so
@@ -645,6 +649,10 @@ void main() {
         // (a range's shadow takes most of the sun, not all: the map must still read in it)
         float diff = max(dot(n, SUN), 0.0) * mix(0.30, 1.0, lt.r);
         vec3 lightf = (vec3(1.06, 1.0, 0.90) * (0.82 * diff) + vec3(0.86, 0.91, 1.0) * (0.46 * (0.55 + 0.45 * n.z) * mix(1.0, lt.g, 0.70))) * clamp(1.0 + 0.30 * cav * (1.0 - basin), 0.70, 1.25);
+        // (41st session: warm sunlight glint on alpine ridges and rocky crests)
+        vec3 H_land = normalize(V + SUN);
+        float ridge_glint = pow(max(dot(n, H_land), 0.0), 32.0) * steep * (1.0 - basin) * (0.4 + 0.6 * lt.r);
+        lightf += vec3(1.15, 1.08, 0.92) * (ridge_glint * 0.18 * smoothstep(0.15, 0.7, h));
         col *= lightf;
         // the rivers: water in the land — deep in the middle, shallow and silty at the edges, the current in
         // long streaks along the stream, sandbars in the wide reaches, ice along the shore in the cold, the

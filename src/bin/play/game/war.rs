@@ -95,6 +95,38 @@ impl Game {
                 }
             }
         }
+        let (ca, cb) = (self.country(0), self.country(1));
+        let fallen = self.h.war.fallen;
+        let held = self.h.war.people();
+        let winner_side = match fallen {
+            Some(s) => Some(1 - s),
+            None if held[0] - held[1] > 0.08 => Some(0),
+            None if held[1] - held[0] > 0.08 => Some(1),
+            None => None,
+        };
+        let mut took_regions: Vec<(usize, f32, usize)> = Vec::new();
+        for p in 0..self.h.war.owner.len() {
+            let cur_owner = self.h.war.owner[p];
+            let home_side = self.h.war.th.home[p];
+            if cur_owner != home_side {
+                let reg_id = self.prov_state.get(self.h.war.th.provs[p]).copied().unwrap_or(0) as usize;
+                if !took_regions.iter().any(|t| t.0 == reg_id && t.2 == cur_owner) {
+                    let reg_pop = 1.0f32;
+                    took_regions.push((reg_id, reg_pop, cur_owner));
+                }
+            }
+        }
+        self.past.push(strategy::world::history::PastWar {
+            year: (self.month() / 12) + 1,
+            sides: [ca, cb],
+            names: [self.h.home(0).name.clone(), self.h.home(1).name.clone()],
+            months: self.h.war.month,
+            winner: winner_side,
+            capitulated: fallen.is_some(),
+            took: took_regions,
+            battles: self.h.war.fought.len(),
+            generals: [Vec::new(), Vec::new()],
+        });
         self.h.make_peace(&self.pack);
         // (the divisions stay, back in their garrisons under the staffs)
         self.h.war.staff_led = [true; 2];

@@ -35,6 +35,47 @@ pub fn battle(ui: &mut egui::Ui, s: &Skin, g: &Game, i: usize) {
         };
         let note = if f.cut { " · оборонялись окружённые" } else { "" };
         ui.label(RichText::new(format!("{}, {}{note}", crate::words::date_words(f.month).to_lowercase(), days)).size(13.5).color(s.soft));
+
+        // Визуальная плашка боевой фазы и контроль неба
+        let (phase_icon, phase_name, phase_desc) = if f.cut {
+            ("hazard", "Ликвидация котла", "Окружённые войска лишены подвоза снабжения и сжимаются в кольце")
+        } else if f.won && f.days >= 5 {
+            ("clash", "Преследование отступающих", "Фронт прорван, наступающие преследуют отходящего противника")
+        } else if f.fort[0] > 0.05 {
+            ("wall", "Штурм укреплённой полосы", "Осада долговременных бетонных бастионов и фортов")
+        } else if f.days <= 2 {
+            ("binoculars", "Встречный бой и разведка", "Сближение передовых частей и манёвренная завязка боя")
+        } else if f.days <= 6 {
+            ("strike", "Артиллерийская дуэль", "Подавление огневых позиций и пристрелка артиллерии")
+        } else {
+            ("army", "Генеральный штурм траншей", "Решающая схватка дивизий за укреплённые позиции рубежа")
+        };
+        let pill = |ui: &mut egui::Ui, icon: &str, text: &str, tone: Color32| {
+            let font = egui::FontId::new(12.0, egui::FontFamily::Name("bold".into()));
+            let tw = ui.painter().layout_no_wrap(text.to_string(), font.clone(), Color32::WHITE).size().x;
+            let (r, resp) = ui.allocate_exact_size(vec2(tw + 26.0, 22.0), egui::Sense::hover());
+            ui.painter().rect_filled(r, 3.0, Color32::from_black_alpha(150));
+            ui.painter().rect_stroke(r, 3.0, egui::Stroke::new(1.0, tone.gamma_multiply(0.85)));
+            let icons = chrome::icons(ui.ctx());
+            super::super::look::icon(&icons, icon, 13.0, tone).paint_at(ui, egui::Rect::from_center_size(pos2(r.min.x + 11.0, r.center().y), vec2(13.0, 13.0)));
+            ui.painter().text(pos2(r.min.x + 20.0, r.center().y), egui::Align2::LEFT_CENTER, text, font, tone);
+            resp
+        };
+        ui.horizontal(|ui| {
+            pill(ui, phase_icon, phase_name, s.accent);
+            let air_att: f32 = f.kinds[0].iter().enumerate().filter(|(u, _)| pack.units[*u].line == strategy::pack::Line::Air).map(|(_, &amt)| amt).sum();
+            let air_def: f32 = f.kinds[1].iter().enumerate().filter(|(u, _)| pack.units[*u].line == strategy::pack::Line::Air).map(|(_, &amt)| amt).sum();
+            if air_att > 0.01 || air_def > 0.01 {
+                let (air_col, air_txt) = if air_att > air_def * 1.3 {
+                    (super::super::kit::GOOD, "Господство в воздухе: нападающие")
+                } else if air_def > air_att * 1.3 {
+                    (super::super::kit::GOOD, "Господство в воздухе: оборона")
+                } else {
+                    (super::super::kit::MIXED, "Воздушный бой: небо оспорено")
+                };
+                pill(ui, "flag", air_txt, air_col);
+            }
+        }).response.tip(|| Card::new(phase_name).icon(phase_icon).text(phase_desc));
     }
     ui.add_space(4.0);
     // the two sides: flags and names, the stamp in the middle
@@ -275,12 +316,18 @@ fn armour(ui: &mut egui::Ui, s: &Skin, g: &Game, f: &strategy::military::front::
         if !thick.is_empty() {
             let who = if x == 0 { "наступавших" } else { "оборонявшихся" };
             let line = format!("Броня {who} ({}) оказалась не по зубам врагу: большая часть его огня отскакивала.", thick.join(", "));
-            ui.label(RichText::new(line).size(13.5).color(s.ink));
+            super::super::kit::framed(ui, Some(super::super::kit::GOOD), false, |ui| {
+                ui.label(RichText::new("Броневой щит").family(egui::FontFamily::Name("bold".into())).size(13.0).color(s.ink));
+                super::super::kit::words(ui, &line, 13.0, s.ink);
+            });
         }
         let pierced: Vec<&str> = (0..nu).filter(|&u| has(x, u) && pack.units[u].armor > 0.0 && pierce >= pack.units[u].armor).map(|u| pack.units[u].name.as_str()).collect();
         if !pierced.is_empty() && x == 0 {
             let line = format!("Противотанковая оборона: орудия защитников уверенно пробивали броню ({}), сбивая наступательный порыв.", pierced.join(", "));
-            ui.label(RichText::new(line).size(13.5).color(s.ink));
+            super::super::kit::framed(ui, Some(super::super::kit::BAD), false, |ui| {
+                ui.label(RichText::new("Противотанковый заслон").family(egui::FontFamily::Name("bold".into())).size(13.0).color(s.ink));
+                super::super::kit::words(ui, &line, 13.0, s.ink);
+            });
         }
     }
 }
@@ -290,9 +337,23 @@ fn tactics(ui: &mut egui::Ui, s: &Skin, f: &strategy::military::front::Fought) {
     use strategy::military::corps::TACTICS;
     let top = |x: usize| (0..TACTICS.len()).filter(|&t| f.tactics[x][t] > 0).max_by_key(|&t| f.tactics[x][t]);
     let (Some(a), Some(d)) = (top(0), top(1)) else { return };
-    let line = format!("Тактика: наступавшие — «{}», оборонявшиеся — «{}».", TACTICS[a].name, TACTICS[d].name);
-    let resp = ui.label(RichText::new(line).size(14.0).color(s.ink));
-    resp.tip(|| {
+    let a_tac = &TACTICS[a];
+    let d_tac = &TACTICS[d];
+    let a_counters_d = a_tac.counters.contains(&(d as u8));
+    let d_counters_a = d_tac.counters.contains(&(a as u8));
+    let edge_text = if a_counters_d {
+        "Тактический перевес: наступающие успешно предугадали манёвр обороны"
+    } else if d_counters_a {
+        "Тактический перевес: защитники переиграли план атаки"
+    } else {
+        "Тактическое равновесие генералов: равная борьба замыслов"
+    };
+    let edge_tone = if a_counters_d || d_counters_a { super::super::kit::GOOD } else { super::super::kit::PLAIN };
+
+    super::super::kit::framed(ui, Some(edge_tone), false, |ui| {
+        ui.label(RichText::new(format!("Тактический поединок: «{}» против «{}»", a_tac.name, d_tac.name)).family(egui::FontFamily::Name("bold".into())).size(13.5).color(s.ink));
+        super::super::kit::words(ui, edge_text, 12.5, s.soft);
+    }).response.tip(|| {
         let mut c = Card::new("Тактика генералов").icon("compass");
         for (x, who) in [(0usize, "наступавшие"), (1, "оборонявшиеся")] {
             c = c.head(who);

@@ -488,10 +488,21 @@ impl MapView {
                 for &(off_back, off_side) in &[(0.0f32, 0.0f32), (7.0, 5.5)] {
                     let plane_p = lead_pos - dir * off_back + norm_v * off_side;
                     let shad_p = plane_p + vec2(7.0, 14.0);
+                    // Инверсионные следы от крыльев
+                    let trail_col = Color32::from_rgba_unmultiplied(228, 234, 242, 75);
+                    painter.line_segment([plane_p - dir * 4.2 - norm_v * 4.6, plane_p - dir * 15.0 - norm_v * 4.6], Stroke::new(0.85, trail_col));
+                    painter.line_segment([plane_p - dir * 4.2 + norm_v * 4.6, plane_p - dir * 15.0 + norm_v * 4.6], Stroke::new(0.85, trail_col));
                     for (base_pos, draw_col, w_thick) in [(shad_p, shad_col, 1.2), (plane_p, col, 1.6)] {
                         painter.line_segment([base_pos - dir * 4.2, base_pos + dir * 4.2], Stroke::new(w_thick * 1.1, draw_col));
                         painter.line_segment([base_pos - norm_v * 5.2, base_pos + norm_v * 5.2], Stroke::new(w_thick, draw_col));
                         painter.line_segment([base_pos - dir * 3.5 - norm_v * 2.5, base_pos - dir * 3.5 + norm_v * 2.5], Stroke::new(w_thick * 0.8, draw_col));
+                    }
+                    // Штурмовка позиций и трассы пулёмётно-пушечного огня при бое
+                    if is_fight && (t * 3.0 + off_back).sin() > 0.45 {
+                        let to_target = (p - plane_p).normalized();
+                        let fire_start = plane_p + to_target * 5.0;
+                        let fire_end = plane_p + to_target * 17.0;
+                        painter.line_segment([fire_start, fire_end], Stroke::new(1.1, Color32::from_rgb(255, 218, 90)));
                     }
                 }
             }

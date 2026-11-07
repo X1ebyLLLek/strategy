@@ -102,6 +102,7 @@ pub fn politics(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
             words(ui, format!("{} считает своими часть наших земель.", g.h.home(foe).name), 15.0, s.soft);
         }
         war_goals_guide(ui, s);
+        wars_chronicle(ui, s, g);
     }
     if page == 3 {
         head(ui, s, "Трудные решения");
@@ -300,6 +301,27 @@ pub fn war_controls(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             super::super::kit::words(ui, &stance_text, 13.0, s.ink);
         });
 
+        // Статьи мирного договора и дипломатические требования
+        super::super::kit::framed(ui, Some(super::super::kit::PLAIN), false, |ui| {
+            ui.label(RichText::new("Проект мирного соглашения:").family(egui::FontFamily::Name("bold".into())).size(12.5).color(s.ink));
+            let art1 = if took_from_foe > 0 || lost_to_foe > 0 {
+                format!("• Статья I (Рубежи): фактический фронт — нам отходит +{took_from_foe} пров., врагу +{lost_to_foe} пров.")
+            } else {
+                "• Статья I (Рубежи): взаимное признание довоенной границы (статус-кво)".into()
+            };
+            let art2 = if took_from_foe > lost_to_foe && my_wins > foe_wins {
+                "• Статья II (Репарации): вражеская казна обязуется компенсировать ущерб победителю"
+            } else if lost_to_foe > took_from_foe && foe_wins > my_wins {
+                "• Статья II (Репарации): бремя компенсации возлагается на побеждённого"
+            } else {
+                "• Статья II (Финансы): взаимный отказ сторон от денежных претензий"
+            };
+            let art3 = "• Статья III (Безопасность): 2 года перемирия, демилитаризация приграничной полосы";
+            ui.label(RichText::new(art1).size(12.0).color(s.soft));
+            ui.label(RichText::new(art2).size(12.0).color(s.soft));
+            ui.label(RichText::new(art3).size(12.0).color(s.soft));
+        });
+
         ui.add_space(3.0);
         let btn_label = if bot_takes {
             "Предложить мир (враг примет)"
@@ -424,5 +446,73 @@ fn war_goals_guide(ui: &mut egui::Ui, s: &Skin) {
             super::super::kit::words(ui, about, 12.0, s.soft);
         });
         resp.response.tip(|| Card::new(title).icon("flag").text(about));
+    }
+}
+
+
+/// The chronicle of past wars and peace treaties
+fn wars_chronicle(ui: &mut egui::Ui, s: &Skin, g: &Game) {
+    ui.add_space(6.0);
+    super::super::kit::ribbon(ui, "Летопись войн и мирных договоров", Some("scroll"));
+    let me = g.country(g.me);
+    let my_wars: Vec<&strategy::world::history::PastWar> = g.past.iter().rev().filter(|w| w.sides[0] == me || w.sides[1] == me).take(8).collect();
+    if my_wars.is_empty() {
+        words(ui, "Наша страна ещё не вела войн в обозримом прошлом.", 13.5, s.soft);
+        return;
+    }
+    for w in my_wars {
+        let is_side0 = w.sides[0] == me;
+        let my_idx = if is_side0 { 0 } else { 1 };
+        let foe_name = &w.names[1 - my_idx];
+        let (outcome_str, tone) = match w.winner {
+            Some(win) if win == my_idx => (if w.capitulated { "Победа (капитуляция врага)" } else { "Победа (мир на наших условиях)" }, super::super::kit::GOOD),
+            Some(_) => (if w.capitulated { "Поражение (наша капитуляция)" } else { "Поражение (тяжёлый мир)" }, super::super::kit::BAD),
+            None => ("Мир без победителя (статус-кво)", super::super::kit::PLAIN),
+        };
+        let tenure_str = if w.months <= 12 {
+            format!("{} мес.", w.months)
+        } else {
+            format!("{:.1} г.", w.months as f32 / 12.0)
+        };
+        let title = format!("Война против {} · {} год ({tenure_str})", foe_name, w.year);
+        let resp = super::super::kit::framed(ui, Some(tone), false, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(title).family(egui::FontFamily::Name("bold".into())).size(13.0).color(s.ink));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(RichText::new(outcome_str).family(egui::FontFamily::Name("bold".into())).size(12.0).color(tone));
+                });
+            });
+            let mut summary_parts = Vec::new();
+            summary_parts.push(format!("Сражений: {}", w.battles));
+            let took_by_me = w.took.iter().filter(|t| t.2 == my_idx).count();
+            let lost_by_me = w.took.iter().filter(|t| t.2 == 1 - my_idx).count();
+            if took_by_me > 0 {
+                summary_parts.push(format!("Присоединено земель: +{took_by_me}"));
+            }
+            if lost_by_me > 0 {
+                summary_parts.push(format!("Уступлено земель: -{lost_by_me}"));
+            }
+            if took_by_me == 0 && lost_by_me == 0 {
+                summary_parts.push("Границы сохранены без изменений".into());
+            }
+            super::super::kit::words(ui, summary_parts.join(" · "), 12.0, s.soft);
+        });
+        resp.response.tip(|| {
+            let mut c = Card::new(format!("Война против {}", foe_name))
+                .icon("scroll")
+                .sub(format!("{} год, длилась {tenure_str}", w.year))
+                .row("итог конфликта", outcome_str)
+                .row("крупных битв", w.battles.to_string());
+            if !w.took.is_empty() {
+                c = c.head("Условия территориального договора");
+                for (reg_id, reg_name, side) in &w.took {
+                    let who_took = if *side == my_idx { "отошла к нам" } else { "отошла к противнику" };
+                    c = c.row(format!("Область #{reg_id} ({reg_name:.1} млн чел.)"), who_took);
+                }
+            } else {
+                c = c.note("Мирный договор зафиксировал сохранение прежних государственных границ.");
+            }
+            c
+        });
     }
 }
