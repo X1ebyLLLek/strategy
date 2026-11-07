@@ -297,6 +297,12 @@ fn tab_icon(name: &str) -> &'static str {
         "coins"
     } else if t.contains("сводк") || t.contains("летопис") || t.contains("истори") {
         "scroll"
+    } else if t.contains("график") {
+        "chart"
+    } else if t.contains("причин") {
+        "pie"
+    } else if t.contains("прогноз") {
+        "forecast"
     } else if t.contains("корпус") || t.contains("дивизи") || t.contains("армия") {
         "army"
     } else if t.contains("снабжен") || t.contains("склад") {

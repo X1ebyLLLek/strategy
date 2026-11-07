@@ -63,6 +63,7 @@ pub(super) fn pages(tab: super::Tab) -> &'static [&'static str] {
         super::Tab::Science => &science::PAGES,
         super::Tab::Politics => &politics::PAGES,
         super::Tab::Society => &society::PAGES,
+        super::Tab::Ledger => &ledger::PAGES,
         super::Tab::News => &NEWS_PAGES,
         _ => &[],
     }

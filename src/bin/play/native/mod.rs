@@ -72,6 +72,7 @@ fn page_id(tab: Tab) -> egui::Id {
         Tab::Navy => 6,
         Tab::Science => 7,
         Tab::News => 8,
+        Tab::Ledger => 9,
         _ => 0,
     }))
 }

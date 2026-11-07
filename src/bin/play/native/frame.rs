@@ -359,6 +359,7 @@ impl App {
             ui.painter().galley(egui::pos2(x, y0 + th - 2.0), sg, s.desk_ink);
             let close_at = egui::Rect::from_center_size(egui::pos2(hr.max.x - 24.0, hr.center().y), egui::vec2(30.0, 28.0));
             let b = ui.put(close_at, |ui: &mut egui::Ui| chrome::press(ui, &ch, &s, chrome::Press { text: "×", size: egui::vec2(30.0, 28.0), font: 20.0, ..chrome::Press::default() }));
+            ui.advance_cursor_after_rect(hr);
             if b.tip(|| Card::new("Закрыть папку").text("Esc — то же самое; карта займёт всё окно.")).clicked() {
                 close = true;
             }
@@ -392,7 +393,7 @@ impl App {
                 Tab::News => panels::news(ui, &s, g, page),
                 Tab::People => panels::persons(ui, &s, g),
                 Tab::Society => panels::society(ui, &s, g, page),
-                Tab::Ledger => panels::ledger(ui, &s, g),
+                Tab::Ledger => panels::ledger(ui, &s, g, page),
                 Tab::Battle(i) => panels::battle(ui, &s, g, i),
             });
         });

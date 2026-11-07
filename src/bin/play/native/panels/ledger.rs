@@ -12,8 +12,19 @@ use super::*;
 use super::super::charts;
 use super::super::kit::{self, Stat};
 
+pub const PAGES: [&str; 4] = ["Казна", "Графики", "Причины", "Прогноз"];
+
 /// The folder of the ledger.
-pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
+pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
+    match page {
+        0 => page_treasury(ui, s, g),
+        1 => page_charts(ui, s, g),
+        2 => page_causes(ui, s, g),
+        3 | _ => page_forecast(ui, s, g),
+    }
+}
+
+fn page_treasury(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     let me = g.me;
     let Some(last) = g.rows.last().cloned() else { return };
     let b = last.book[me];
@@ -82,8 +93,11 @@ pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     for (r, (name, x, _, what)) in rs.into_iter().zip(outs.iter()) {
         r.tip(|| Card::new(name.clone()).row("за месяц", charts::num(*x)).row("доля расходов", charts::pct(*x / out.max(1e-9))).text(*what));
     }
-    // the charts
-    kit::ribbon(ui, "Графики", Some("chart"));
+}
+
+fn page_charts(ui: &mut egui::Ui, _s: &Skin, g: &mut Game) {
+    let me = g.me;
+    kit::ribbon(ui, "Графики развития", Some("chart"));
     let pick_id = egui::Id::new("ledger-chart");
     let picked: usize = ui.ctx().data(|d| d.get_temp(pick_id)).unwrap_or(0);
     let names = ["Хозяйство", "Казна", "Власть", "Наука и армия", "Силы общества"];
@@ -142,7 +156,10 @@ pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             charts::plot(ui, "Настроения сил общества (−100…+100)", &lines, &months, 190.0, &|x| format!("{x:+.0}"));
         }
     }
-    // where the multipliers come from
+}
+
+fn page_causes(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
+    let me = g.me;
     kit::ribbon(ui, "Откуда что берётся", Some("pie"));
     kit::words(ui, "Каждый множитель страны — произведение всех причин. Раскройте строку: видно, что именно и насколько его двигает.", 12.5, s.soft);
     let parts = g.eff_sources(me);
@@ -164,7 +181,8 @@ pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
         let mut items: Vec<(String, f32)> = parts.iter().map(|(w, e)| (w.clone(), get(e))).filter(|x| (x.1 - 1.0).abs() >= 0.004).collect();
         items.sort_by(|a, b| (b.1 - 1.0).abs().total_cmp(&(a.1 - 1.0).abs()));
         let good = (t >= 1.0) == up_good;
-        egui::CollapsingHeader::new(RichText::new(format!("{name}: {}", charts::delta(t))).size(13.5).color(if (t - 1.0).abs() < 0.004 { s.ink } else if good { kit::GOOD } else { kit::BAD }))
+        let c = if (t - 1.0).abs() < 0.004 { s.ink } else if good { kit::ink(s, kit::GOOD) } else { kit::ink(s, kit::BAD) };
+        egui::CollapsingHeader::new(RichText::new(format!("{name}: {}", charts::delta(t))).size(13.5).color(c))
             .id_salt(("eff", name))
             .show(ui, |ui| {
                 if items.is_empty() {
@@ -172,7 +190,7 @@ pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
                 }
                 for (w, x) in items {
                     ui.horizontal(|ui| {
-                        let c = if (x >= 1.0) == up_good { kit::GOOD } else { kit::BAD };
+                        let c = if (x >= 1.0) == up_good { kit::ink(s, kit::GOOD) } else { kit::ink(s, kit::BAD) };
                         kit::bold(ui, charts::delta(x), 12.5, c);
                         kit::words(ui, w, 12.5, s.ink);
                     });
@@ -182,19 +200,22 @@ pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     {
         let stab: Vec<(String, f32)> = parts.iter().map(|(w, e)| (w.clone(), e.stability)).filter(|x| x.1.abs() >= 0.0003).collect();
         let t = total.stability;
-        egui::CollapsingHeader::new(RichText::new(format!("Устойчивость власти: {:+.0} пунктов", t * 2000.0)).size(13.5).color(if t >= 0.0 { kit::GOOD } else { kit::BAD })).id_salt("eff-stab").show(ui, |ui| {
+        let sc = if t >= 0.0 { kit::ink(s, kit::GOOD) } else { kit::ink(s, kit::BAD) };
+        egui::CollapsingHeader::new(RichText::new(format!("Устойчивость власти: {:+.0} пунктов", t * 2000.0)).size(13.5).color(sc)).id_salt("eff-stab").show(ui, |ui| {
             let mut stab = stab;
             stab.sort_by(|a, b| b.1.abs().total_cmp(&a.1.abs()));
             for (w, x) in stab {
                 ui.horizontal(|ui| {
-                    kit::bold(ui, format!("{:+.0}", x * 2000.0), 12.5, if x >= 0.0 { kit::GOOD } else { kit::BAD });
+                    kit::bold(ui, format!("{:+.0}", x * 2000.0), 12.5, if x >= 0.0 { kit::ink(s, kit::GOOD) } else { kit::ink(s, kit::BAD) });
                     kit::words(ui, w, 12.5, s.ink);
                 });
             }
             kit::words(ui, "пункты — куда со временем придёт устойчивость от этой причины (из 100)", 12.0, s.soft);
         });
     }
-    // the forecast
+}
+
+fn page_forecast(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
     kit::ribbon(ui, "Прогноз: что будет через год, если…", Some("forecast"));
     kit::words(ui, "Тот же мир проживается на 12 месяцев вперёд — с решением и без него. Сосед, рынок и случай тоже живут: это сама игра, а не формула; только войны в ней не начинаются — военное положение перекрыло бы любое решение. Числа — разница с «ничего не менять».", 12.5, s.soft);
     let f = forecast::state();
@@ -215,18 +236,24 @@ pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
             kit::words(ui, format!("Посчитано за {secs:.0} с."), 12.0, s.soft);
         }
         let base = rows_f[0].clone();
-        egui::Grid::new("forecast-grid").striped(true).spacing(vec2(8.0, 3.0)).show(ui, |ui| {
-            for h in ["решение", "выпуск", "казна", "народ", "власть", "наука", "армия"] {
+        // High-contrast ink on paper (WCAG contrast > 5.0)
+        let good_ink = Color32::from_rgb(28, 92, 22);
+        let bad_ink = Color32::from_rgb(148, 28, 20);
+
+        egui::Grid::new("forecast-grid").spacing(vec2(4.0, 3.0)).show(ui, |ui| {
+            for h in ["решение", "выпуск", "казна", "народ", "власть", "наука", "войско"] {
                 ui.label(RichText::new(h).size(12.0).color(s.soft));
             }
             ui.end_row();
             for o in &rows_f {
                 let first = o.name == base.name;
-                let r = ui.label(RichText::new(&o.name).size(12.5).color(s.ink));
+                let mut job = egui::text::LayoutJob::simple_singleline(o.name.clone(), egui::FontId::new(12.0, egui::FontFamily::Proportional), s.ink);
+                job.wrap = egui::text::TextWrapping::truncate_at_width(82.0);
+                let r = ui.label(job);
                 r.tip(|| Card::new(o.name.clone()).icon("forecast").text(o.about.clone()).row("выпуск через год", charts::num(o.gdp)).row("казна", charts::num(o.treasury)).row("недовольство", format!("{:.2}", o.anger)).row("устойчивость", format!("{:.0}", o.stability * 100.0)).row("законность", format!("{:.0}", o.legit * 100.0)).row("смута", format!("{:.0}", o.unrest * 100.0)).row("техник знает", format!("{:.0}", o.techs)).row("дивизий", format!("{:.0}", o.army)).row("цены", format!("×{:.2}", o.level)));
                 let cell = |ui: &mut egui::Ui, d: f32, text: String, up_good: bool| {
-                    let col = if first || d.abs() < 1e-3 { s.ink } else if (d > 0.0) == up_good { kit::GOOD } else { kit::BAD };
-                    ui.label(RichText::new(text).size(12.5).color(col));
+                    let col = if first || d.abs() < 1e-3 { s.ink } else if (d > 0.0) == up_good { good_ink } else { bad_ink };
+                    ui.label(RichText::new(text).size(12.0).color(col));
                 };
                 if first {
                     cell(ui, 0.0, charts::num(o.gdp), true);
@@ -252,6 +279,6 @@ pub fn ledger(ui: &mut egui::Ui, s: &Skin, g: &mut Game) {
                 ui.end_row();
             }
         });
-        kit::words(ui, "Выпуск и наука — в процентах к «ничего не менять»; казна, дивизии — разница; народ — недовольство (меньше — лучше); власть — устойчивость из 100.", 12.0, s.soft);
+        kit::words(ui, "Выпуск и наука — в % к «ничего не менять»; казна, войско — разница; народ — недовольство; власть — устойчивость из 100.", 12.0, s.soft);
     }
 }
