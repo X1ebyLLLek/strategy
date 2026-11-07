@@ -269,6 +269,29 @@ impl Campaign {
                     }
                 }
             }
+            // artillery preparation barrage: shatters defender field trenches in opening days
+            if f.days <= 3 {
+                let mut arty_fire = 0.0f32;
+                for j in 0..fu[0].len() {
+                    for u in 0..nu {
+                        if units[u].line == Line::Support || units[u].line == Line::Air {
+                            arty_fire += fu[0][j][u] * units[u].fire.iter().sum::<f32>() * norm::fire(qk[0][j][u]);
+                        }
+                    }
+                }
+                if arty_fire > 0.4 {
+                    let dug_erosion = (arty_fire * 0.012).min(0.08);
+                    for &dj in &sides[1] {
+                        c.divs[dj].dug = (c.divs[dj].dug - dug_erosion).max(0.0);
+                    }
+                }
+            }
+            // encircled troops bleed extra organization from lack of resupply
+            if reach[o][q] == NO {
+                for &dj in &sides[1] {
+                    c.divs[dj].org *= 0.97;
+                }
+            }
             // the harm spread over each side's divisions by the fire they draw: the defender's
             // ground and trenches keep part of it off; it kills some and wears out more
             for x in 0..2 {
@@ -289,6 +312,21 @@ impl Campaign {
                         let side_harm = mods[x].harm * tac_harm(x);
                         if side_harm != 1.0 {
                             h *= side_harm;
+                        }
+                        // tank shock: unpierced armor inflicts extra demoralization / fatigue on infantry
+                        if x == 1 && units[u].armor <= 0.0 && armoured {
+                            let att_armor = (0..nu).filter(|&au| fu[0].iter().any(|v| v[au] > 0.05)).map(|au| units[au].armor).fold(0.0f32, f32::max);
+                            let def_pierce = (0..nu).filter(|&du| fu[1].iter().any(|v| v[du] > 0.05)).map(|du| units[du].pierce).fold(0.0f32, f32::max);
+                            if att_armor > def_pierce {
+                                h *= 1.12;
+                            }
+                        }
+                        // anti-tank guns punishing attacking armor
+                        if x == 0 && units[u].armor > 0.0 {
+                            let def_pierce = (0..nu).filter(|&du| fu[1].iter().any(|v| v[du] > 0.05)).map(|du| units[du].pierce).fold(0.0f32, f32::max);
+                            if def_pierce >= units[u].armor {
+                                h *= 1.18;
+                            }
                         }
                         if x == 1 {
                             let cov = units[u].cover.clamp(0.0, 1.0);

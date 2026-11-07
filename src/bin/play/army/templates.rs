@@ -68,22 +68,73 @@ pub fn starters(pack: &Pack) -> Vec<Template> {
     let plain = front.iter().copied().min_by(|&a, &b| (u[a].cost / u[a].width.max(0.1)).total_cmp(&(u[b].cost / u[b].width.max(0.1))));
     let heavy = front.iter().copied().filter(|&k| Some(k) != plain).max_by(|&a, &b| u[a].toughness.total_cmp(&u[b].toughness));
     let support = (0..n).filter(|&k| u[k].line == Line::Support).max_by(|&a, &b| (u[a].fire[0] / u[a].cost).total_cmp(&(u[b].fire[0] / u[b].cost)));
+    let tank = (0..n).find(|&k| u[k].armor > 0.0);
+    let at = (0..n).find(|&k| u[k].id.contains("antitank") || (u[k].pierce >= 3.0 && u[k].armor == 0.0));
+
+    let sup_eng = pack.support.iter().position(|s| s.dig > 1.2 || s.id == "engineers");
+    let sup_rec = pack.support.iter().position(|s| s.see > 0.0 || s.id == "recon");
+    let sup_tr = pack.support.iter().position(|s| s.eat < 0.9 || s.id == "transport");
+    let sup_sig = pack.support.iter().position(|s| s.org > 1.1 || s.id == "signals");
+    let sup_rep = pack.support.iter().position(|s| s.salvage > 0.2 || s.id == "repair");
+    let sup_med = pack.support.iter().position(|s| s.saved > 0.1 || s.id == "hospital");
+
     let mut out = Vec::new();
     if let Some(p) = plain {
+        // 1. Линейная дивизия: надежный костяк фронта, саперы для окопов, разведка
         let mut bat = vec![0u32; n];
         bat[p] = 9;
         if let Some(s) = support {
             bat[s] = 2;
         }
-        out.push(Template::new("Линейная дивизия", bat, 1.0));
-        if let Some(h) = heavy {
+        let mut t_line = Template::new("Линейная дивизия", bat, 1.0);
+        if let Some(s) = sup_eng { t_line.support.push(s); }
+        if let Some(s) = sup_rec { t_line.support.push(s); }
+        out.push(t_line);
+
+        // 2. Ударно-прорывная дивизия: тяжелый огонь, штурм укреплений
+        let mut bat = vec![0u32; n];
+        bat[p] = 7;
+        if let Some(s) = support {
+            bat[s] = 3;
+        }
+        if let Some(h) = heavy.filter(|&h| h != p) {
+            bat[h] = 2;
+        } else if let Some(a) = at {
+            bat[a] = 1;
+        }
+        let mut t_shock = Template::new("Ударная дивизия", bat, 0.5);
+        if let Some(s) = sup_eng { t_shock.support.push(s); }
+        if let Some(s) = sup_sig { t_shock.support.push(s); }
+        if let Some(s) = sup_med { t_shock.support.push(s); }
+        out.push(t_shock);
+
+        // 3. Бронетанковая дивизия: танки, маневр, охват и прорыв (если есть танки)
+        if let Some(tk) = tank {
             let mut bat = vec![0u32; n];
-            bat[h] = 5;
+            bat[tk] = 5;
             bat[p] = 4;
             if let Some(s) = support {
                 bat[s] = 1;
             }
-            out.push(Template::new("Ударная дивизия", bat, 0.5));
+            let mut t_tank = Template::new("Бронетанковая дивизия", bat, 0.5);
+            if let Some(s) = sup_tr { t_tank.support.push(s); }
+            if let Some(s) = sup_rep { t_tank.support.push(s); }
+            if let Some(s) = sup_rec { t_tank.support.push(s); }
+            out.push(t_tank);
+        }
+
+        // 4. Оборонительный рубеж (если есть ПТО)
+        if let Some(a) = at.filter(|&a| Some(a) != tank && a != p) {
+            let mut bat = vec![0u32; n];
+            bat[p] = 8;
+            bat[a] = 2;
+            if let Some(s) = support {
+                bat[s] = 1;
+            }
+            let mut t_def = Template::new("Оборонительный рубеж", bat, 0.2);
+            if let Some(s) = sup_eng { t_def.support.push(s); }
+            if let Some(s) = sup_med { t_def.support.push(s); }
+            out.push(t_def);
         }
     }
     out

@@ -264,6 +264,21 @@ fn combat(ui: &mut egui::Ui, g: &Game, e: &Edit) {
             c
         });
     }
+
+    // Doctrinal role appraisal and tactical purpose
+    let (role, role_tip) = if hardness > 0.3 {
+        ("Бронетанковый клин (прорыв фронта, подвижный охват)", "Высокая броня и скорость: сокрушает пехотные позиции при слабом ПТО у врага. Требует снабжения топливом и запчастями.")
+    } else if breakthrough > defence * 1.15 {
+        ("Ударно-штурмовой корпус (взлом эшелонированной обороны)", "Концентрированный огонь: ломает окопы и укрепления. Дороже в содержании, требует обильных поставок снарядов.")
+    } else if pierce > 2.5 && defence >= breakthrough {
+        ("Противотанковый рубеж (сдерживание бронетехники)", "Насыщен противотанковыми средствами: защищает стратегические узлы от танковых атак соседа.")
+    } else {
+        ("Линейная оборона (костяк фронта)", "Дешевое удержание протяженного рубежа: быстро окапывается, минимальная нагрузка на снабжение.")
+    };
+    ui.add_space(3.0);
+    let s = chrome::skin(ui.ctx());
+    let r_role = ui.label(RichText::new(format!("НАЗНАЧЕНИЕ: {role}")).size(12.5).color(s.soft));
+    r_role.tip(|| Card::new("Назначение шаблона").icon("compass").text(role_tip.to_string()));
 }
 
 /// (the battalions' goods are counted per battalion of each kind)

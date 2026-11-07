@@ -177,6 +177,9 @@ pub fn battle(ui: &mut egui::Ui, s: &Skin, g: &Game, i: usize) {
         if f.captured > 0.005 {
             ui.label(RichText::new(format!("Отступая, оборонявшиеся бросили снаряжение: победители подобрали его на {}.", trophy_words(f.captured))).size(14.0).color(s.ink));
         }
+        if f.cut {
+            ui.label(RichText::new("Окружение: пути подвоза были отрезаны — отрезанные части потеряли снабжение и массово сдавались в плен.").size(13.5).color(s.accent));
+        }
         tactics(ui, s, f);
         losses(ui, s, g, f, &col);
         armour(ui, s, g, f);
@@ -272,6 +275,11 @@ fn armour(ui: &mut egui::Ui, s: &Skin, g: &Game, f: &strategy::military::front::
         if !thick.is_empty() {
             let who = if x == 0 { "наступавших" } else { "оборонявшихся" };
             let line = format!("Броня {who} ({}) оказалась не по зубам врагу: большая часть его огня отскакивала.", thick.join(", "));
+            ui.label(RichText::new(line).size(13.5).color(s.ink));
+        }
+        let pierced: Vec<&str> = (0..nu).filter(|&u| has(x, u) && pack.units[u].armor > 0.0 && pierce >= pack.units[u].armor).map(|u| pack.units[u].name.as_str()).collect();
+        if !pierced.is_empty() && x == 0 {
+            let line = format!("Противотанковая оборона: орудия защитников уверенно пробивали броню ({}), сбивая наступательный порыв.", pierced.join(", "));
             ui.label(RichText::new(line).size(13.5).color(s.ink));
         }
     }

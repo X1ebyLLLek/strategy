@@ -101,6 +101,7 @@ pub fn politics(ui: &mut egui::Ui, s: &Skin, g: &mut Game, page: usize) {
         if g.state.grudge[foe] {
             words(ui, format!("{} считает своими часть наших земель.", g.h.home(foe).name), 15.0, s.soft);
         }
+        war_goals_guide(ui, s);
     }
     if page == 3 {
         head(ui, s, "Трудные решения");
@@ -309,4 +310,22 @@ fn rival_sheet(ui: &mut egui::Ui, s: &Skin, g: &Game) {
     kit::stats(ui, &items, 2);
     ui.add_space(4.0);
     say(ui, s, if g.h.at_war { "Слабость соперника — повод для наступления, но [supply]{снабжение} решает больше, чем число." } else { "Прежде чем обосновывать [claim]{цель войны}, сверьте хозяйство и власть соперника с нашими." });
+}
+
+fn war_goals_guide(ui: &mut egui::Ui, s: &Skin) {
+    ui.add_space(4.0);
+    super::super::kit::ribbon(ui, "Зачем и как воевать: стратегия", Some("flag"));
+    let goals = [
+        ("Сырьевой суверенитет", "Захват месторождений угля, руды и нефти: без сырья заводы встают, а танки замирают без топлива."),
+        ("Подрыв военной машины", "Захват промышленных центров соседа лишает его армию пополнения снаряжением."),
+        ("Контрибуции и рынки", "Разгром врага принуждает его платить ежемесячную дань (до 4% бюджета) и открывает пути без пошлин."),
+        ("Исторический реванш", "Возврат утраченных земель укрепляет власть и снимает народное недовольство."),
+    ];
+    for (title, about) in goals {
+        let resp = ui.vertical(|ui| {
+            ui.label(RichText::new(format!("• {title}")).family(egui::FontFamily::Name("bold".into())).size(12.5).color(s.ink));
+            super::super::kit::words(ui, about, 12.0, s.soft);
+        });
+        resp.response.tip(|| Card::new(title).icon("flag").text(about));
+    }
 }

@@ -175,7 +175,18 @@ impl Game {
                 continue;
             }
             let r = self.polity.of.get(c).map_or(polity::Regime::Autocracy, |p| p.regime);
-            let duty: Vec<f32> = (0..nk).map(|k| duty_of(&self.pack, r, k)).collect();
+            let mut duty: Vec<f32> = (0..nk).map(|k| duty_of(&self.pack, r, k)).collect();
+            // Hostile or embargo stance: high duties on strategic goods (weapons, ammo, fuel, steel, raw materials)
+            for s in 0..2 {
+                let me_c = pair[s];
+                if self.diplo.of(c, me_c) < -0.35 || self.rel.cuts.contains(&(c, me_c)) || self.rel.cuts.contains(&(me_c, c)) {
+                    for (k, g) in self.pack.goods.iter().enumerate() {
+                        if g.military || g.id == "fuel" || g.id == "steel" || g.id == "ore" || g.id == "coal" {
+                            duty[k] = duty[k].max(0.40);
+                        }
+                    }
+                }
+            }
             self.h.world.nations[c].duty = duty;
         }
     }
