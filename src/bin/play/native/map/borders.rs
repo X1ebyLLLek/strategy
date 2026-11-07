@@ -69,7 +69,7 @@ impl MapView {
         let mut countries: Vec<Vec<Pos2>> = Vec::new();
         // the front: a thick live line along where the armies meet, ours on our side (green),
         // the enemy's on his (red), light running along it (at every zoom)
-        let mut front: Vec<(Vec<Pos2>, bool, usize, bool)> = Vec::new();
+        let mut front: Vec<(Vec<Pos2>, bool, usize, bool, f32, f32, f32, f32)> = Vec::new();
         let lab = war.group_of(g.me);
         let mut lit_border: Vec<(Vec<Pos2>, bool, usize, bool)> = Vec::new();
         let all_groups = self.mode == Mode::Armies;
@@ -118,9 +118,19 @@ impl MapView {
                 // (the chain's right-hand province on the screen is its `l`: our colour on our side;
                 // the group whose stretch it is, if it is lit)
                 let ours = if shown(*l).1 as usize == g.me { *l } else { *r };
+                let foe = if shown(*l).1 as usize == g.me { *r } else { *l };
                 let q = th.at.get(ours as usize).copied().unwrap_or(NO);
+                let q_foe = th.at.get(foe as usize).copied().unwrap_or(NO);
                 let k = if q != NO { lab.get(q as usize).copied().unwrap_or(usize::MAX) } else { usize::MAX };
-                front.push((line, shown(*l).1 as usize != g.me, k, k != usize::MAX && strong(k)));
+                let fort_ours = if q != NO { war.fort.get(q as usize).copied().unwrap_or(0.0) } else { 0.0 };
+                let fort_foe = if q_foe != NO { war.fort.get(q_foe as usize).copied().unwrap_or(0.0) } else { 0.0 };
+                let dug_ours = if q != NO {
+                    war.corps.as_ref().map_or(0.0, |c| c.divs.iter().filter(|d| d.side == g.me && d.at == q as usize).map(|d| d.dug).fold(0.0f32, f32::max))
+                } else { 0.0 };
+                let dug_foe = if q_foe != NO {
+                    war.corps.as_ref().map_or(0.0, |c| c.divs.iter().filter(|d| d.side != g.me && d.at == q_foe as usize).map(|d| d.dug).fold(0.0f32, f32::max))
+                } else { 0.0 };
+                front.push((line, shown(*l).1 as usize != g.me, k, k != usize::MAX && strong(k), fort_ours, fort_foe, dug_ours, dug_foe));
                 continue;
             }
             let mut halo = false;
@@ -228,7 +238,8 @@ impl MapView {
             painter.add(egui::Shape::line(side.clone(), Stroke::new(2.0 * half + 3.0, Color32::from_black_alpha(130))));
             painter.add(egui::Shape::line(side, Stroke::new(2.0 * half, HUES[*k % HUES.len()].gamma_multiply(glow))));
         }
-        for (line, ours_left, k, strong) in &front {
+        let ramp_close = ((self.k - 1.15) / 1.05).clamp(0.0, 1.0);
+        for (line, ours_left, k, strong, fort_ours, fort_theirs, dug_ours, dug_theirs) in &front {
             if line.len() < 2 {
                 continue;
             }
@@ -248,12 +259,12 @@ impl MapView {
             };
             let (ours, theirs) = if *ours_left { (side(0.7 * half), side(-0.8 * half)) } else { (side(-0.7 * half), side(0.8 * half)) };
             painter.add(egui::Shape::line(line.clone(), Stroke::new(2.9 * half + 1.0, Color32::from_black_alpha(105))));
-            painter.add(egui::Shape::line(theirs, Stroke::new(1.5 * half, Color32::from_rgb(214, 52, 40))));
+            painter.add(egui::Shape::line(theirs.clone(), Stroke::new(1.5 * half, Color32::from_rgb(214, 52, 40))));
             match hue {
                 // (a group's stretch, not chosen: our side as any of ours — the armies' colours only
                 // for the chosen, else the front is a tangle of colours)
                 Some(_) if !*strong => {
-                    painter.add(egui::Shape::line(ours, Stroke::new(0.95 * half, Color32::from_rgb(110, 176, 86))));
+                    painter.add(egui::Shape::line(ours.clone(), Stroke::new(0.95 * half, Color32::from_rgb(110, 176, 86))));
                 }
                 Some(c) => {
                     let wide = if *ours_left { side(2.0 * half) } else { side(-2.0 * half) };
@@ -262,11 +273,81 @@ impl MapView {
                     painter.add(egui::Shape::line(wide, Stroke::new(3.0 * half, c.gamma_multiply(glow))));
                 }
                 None => {
-                    painter.add(egui::Shape::line(ours, Stroke::new(0.95 * half, Color32::from_rgb(110, 176, 86))));
+                    painter.add(egui::Shape::line(ours.clone(), Stroke::new(0.95 * half, Color32::from_rgb(110, 176, 86))));
                 }
             }
             // (light running along it: the front is alive)
             painter.extend(egui::Shape::dashed_line_with_offset(line, Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 236, 170, 70)), &[6.0], &[18.0], (t * 14.0) % 24.0));
+
+            // Линии окопов, бастионов и дотов на рельефе карты
+            if ramp_close > 0.01 {
+                let draw_fort_line = |_pts: &[Pos2], sgn: f32, fort_lvl: f32, dug_lvl: f32, friendly: bool| {
+                    if fort_lvl <= 0.01 && dug_lvl <= 0.15 {
+                        return;
+                    }
+                    let t_line = side(sgn * 2.5 * half);
+                    let trench_a = (ramp_close * (if fort_lvl > 0.01 { 1.0 } else { (dug_lvl * 1.5).min(1.0) })).clamp(0.0, 1.0);
+                    // Земляной ров окопа
+                    let ditch_col = if friendly { Color32::from_rgba_unmultiplied(42, 36, 26, (215.0 * trench_a) as u8) } else { Color32::from_rgba_unmultiplied(46, 32, 28, (215.0 * trench_a) as u8) };
+                    painter.add(egui::Shape::line(t_line.clone(), Stroke::new(2.4 * half, ditch_col)));
+                    // Деревянные мостки и настил на дне окопа
+                    let revet_col = Color32::from_rgba_unmultiplied(92, 76, 52, (185.0 * trench_a) as u8);
+                    painter.add(egui::Shape::line(t_line.clone(), Stroke::new(0.85 * half, revet_col)));
+
+                    // Зубчатые траверсы и капониры вдоль траншеи
+                    if t_line.len() >= 3 {
+                        for i in (1..t_line.len() - 1).step_by(2) {
+                            let p = t_line[i];
+                            let prev = t_line[i - 1];
+                            let next = t_line[i + 1];
+                            let d = (next - prev).normalized();
+                            let norm_spur = vec2(d.y, -d.x) * (sgn.signum() * 3.6 * half);
+                            painter.line_segment([p, p + norm_spur], Stroke::new(1.8 * half, ditch_col));
+                            painter.line_segment([p, p + norm_spur * 0.85], Stroke::new(0.75 * half, revet_col));
+                        }
+                    }
+
+                    // Железобетонные ДОТы и бастионы укрепрайона
+                    if fort_lvl > 0.01 {
+                        let step_pts = if t_line.len() > 6 { vec![t_line[t_line.len() / 3], t_line[t_line.len() * 2 / 3]] } else { vec![t_line[t_line.len() / 2]] };
+                        for b_pos in step_pts {
+                            let b_r = (3.6 + 1.2 * fort_lvl.min(1.0)) * half;
+                            // Мягкая тень на земле
+                            painter.circle_filled(b_pos + vec2(0.5, 1.2), b_r + 1.0, Color32::from_black_alpha((130.0 * trench_a) as u8));
+                            // Бетонный купол ДОТа / бастиона
+                            let conc_col = if friendly { Color32::from_rgb(118, 122, 114) } else { Color32::from_rgb(128, 118, 114) };
+                            painter.circle_filled(b_pos, b_r, conc_col);
+                            painter.circle_stroke(b_pos, b_r, Stroke::new(1.0, Color32::from_rgb(58, 62, 58)));
+                            // Орудийная / пулеметная амбразура
+                            let slit_w = vec2(-sgn.signum() * 1.5, 0.0);
+                            painter.line_segment([b_pos + slit_w - vec2(0.0, 1.6), b_pos + slit_w + vec2(0.0, 1.6)], Stroke::new(1.3, Color32::from_rgb(18, 16, 14)));
+                            // Бронебашня для II ступени укреплений
+                            if fort_lvl >= 0.45 {
+                                painter.circle_filled(b_pos, b_r * 0.48, Color32::from_rgb(52, 55, 54));
+                                painter.circle_stroke(b_pos, b_r * 0.48, Stroke::new(0.8, Color32::from_rgb(32, 34, 33)));
+                            }
+                        }
+
+                        // Противотанковые надолбы (зубы дракона)
+                        let teeth_line = side(sgn * 1.4 * half);
+                        if teeth_line.len() >= 2 {
+                            for i in (0..teeth_line.len()).step_by(2) {
+                                let tp = teeth_line[i];
+                                let tw = 1.6 * half;
+                                painter.add(egui::Shape::convex_polygon(
+                                    vec![tp - vec2(tw, 0.0), tp + vec2(0.0, -tw * 1.3), tp + vec2(tw, 0.0)],
+                                    Color32::from_rgba_unmultiplied(148, 150, 144, (200.0 * trench_a) as u8),
+                                    Stroke::new(0.6, Color32::from_black_alpha(150)),
+                                ));
+                            }
+                        }
+                    }
+                };
+
+                let sgn_ours = if *ours_left { 1.0 } else { -1.0 };
+                draw_fort_line(&line, sgn_ours, *fort_ours, *dug_ours, true);
+                draw_fort_line(&line, -sgn_ours, *fort_theirs, *dug_theirs, false);
+            }
         }
     }
 

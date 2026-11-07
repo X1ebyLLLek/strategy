@@ -276,6 +276,53 @@ impl MapView {
             fights.push((plate.expand(4.0), i));
         }
         drop(fights);
+        // Аэродромы: полевые взлетно-посадочные полосы в провинциях базирования авиации
+        let pack = &g.pack;
+        let nu = pack.units.len();
+        let air_units: Vec<usize> = (0..nu).filter(|&u| pack.units[u].line == Line::Air).collect();
+        if !air_units.is_empty() {
+            let mut air_provs: Vec<(usize, usize, f32)> = Vec::new();
+            for d in &c.divs {
+                let planes: f32 = air_units.iter().map(|&u| d.has.get(u).copied().unwrap_or(0.0)).sum();
+                if planes > 0.05 {
+                    if let Some(entry) = air_provs.iter_mut().find(|x| x.0 == d.at && x.1 == d.side) {
+                        entry.2 += planes;
+                    } else {
+                        air_provs.push((d.at, d.side, planes));
+                    }
+                }
+            }
+            let air_zoom = ((self.k - 1.25) / 1.05).clamp(0.0, 1.0);
+            if air_zoom > 0.01 {
+                for &(q, _s, _n_planes) in &air_provs {
+                    let center = at(q) + vec2(16.0, 14.0);
+                    if !on_screen(center) {
+                        continue;
+                    }
+                    let (rw_l, rw_w) = (22.0, 5.0);
+                    let (dir_x, dir_y) = (0.91f32, 0.41f32);
+                    let (nx, ny) = (-dir_y, dir_x);
+                    let p0 = center - vec2(dir_x, dir_y) * (rw_l * 0.5);
+                    let p1 = center + vec2(dir_x, dir_y) * (rw_l * 0.5);
+                    let corn = |pt: Pos2, s: f32| pt + vec2(nx, ny) * (rw_w * 0.5 * s);
+                    // Взлетно-посадочная полоса
+                    painter.add(egui::Shape::convex_polygon(
+                        vec![corn(p0, -1.0), corn(p1, -1.0), corn(p1, 1.0), corn(p0, 1.0)],
+                        Color32::from_rgba_unmultiplied(68, 72, 60, (210.0 * air_zoom) as u8),
+                        Stroke::new(1.0, Color32::from_rgba_unmultiplied(42, 45, 38, (180.0 * air_zoom) as u8)),
+                    ));
+                    // Осевая разметка ВПП
+                    painter.line_segment([p0 + vec2(dir_x, dir_y) * 2.0, p1 - vec2(dir_x, dir_y) * 2.0], Stroke::new(1.0, Color32::from_rgba_unmultiplied(220, 222, 210, (180.0 * air_zoom) as u8)));
+                    // Ангар для обслуживания самолетов
+                    let h_center = center + vec2(nx, ny) * 7.5;
+                    painter.rect_filled(Rect::from_center_size(h_center, vec2(6.5, 4.5)), 1.5, Color32::from_rgba_unmultiplied(85, 92, 75, (220.0 * air_zoom) as u8));
+                    // Ветроуказатель
+                    let sock_base = center - vec2(dir_x, dir_y) * (rw_l * 0.5 + 2.0) + vec2(nx, ny) * 3.5;
+                    painter.line_segment([sock_base, sock_base + vec2(0.0, -4.5)], Stroke::new(1.2, Color32::from_rgb(220, 220, 220)));
+                    painter.line_segment([sock_base + vec2(0.0, -4.5), sock_base + vec2(3.5, -3.5)], Stroke::new(1.4, Color32::from_rgb(225, 90, 40)));
+                }
+            }
+        }
         // the stacks: a side's that would sit on each other merged into the larger (as HOI4's
         // counters gather when the map is seen from further), then moved apart
         let mut list = stacks(g, picked);
@@ -403,6 +450,50 @@ impl MapView {
                 }
             } else {
                 foes.push((r, s.q));
+            }
+        }
+        // Тактические звенья авиации в воздухе над зонами боев и патрулирования
+        if !air_units.is_empty() {
+            let mut air_zones: Vec<(Pos2, usize, bool)> = Vec::new();
+            for f in &c.fights {
+                let has_air_f = (0..2).any(|side| {
+                    f.kinds[side].iter().enumerate().any(|(u, &amt)| amt > 0.05 && pack.units[u].line == Line::Air)
+                });
+                if has_air_f {
+                    let p = at(f.at);
+                    if on_screen(p) {
+                        air_zones.push((p, f.side, true));
+                    }
+                }
+            }
+            for d in &c.divs {
+                let has_planes = air_units.iter().any(|&u| d.has.get(u).copied().unwrap_or(0.0) > 0.1);
+                if has_planes {
+                    let p = at(d.at);
+                    if on_screen(p) && !air_zones.iter().any(|z| (z.0.x - p.x).abs() < 24.0 && (z.0.y - p.y).abs() < 24.0) {
+                        air_zones.push((p, d.side, false));
+                    }
+                }
+            }
+            for (idx, &(p, side, is_fight)) in air_zones.iter().enumerate() {
+                let ang = t * (if is_fight { 0.95 } else { 0.55 }) + idx as f32 * 2.2;
+                let r_orbit = if is_fight { 24.0 + 5.0 * (t * 0.4).sin() } else { 18.0 };
+                let lead_pos = p + vec2(ang.cos() * r_orbit, ang.sin() * r_orbit * 0.58 - 22.0);
+                let dir = vec2(-ang.sin() * r_orbit, ang.cos() * r_orbit * 0.58).normalized();
+                let norm_v = vec2(-dir.y, dir.x);
+                let col = if side == me { Color32::from_rgb(64, 88, 56) } else { Color32::from_rgb(112, 52, 45) };
+                let shad_col = Color32::from_rgba_unmultiplied(15, 15, 15, 75);
+
+                // Звено из 2 самолетов в строю пеленга
+                for &(off_back, off_side) in &[(0.0f32, 0.0f32), (7.0, 5.5)] {
+                    let plane_p = lead_pos - dir * off_back + norm_v * off_side;
+                    let shad_p = plane_p + vec2(7.0, 14.0);
+                    for (base_pos, draw_col, w_thick) in [(shad_p, shad_col, 1.2), (plane_p, col, 1.6)] {
+                        painter.line_segment([base_pos - dir * 4.2, base_pos + dir * 4.2], Stroke::new(w_thick * 1.1, draw_col));
+                        painter.line_segment([base_pos - norm_v * 5.2, base_pos + norm_v * 5.2], Stroke::new(w_thick, draw_col));
+                        painter.line_segment([base_pos - dir * 3.5 - norm_v * 2.5, base_pos - dir * 3.5 + norm_v * 2.5], Stroke::new(w_thick * 0.8, draw_col));
+                    }
+                }
             }
         }
     }
